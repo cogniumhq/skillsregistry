@@ -1,0 +1,39 @@
+# deps
+node_modules/
+.pnpm-store/
+
+# build output
+dist/
+build/
+.turbo/
+*.tsbuildinfo
+
+# env + secrets
+.env
+.env.*
+!.env.example
+
+# runtime data
+data/
+artifacts/
+*.db
+*.sqlite
+
+# logs + coverage
+*.log
+coverage/
+.nyc_output/
+
+# OS + editors
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+
+# local wrangler / docker state
+.wrangler/
+docker-data/
+
+# changesets — versioning stays committed, but ignore the local temp state
+.changeset/*.tmp.md
