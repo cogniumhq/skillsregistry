@@ -12,10 +12,10 @@ Ordered roughly by dependency, not by priority. Phase-1 tasks (SDK extraction) m
 
 - ☑ **T-0.1** Create directory structure, LICENSE (Apache-2.0), NOTICE, .gitignore, README stub, CLAUDE.md
 - ☑ **T-0.2** Write `.specifica/principles.md`, `spec.md`, `design.md`, `tasks.md`
-- ☐ **T-0.3** Add `package.json` (workspace root), `pnpm-workspace.yaml`, `tsconfig.base.json`
-- ☐ **T-0.4** Add `.changeset/config.json` with `access: "public"` for `@skillsregistry/*`
-- ☐ **T-0.5** Add CI workflows: `.github/workflows/ci.yml`, `publish-sdk.yml`, `publish-app.yml`
-- ☐ **T-0.6** Add `CONTRIBUTING.md` (CLA link + PR template), `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1), `SECURITY.md` (security@cognium.net + 90-day embargo)
+- ☑ **T-0.3** Add `package.json` (workspace root), `pnpm-workspace.yaml`, `tsconfig.base.json`
+- ☑ **T-0.4** Add `.changeset/config.json` with `access: "public"` for `@skillsregistry/*`
+- ☑ **T-0.5** Add CI workflows: `.github/workflows/ci.yml`, `publish-sdk.yml`, `publish-app.yml`
+- ☑ **T-0.6** Add `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1), `SECURITY.md` (security@cognium.net + 90-day embargo)
 - ☐ **T-0.7** Configure branch protection on `main` (require CI green, require review) — repo-admin task, not code
 - ☐ **T-0.8** Create npm org / scope registration for `@skillsregistry/*` — publish permissions
 
@@ -23,7 +23,7 @@ Ordered roughly by dependency, not by priority. Phase-1 tasks (SDK extraction) m
 
 Each extraction lands in this repo, publishes `1.0.0` to npm, then the mothership repo consumes it in a follow-up PR (tracked in mothership's own `tasks.md`, not here). Mothership eval must pass after each step.
 
-- ☐ **T-1.1** Extract `@skillsregistry/schema` — move `src/db/schema.ts` + `drizzle/migrations/*.sql` from mothership into `packages/schema/`. Add migration runner. Add `SCHEMA_VERSION` constant. Publish `1.0.0`.
+- ☑ **T-1.1** Extract `@skillsregistry/schema` — moved `src/db/schema.ts` + all 32 `src/db/migrations/*.sql` from mothership into `packages/schema/`. Added runtime-agnostic migration runner (`runMigrations`, `assertSchemaAtLeast`, `loadBundledMigrations`) plus `SCHEMA_VERSION = 32` constant. Build + typecheck pass. Changeset queued for `1.0.0` npm publish.
 - ☐ **T-1.2** Extract `@skillsregistry/contracts` — move `src/schemas/*.ts` (Zod schemas for API + MCP). Add upstream API contract types (`TrustScoreRequest`, `TrustScoreResponse`, `BudgetResponse`, `PublishRequest`, `PublishResponse`, error taxonomy). Publish `1.0.0`.
 - ☐ **T-1.3** Move `@skillsregistry/dag` from `mothership/packages/dag/` into `packages/dag/` here. Publish `1.0.0`. Closes mothership pending workstream #4 (SDK publishing decision).
 - ☐ **T-1.4** Extract `@skillsregistry/domain` — move `src/providers/*`, `src/intelligence/*`, `src/composition/*`, `src/resilience/*`, `src/cognium/scoring-policy.ts` (pure transform only — Circle-IR client stays in mothership). Define adapter interfaces (`KvAdapter`, `QueueAdapter`, `ArtifactAdapter`, `EmbedderAdapter`, `AfterResponse`). Refactor away every `env.*` / `ctx.executionCtx` reference to go through an adapter. Publish `1.0.0`.

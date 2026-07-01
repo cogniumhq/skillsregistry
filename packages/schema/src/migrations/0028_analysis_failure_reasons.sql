@@ -1,0 +1,30 @@
+-- 0028_analysis_failure_reasons.sql
+-- L3 (workstream #7) second pass: track Circle-IR analysis-job failures.
+--
+-- Background: `src/cognium/analysis-poll-consumer.ts` had four code paths that
+-- silently acked failed analysis polls without recording anything in the DB:
+--   1. 4xx status-check responses (unrecoverable client error)
+--   2. Circle reports job.status='failed' or 'cancelled'
+--   3. max poll attempts reached (Circle never completes the job)
+--   4. job completed but the results fetch returns non-2xx
+--
+-- Result: a skill could have its analyses silently abandoned with no audit
+-- trail. Operators could not tell "Circle gave up" from "we never polled."
+--
+-- Fix: one JSONB column keyed by endpoint name (quality / trust / understand /
+-- spec-diff). The handler merges per-endpoint failure records so a quality
+-- failure does not blow away a trust failure on the same skill.
+--
+-- Shape (informal):
+--   {
+--     "quality":   { "reason": "status_4xx", "code": 404, "at": "..." },
+--     "trust":     { "reason": "job_failed", "at": "..." },
+--     "understand":{ "reason": "max_attempts_exceeded", "attempt": 12, "at": "..." },
+--     "spec-diff": { "reason": "results_fetch_failed", "code": 502, "at": "..." }
+--   }
+--
+-- The column is nullable. A successful re-analysis is expected to overwrite
+-- the per-endpoint key (handled by `applyAnalysisResults`); we do NOT clear
+-- it here at the schema level.
+
+ALTER TABLE skills ADD COLUMN IF NOT EXISTS analysis_failure_reasons JSONB;
