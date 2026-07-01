@@ -1,0 +1,61 @@
+{
+  "name": "@skillsregistry/dag",
+  "version": "1.0.0",
+  "description": "Portable workflow DAG schema, validation, and interpreter for SkillsRegistry",
+  "license": "Apache-2.0",
+  "author": "Cognium Labs",
+  "homepage": "https://github.com/cogniumhq/skillsregistry-local/tree/main/packages/dag",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cogniumhq/skillsregistry-local.git",
+    "directory": "packages/dag"
+  },
+  "bugs": "https://github.com/cogniumhq/skillsregistry-local/issues",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "clean": "rm -rf dist .tsbuildinfo"
+  },
+  "dependencies": {
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsup": "^8.3.5",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "skillsregistry",
+    "cognium",
+    "dag",
+    "workflow",
+    "pipeline",
+    "orchestration"
+  ]
+}
