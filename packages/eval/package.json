@@ -1,0 +1,77 @@
+{
+  "name": "@skillsregistry/eval",
+  "version": "0.1.0",
+  "description": "SkillsRegistry search eval suite — fixtures, Recall@1 / Recall@5 / MRR metrics, and a CLI runner for measuring search quality against any /v1/search endpoint.",
+  "license": "Apache-2.0",
+  "author": "Cognium Labs",
+  "homepage": "https://github.com/cogniumhq/skillsregistry-local/tree/main/packages/eval",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cogniumhq/skillsregistry-local.git",
+    "directory": "packages/eval"
+  },
+  "bugs": "https://github.com/cogniumhq/skillsregistry-local/issues",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./fixtures": {
+      "types": "./dist/fixtures.d.ts",
+      "import": "./dist/fixtures.js"
+    },
+    "./metrics": {
+      "types": "./dist/metrics.d.ts",
+      "import": "./dist/metrics.js"
+    },
+    "./runner": {
+      "types": "./dist/runner.d.ts",
+      "import": "./dist/runner.js"
+    },
+    "./cli": {
+      "types": "./dist/cli.d.ts",
+      "import": "./dist/cli.js"
+    }
+  },
+  "bin": {
+    "skillsregistry-eval": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "clean": "rm -rf dist .tsbuildinfo"
+  },
+  "dependencies": {
+    "@skillsregistry/domain": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "skillsregistry",
+    "cognium",
+    "eval",
+    "search",
+    "recall",
+    "mrr",
+    "benchmark"
+  ]
+}
