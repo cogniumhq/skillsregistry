@@ -335,31 +335,92 @@ describe('createApp route surface', () => {
       expect(res.status).toBe(401);
     });
 
-    it('serves /v1/admin/budget as a 501 stub with a valid token', async () => {
-      const app = createApp(buildConfig(), fakePool(), NULL_SERVICES);
+    it('serves /v1/admin/budget through the wired T-2.12 handler', async () => {
+      // Air-gap posture — BudgetMeter.getCached() returns null; the handler
+      // still returns 200 with `mode: 'air_gapped'` so operators can tell a
+      // cold cache from air-gap. Confirms the handler is wired end-to-end
+      // (not the 501 stub) and threads through the meter.
+      const services = {
+        budgetMeter: { getCached: async () => null },
+        upstream: { isAirGapped: true },
+      } as unknown as AppServices;
+      const app = createApp(buildConfig(), fakePool(), services);
       const res = await app.request('/v1/admin/budget', {
         headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
       });
-      expect(res.status).toBe(501);
-      const body = (await res.json()) as { error: { task: string } };
-      expect(body.error.task).toBe('T-2.12');
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        budget: unknown;
+        mode: string;
+      };
+      expect(body.budget).toBeNull();
+      expect(body.mode).toBe('air_gapped');
     });
 
-    it('serves POST /v1/admin/budget/refresh as a 501 stub', async () => {
-      const app = createApp(buildConfig(), fakePool(), NULL_SERVICES);
+    it('serves POST /v1/admin/budget/refresh through the wired T-2.12 handler', async () => {
+      // Air-gap posture — the handler short-circuits with 503 without
+      // touching the meter. Confirms the wire-up (not the 501 stub).
+      const services = {
+        budgetMeter: {
+          refresh: async () => {
+            throw new Error('should not be called in air-gap');
+          },
+        },
+        upstream: { isAirGapped: true },
+      } as unknown as AppServices;
+      const app = createApp(buildConfig(), fakePool(), services);
       const res = await app.request('/v1/admin/budget/refresh', {
         method: 'POST',
         headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
       });
-      expect(res.status).toBe(501);
+      expect(res.status).toBe(503);
+      const body = (await res.json()) as { error: { code: string } };
+      expect(body.error.code).toBe('upstream_not_configured');
     });
 
-    it('serves GET /v1/admin/health as a 501 stub', async () => {
-      const app = createApp(buildConfig(), fakePool(), NULL_SERVICES);
+    it('serves GET /v1/admin/health through the wired T-2.12 handler', async () => {
+      // All probes should return `ok` when DB, embedder are reachable and
+      // migrations are at HEAD. Air-gap → mothership.status = 'unknown'
+      // but does not gate aggregate `ok`.
+      const { SCHEMA_VERSION } = await import('@skillsregistry/schema');
+      const pool = {
+        query: async (sql: string) => {
+          if (sql.includes('schema_migrations')) {
+            return { rows: [{ v: SCHEMA_VERSION }] };
+          }
+          return { rows: [{ '?column?': 1 }] };
+        },
+      } as unknown as Pool;
+      const services = {
+        embedder: {
+          embed: async () => new Float32Array(4),
+          identity: { id: 'test-embedder@ollama-4', dim: 4 },
+        },
+        upstream: { isAirGapped: true, circuitState: 'closed' },
+      } as unknown as AppServices;
+      const app = createApp(buildConfig(), pool, services);
       const res = await app.request('/v1/admin/health', {
         headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
       });
-      expect(res.status).toBe(501);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        status: string;
+        checks: {
+          db: { status: string };
+          embedder: { status: string; identity: string };
+          mothership: { status: string; mode: string };
+          migrations: { status: string; current: number; required: number };
+        };
+      };
+      expect(body.status).toBe('ok');
+      expect(body.checks.db.status).toBe('ok');
+      expect(body.checks.embedder.status).toBe('ok');
+      expect(body.checks.embedder.identity).toBe('test-embedder@ollama-4');
+      expect(body.checks.mothership.status).toBe('unknown');
+      expect(body.checks.mothership.mode).toBe('air_gapped');
+      expect(body.checks.migrations.status).toBe('ok');
+      expect(body.checks.migrations.current).toBe(SCHEMA_VERSION);
+      expect(body.checks.migrations.required).toBe(SCHEMA_VERSION);
     });
 
     it('serves POST /v1/migrate/publish through the wired T-2.10 handler', async () => {

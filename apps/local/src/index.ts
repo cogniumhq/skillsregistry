@@ -70,7 +70,7 @@ export function createApp(
 
   // Public + admin share the /v1 prefix. Admin mounts first so its more
   // specific paths (/v1/admin/*, /v1/migrate/*) win over any collisions.
-  app.route('/v1', createAdminRoutes(services, config.admin.token));
+  app.route('/v1', createAdminRoutes(services, config.admin.token, pool));
   app.route('/v1', createPublicRoutes(services));
 
   // MCP mounts at root — its paths (/mcp, /mcp.json, /.well-known/mcp.json)
