@@ -39,6 +39,10 @@
       "types": "./dist/scoring/index.d.ts",
       "import": "./dist/scoring/index.js"
     },
+    "./composition": {
+      "types": "./dist/composition/index.d.ts",
+      "import": "./dist/composition/index.js"
+    },
     "./types": {
       "types": "./dist/types.d.ts",
       "import": "./dist/types.js"
@@ -58,7 +62,9 @@
   },
   "dependencies": {
     "@skillsregistry/contracts": "workspace:*",
-    "@skillsregistry/schema": "workspace:*"
+    "@skillsregistry/schema": "workspace:*",
+    "nanoid": "^5.1.6",
+    "zod": "^3.23.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
