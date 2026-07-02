@@ -17,12 +17,26 @@ function buildConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     },
     admin: { token: ADMIN_TOKEN },
     artifact: { baseDir: '/tmp/artifacts' },
+    budget: { refreshCron: '0 3 * * *', ttlSeconds: 93600 },
     embedder: {
       kind: 'ollama',
       url: 'http://localhost:11434',
       model: 'nomic-embed-text',
     },
     upstream: null,
+    search: {
+      fusionMode: 'linear',
+      tier1Threshold: undefined,
+      tier2Threshold: undefined,
+      deepSearchEnabled: false,
+      rerankerEnabled: false,
+      defaultAppetite: 'balanced',
+      circuitBreakerThreshold: 3,
+      circuitBreakerCooldownMs: 30000,
+      cacheTtlTier1: 3600,
+      cacheTtlTier2: 1800,
+      cacheTtlTier3: 600,
+    },
     log: { level: 'info' },
     ...overrides,
   };
@@ -94,15 +108,55 @@ describe('createApp route surface', () => {
   });
 
   describe('public routes (T-2.11)', () => {
-    it('mounts GET /v1/search as a 501 stub', async () => {
-      const app = createApp(buildConfig(), fakePool(), NULL_SERVICES);
+    it('serves GET /v1/search through the wired T-2.11c handler', async () => {
+      const services = {
+        searchService: {
+          search: async () => ({
+            skills: [
+              {
+                id: 'skill-1',
+                name: 'demo',
+                slug: 'demo',
+                description: 'a demo skill',
+                score: 0.9,
+                source: 'local',
+                category: null,
+                publisherKeyId: null,
+                signatureVerifiedAt: null,
+                signatureFailureReason: null,
+              },
+            ],
+            meta: {
+              tier: 1,
+              confidence: 0.9,
+              signals: [],
+              latencyMs: 12,
+              source: 'local',
+              cached: false,
+              deepSearchUsed: false,
+            },
+          }),
+        },
+      } as unknown as AppServices;
+      const app = createApp(buildConfig(), fakePool(), services);
       const res = await app.request('/v1/search?q=hello');
-      expect(res.status).toBe(501);
+      expect(res.status).toBe(200);
       const body = (await res.json()) as {
-        error: { code: string; task: string };
+        skills: Array<{ slug: string; score: number }>;
+        meta: { tier: number; source: string };
       };
-      expect(body.error.code).toBe('not_implemented');
-      expect(body.error.task).toBe('T-2.11c');
+      expect(body.skills).toHaveLength(1);
+      expect(body.skills[0]!.slug).toBe('demo');
+      expect(body.meta.tier).toBe(1);
+      expect(body.meta.source).toBe('local');
+    });
+
+    it('rejects GET /v1/search with missing q as 400', async () => {
+      const app = createApp(buildConfig(), fakePool(), NULL_SERVICES);
+      const res = await app.request('/v1/search');
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as { error: { code: string } };
+      expect(body.error.code).toBe('bad_request');
     });
 
     it('serves GET /v1/skills/:id through the wired T-2.11b handler', async () => {

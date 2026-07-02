@@ -9,16 +9,14 @@
 //
 // Handler surface (per T-2.11):
 //
-//   GET  /v1/search             — local pgvector search + confidence gate
-//                                  (+ optional upstream fallback)          (T-2.11c)
-//   GET  /v1/skills/:id         — local-first; upstream write-through cache (T-2.11b)
-//   POST /v1/skills             — publish a local single-tenant skill      (T-2.11b)
+//   GET  /v1/search             — local pgvector search + confidence gate (T-2.11c — wired)
+//   GET  /v1/skills/:id         — local-first; upstream write-through cache (T-2.11b — wired)
+//   POST /v1/skills             — publish a local single-tenant skill      (T-2.11b — wired)
 //   GET  /v1/leaderboards/:kind — proxy to mothership (always upstream)    (T-2.11a — wired)
 //   POST /v1/trust/score        — trigger scoring via mothership           (T-2.11a — wired)
 //
-// The two thin proxies (trust/score + leaderboards) are wired here as
-// T-2.11a; the fatter handlers (search + skills read/publish) still ship as
-// 501 stubs pointing at T-2.11b / T-2.11c.
+// All five handlers are wired. See per-handler comments below for the
+// module each one delegates to.
 //
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -28,9 +26,19 @@ import {
   TrustScoreRequestSchema,
 } from '@skillsregistry/contracts';
 import { upstreamErrorToResponse } from '../http/upstream-response.js';
-import { tenantContext } from '../middleware/index.js';
+import { getTenantId, tenantContext } from '../middleware/index.js';
+import type { SearchOptions } from '../search/index.js';
 import type { AppServices } from '../services.js';
 import { UpstreamError } from '../upstream-client/errors.js';
+
+type AppetiteQuery = NonNullable<SearchOptions['appetite']>;
+const APPETITE_VALUES: readonly AppetiteQuery[] = [
+  'strict',
+  'cautious',
+  'balanced',
+  'adventurous',
+];
+const VISIBILITY_VALUES = ['public', 'private', 'unlisted'] as const;
 
 /**
  * Build the public sub-app. `services` is captured in handler closures.
@@ -39,18 +47,127 @@ export function createPublicRoutes(services: AppServices): Hono {
   const app = new Hono();
   app.use('*', tenantContext);
 
-  app.get('/search', (c) =>
-    c.json(
-      {
-        error: {
-          code: 'not_implemented',
-          message: 'GET /v1/search handler lands in T-2.11c',
-          task: 'T-2.11c',
+  // T-2.11c: local-first search. `SearchService.search(query, opts)` runs
+  // the `ConfidenceGate` (PgVectorProvider + optional deep-search + optional
+  // reranker) and projects the domain `FindSkillResponse` onto the
+  // `SearchResponseSchema` wire contract. MVP is local-only — the
+  // mothership has no `/v1/search` contract in
+  // `@skillsregistry/contracts/upstream.ts`, so there is no upstream
+  // fallback path here. Deep search + reranker default to disabled
+  // (see `SEARCH_DEEP_ENABLED` / `SEARCH_RERANKER_ENABLED` in
+  // `config.ts`); the stub backends satisfy the type contract but
+  // throw at call time if the operator flips the flags without
+  // wiring a real backend.
+  app.get('/search', async (c) => {
+    const query = c.req.query('q');
+    if (query === undefined || query.trim() === '') {
+      return c.json(
+        {
+          error: {
+            code: 'bad_request' as const,
+            message: 'query parameter `q` is required and must be non-empty',
+          },
         },
-      },
-      501,
-    ),
-  );
+        400,
+      );
+    }
+
+    const opts: SearchOptions = {
+      tenantId: getTenantId(c) ?? 'local',
+    };
+
+    const limitRaw = c.req.query('limit');
+    if (limitRaw !== undefined) {
+      const parsed = Number(limitRaw);
+      if (
+        !Number.isFinite(parsed) ||
+        !Number.isInteger(parsed) ||
+        parsed <= 0 ||
+        parsed > 50
+      ) {
+        return c.json(
+          {
+            error: {
+              code: 'bad_request' as const,
+              message: 'limit must be an integer between 1 and 50',
+            },
+          },
+          400,
+        );
+      }
+      opts.limit = parsed;
+    }
+
+    const appetiteRaw = c.req.query('appetite');
+    if (appetiteRaw !== undefined && appetiteRaw !== '') {
+      if (!(APPETITE_VALUES as readonly string[]).includes(appetiteRaw)) {
+        return c.json(
+          {
+            error: {
+              code: 'bad_request' as const,
+              message: `appetite must be one of ${APPETITE_VALUES.join('|')}`,
+            },
+          },
+          400,
+        );
+      }
+      opts.appetite = appetiteRaw as AppetiteQuery;
+    }
+
+    const tagsRaw = c.req.query('tags');
+    if (tagsRaw !== undefined && tagsRaw !== '') {
+      opts.tags = tagsRaw.split(',').map((s) => s.trim()).filter((s) => s !== '');
+    }
+
+    const category = c.req.query('category');
+    if (category !== undefined && category !== '') opts.category = category;
+
+    const runtimeEnvRaw = c.req.query('runtime_env');
+    if (runtimeEnvRaw !== undefined && runtimeEnvRaw !== '') {
+      opts.runtimeEnv = runtimeEnvRaw
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => s !== '');
+    }
+
+    const visibilityRaw = c.req.query('visibility');
+    if (visibilityRaw !== undefined && visibilityRaw !== '') {
+      if (!(VISIBILITY_VALUES as readonly string[]).includes(visibilityRaw)) {
+        return c.json(
+          {
+            error: {
+              code: 'bad_request' as const,
+              message: `visibility must be one of ${VISIBILITY_VALUES.join('|')}`,
+            },
+          },
+          400,
+        );
+      }
+      opts.visibility = visibilityRaw as (typeof VISIBILITY_VALUES)[number];
+    }
+
+    const portableRaw = c.req.query('portable');
+    if (portableRaw !== undefined && portableRaw !== '') {
+      if (portableRaw === 'true' || portableRaw === '1') {
+        opts.portable = true;
+      } else if (portableRaw === 'false' || portableRaw === '0') {
+        opts.portable = false;
+      } else {
+        return c.json(
+          {
+            error: {
+              code: 'bad_request' as const,
+              message: 'portable must be true|false|1|0',
+            },
+          },
+          400,
+        );
+      }
+    }
+
+    const response = await services.searchService.search(query, opts);
+    return c.json(response, 200);
+  });
 
   // T-2.11b: local-first skill read. `SkillsClient.getSkill(id)` resolves
   // by (id | slug | mothership_skill_id) against the local `skills` table;

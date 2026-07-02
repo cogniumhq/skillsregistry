@@ -87,6 +87,66 @@ export interface UpstreamConfig {
   searchFallback: boolean;
 }
 
+export interface SearchConfig {
+  /**
+   * Fusion mode passed to `PgVectorProvider` + `ConfidenceGate`. `linear`
+   * blends normalized vector + full-text scores on a ~0..1 scale (mothership
+   * default). `rrf` uses reciprocal-rank fusion on a ~0..0.033 scale.
+   * Both classifiers must agree on mode.
+   */
+  fusionMode: 'linear' | 'rrf';
+  /**
+   * Tier-1 (HIGH confidence) score threshold. Defaults are mode-aware —
+   * `linear` = 0.62, `rrf` = 0.03 — matching the mothership calibration
+   * against a 91-fixture eval on production data.
+   */
+  tier1Threshold: number | undefined;
+  /**
+   * Tier-2 (MEDIUM confidence) threshold. Defaults `linear` = 0.58,
+   * `rrf` = 0.018. See §10 A4 in the SkillsRegistry spec.
+   */
+  tier2Threshold: number | undefined;
+  /**
+   * When true, `ConfidenceGate` fires `DeepSearch` (LLM query-expansion +
+   * composition detection) on tier-3 misses. MVP default `false` — the
+   * local node ships without a wired LlmAdapter (see StubLlmAdapter).
+   */
+  deepSearchEnabled: boolean;
+  /**
+   * When true, `ConfidenceGate` reranks the top-N with the cross-encoder
+   * backend after provider search. MVP default `false` — the local node
+   * ships without a wired RerankerBackend (see StubRerankerBackend).
+   */
+  rerankerEnabled: boolean;
+  /**
+   * Default risk-appetite when the caller omits `?appetite=` on
+   * `GET /v1/search`. Mothership default `balanced` (trust ≥ 0.5).
+   */
+  defaultAppetite: 'strict' | 'cautious' | 'balanced' | 'adventurous';
+  /**
+   * Circuit-breaker consecutive-failure threshold applied to LLM +
+   * reranker calls. Mothership default 3.
+   */
+  circuitBreakerThreshold: number;
+  /**
+   * Circuit-breaker cooldown (ms) between reopen attempts. Mothership
+   * default 30_000.
+   */
+  circuitBreakerCooldownMs: number;
+  /**
+   * TTL (seconds) applied to tier-1 search cache entries. Long — hot,
+   * cheap-to-recompute path. Default 3600.
+   */
+  cacheTtlTier1: number;
+  /** TTL (seconds) applied to tier-2 cache entries. Default 1800. */
+  cacheTtlTier2: number;
+  /**
+   * TTL (seconds) applied to tier-3 cache entries. Short — expensive but
+   * most likely to become stale. Default 600.
+   */
+  cacheTtlTier3: number;
+}
+
 export interface LogConfig {
   /** Log verbosity. Default `info`. */
   level: LogLevel;
@@ -102,6 +162,7 @@ export interface AppConfig {
   embedder: EmbedderConfig;
   /** null when no mothership is configured (air-gap mode). */
   upstream: UpstreamConfig | null;
+  search: SearchConfig;
   log: LogConfig;
 }
 
@@ -125,6 +186,17 @@ const ENV = {
   MOTHERSHIP_API_KEY: 'MOTHERSHIP_API_KEY',
   TENANT_ID: 'TENANT_ID',
   UPSTREAM_SEARCH_FALLBACK: 'UPSTREAM_SEARCH_FALLBACK',
+  SEARCH_FUSION_MODE: 'SEARCH_FUSION_MODE',
+  SEARCH_TIER1_THRESHOLD: 'SEARCH_TIER1_THRESHOLD',
+  SEARCH_TIER2_THRESHOLD: 'SEARCH_TIER2_THRESHOLD',
+  SEARCH_DEEP_ENABLED: 'SEARCH_DEEP_ENABLED',
+  SEARCH_RERANKER_ENABLED: 'SEARCH_RERANKER_ENABLED',
+  SEARCH_DEFAULT_APPETITE: 'SEARCH_DEFAULT_APPETITE',
+  SEARCH_CIRCUIT_BREAKER_THRESHOLD: 'SEARCH_CIRCUIT_BREAKER_THRESHOLD',
+  SEARCH_CIRCUIT_BREAKER_COOLDOWN_MS: 'SEARCH_CIRCUIT_BREAKER_COOLDOWN_MS',
+  SEARCH_CACHE_TTL_TIER1: 'SEARCH_CACHE_TTL_TIER1',
+  SEARCH_CACHE_TTL_TIER2: 'SEARCH_CACHE_TTL_TIER2',
+  SEARCH_CACHE_TTL_TIER3: 'SEARCH_CACHE_TTL_TIER3',
   LOG_LEVEL: 'LOG_LEVEL',
 } as const;
 
@@ -247,6 +319,129 @@ function parseEmbedder(env: EnvSource, issues: Issues): EmbedderConfig {
   return { kind: 'ollama', url: 'http://localhost:11434', model: 'nomic-embed-text' };
 }
 
+function parseFloatMin(
+  name: string,
+  raw: string,
+  issues: Issues,
+  min = 0,
+  max = 1,
+): number {
+  const n = Number.parseFloat(raw);
+  if (!Number.isFinite(n) || n < min || n > max) {
+    issues.add(
+      name,
+      `must be a number between ${min} and ${max} (got "${raw}")`,
+    );
+    return min;
+  }
+  return n;
+}
+
+function parseAppetite(
+  raw: string,
+  issues: Issues,
+): SearchConfig['defaultAppetite'] {
+  if (
+    raw === 'strict' ||
+    raw === 'cautious' ||
+    raw === 'balanced' ||
+    raw === 'adventurous'
+  ) {
+    return raw;
+  }
+  issues.add(
+    ENV.SEARCH_DEFAULT_APPETITE,
+    `must be strict|cautious|balanced|adventurous (got "${raw}")`,
+  );
+  return 'balanced';
+}
+
+function parseSearch(env: EnvSource, issues: Issues): SearchConfig {
+  const fusionRaw = optional(env, ENV.SEARCH_FUSION_MODE, 'linear');
+  let fusionMode: SearchConfig['fusionMode'];
+  if (fusionRaw === 'linear' || fusionRaw === 'rrf') {
+    fusionMode = fusionRaw;
+  } else {
+    issues.add(
+      ENV.SEARCH_FUSION_MODE,
+      `must be linear|rrf (got "${fusionRaw}")`,
+    );
+    fusionMode = 'linear';
+  }
+
+  const t1Raw = env[ENV.SEARCH_TIER1_THRESHOLD]?.trim();
+  const t2Raw = env[ENV.SEARCH_TIER2_THRESHOLD]?.trim();
+  const tier1Threshold =
+    t1Raw === undefined || t1Raw === ''
+      ? undefined
+      : parseFloatMin(ENV.SEARCH_TIER1_THRESHOLD, t1Raw, issues);
+  const tier2Threshold =
+    t2Raw === undefined || t2Raw === ''
+      ? undefined
+      : parseFloatMin(ENV.SEARCH_TIER2_THRESHOLD, t2Raw, issues);
+
+  const deepSearchEnabled = parseBool(
+    ENV.SEARCH_DEEP_ENABLED,
+    optional(env, ENV.SEARCH_DEEP_ENABLED, 'false'),
+    issues,
+  );
+  const rerankerEnabled = parseBool(
+    ENV.SEARCH_RERANKER_ENABLED,
+    optional(env, ENV.SEARCH_RERANKER_ENABLED, 'false'),
+    issues,
+  );
+
+  const defaultAppetite = parseAppetite(
+    optional(env, ENV.SEARCH_DEFAULT_APPETITE, 'balanced'),
+    issues,
+  );
+
+  const circuitBreakerThreshold = parseInt10(
+    ENV.SEARCH_CIRCUIT_BREAKER_THRESHOLD,
+    optional(env, ENV.SEARCH_CIRCUIT_BREAKER_THRESHOLD, '3'),
+    issues,
+  );
+  const circuitBreakerCooldownMs = parseInt10(
+    ENV.SEARCH_CIRCUIT_BREAKER_COOLDOWN_MS,
+    optional(env, ENV.SEARCH_CIRCUIT_BREAKER_COOLDOWN_MS, '30000'),
+    issues,
+    100,
+  );
+
+  const cacheTtlTier1 = parseInt10(
+    ENV.SEARCH_CACHE_TTL_TIER1,
+    optional(env, ENV.SEARCH_CACHE_TTL_TIER1, '3600'),
+    issues,
+    1,
+  );
+  const cacheTtlTier2 = parseInt10(
+    ENV.SEARCH_CACHE_TTL_TIER2,
+    optional(env, ENV.SEARCH_CACHE_TTL_TIER2, '1800'),
+    issues,
+    1,
+  );
+  const cacheTtlTier3 = parseInt10(
+    ENV.SEARCH_CACHE_TTL_TIER3,
+    optional(env, ENV.SEARCH_CACHE_TTL_TIER3, '600'),
+    issues,
+    1,
+  );
+
+  return {
+    fusionMode,
+    tier1Threshold,
+    tier2Threshold,
+    deepSearchEnabled,
+    rerankerEnabled,
+    defaultAppetite,
+    circuitBreakerThreshold,
+    circuitBreakerCooldownMs,
+    cacheTtlTier1,
+    cacheTtlTier2,
+    cacheTtlTier3,
+  };
+}
+
 function parseUpstream(env: EnvSource, issues: Issues): UpstreamConfig | null {
   const baseUrl = env[ENV.MOTHERSHIP_URL]?.trim();
   const apiKey = env[ENV.MOTHERSHIP_API_KEY]?.trim();
@@ -313,6 +508,7 @@ export function loadConfig(env: EnvSource = process.env): AppConfig {
   const budget = parseBudget(env, issues);
   const embedder = parseEmbedder(env, issues);
   const upstream = parseUpstream(env, issues);
+  const search = parseSearch(env, issues);
 
   const log: LogConfig = {
     level: parseLogLevel(optional(env, ENV.LOG_LEVEL, 'info'), issues),
@@ -329,6 +525,7 @@ export function loadConfig(env: EnvSource = process.env): AppConfig {
     budget,
     embedder,
     upstream,
+    search,
     log,
   };
 }

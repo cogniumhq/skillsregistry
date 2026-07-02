@@ -27,12 +27,26 @@ function buildConfig(): AppConfig {
     },
     admin: { token: 'test-admin-token' },
     artifact: { baseDir: '/tmp/artifacts' },
+    budget: { refreshCron: '0 3 * * *', ttlSeconds: 93600 },
     embedder: {
       kind: 'ollama',
       url: 'http://localhost:11434',
       model: 'nomic-embed-text',
     },
     upstream: null,
+    search: {
+      fusionMode: 'linear',
+      tier1Threshold: undefined,
+      tier2Threshold: undefined,
+      deepSearchEnabled: false,
+      rerankerEnabled: false,
+      defaultAppetite: 'balanced',
+      circuitBreakerThreshold: 3,
+      circuitBreakerCooldownMs: 30000,
+      cacheTtlTier1: 3600,
+      cacheTtlTier2: 1800,
+      cacheTtlTier3: 600,
+    },
     log: { level: 'info' },
   };
 }
@@ -588,5 +602,232 @@ describe('POST /v1/skills (T-2.11b)', () => {
       body: JSON.stringify(validRequest),
     });
     expect(res.status).toBe(503);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GET /v1/search (T-2.11c)
+// ══════════════════════════════════════════════════════════════════════════════
+//
+// The handler is a thin adapter over `SearchService.search(query, opts)`.
+// These tests cover the query-parameter validation surface + the delegation
+// contract. The `SearchService` -> `ConfidenceGate` path is exercised in
+// `search-service.test.ts` and in the domain package.
+// ══════════════════════════════════════════════════════════════════════════════
+
+function makeWireResponse() {
+  return {
+    skills: [
+      {
+        id: 'skill-1',
+        name: 'demo',
+        slug: 'demo',
+        version: '1.0.0',
+        description: 'a demo skill',
+        trustScore: 0.8,
+        verificationTier: 'B' as const,
+        trustBadge: null,
+        status: 'published' as const,
+        executionLayer: 'sandboxed' as const,
+        capabilitiesRequired: [],
+        skillType: 'canonical' as const,
+        runtimeEnv: 'api' as const,
+        visibility: 'public' as const,
+        runCount: 0,
+        score: 0.9,
+        matchSource: 'vector' as const,
+        shareUrl: 'https://example.com/demo',
+        publisherKeyId: null,
+        signatureVerifiedAt: null,
+        signatureFailureReason: null,
+        source: 'local' as const,
+        category: null,
+      },
+    ],
+    meta: {
+      tier: 1 as const,
+      confidence: 0.9,
+      signals: [],
+      latencyMs: 42,
+      source: 'local' as const,
+      cached: false,
+      deepSearchUsed: false,
+    },
+  };
+}
+
+describe('GET /v1/search (T-2.11c)', () => {
+  it('delegates to SearchService.search with q + tenantId defaulted to `local`', async () => {
+    const search = vi.fn().mockResolvedValue(makeWireResponse());
+    const services = { searchService: { search } } as unknown as AppServices;
+
+    const app = createApp(buildConfig(), fakePool(), services);
+    const res = await app.request('/v1/search?q=hello');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      skills: Array<{ slug: string }>;
+      meta: { source: string; tier: number };
+    };
+    expect(body.skills[0]!.slug).toBe('demo');
+    expect(body.meta.source).toBe('local');
+
+    expect(search).toHaveBeenCalledTimes(1);
+    const [q, opts] = search.mock.calls[0]!;
+    expect(q).toBe('hello');
+    expect(opts).toMatchObject({ tenantId: 'local' });
+  });
+
+  it('threads X-Tenant-Id through to SearchService.search', async () => {
+    const search = vi.fn().mockResolvedValue(makeWireResponse());
+    const services = { searchService: { search } } as unknown as AppServices;
+
+    const app = createApp(buildConfig(), fakePool(), services);
+    const res = await app.request('/v1/search?q=hi', {
+      headers: { 'X-Tenant-Id': 'tenant-42' },
+    });
+    expect(res.status).toBe(200);
+    expect(search.mock.calls[0]![1]).toMatchObject({ tenantId: 'tenant-42' });
+  });
+
+  it('parses ?limit into an integer + forwards it', async () => {
+    const search = vi.fn().mockResolvedValue(makeWireResponse());
+    const services = { searchService: { search } } as unknown as AppServices;
+    const app = createApp(buildConfig(), fakePool(), services);
+    await app.request('/v1/search?q=hi&limit=25');
+    expect(search.mock.calls[0]![1]).toMatchObject({ limit: 25 });
+  });
+
+  it('parses ?appetite=strict|cautious|balanced|adventurous', async () => {
+    const search = vi.fn().mockResolvedValue(makeWireResponse());
+    const services = { searchService: { search } } as unknown as AppServices;
+    const app = createApp(buildConfig(), fakePool(), services);
+    await app.request('/v1/search?q=hi&appetite=strict');
+    expect(search.mock.calls[0]![1]).toMatchObject({ appetite: 'strict' });
+  });
+
+  it('parses ?tags into a comma-separated string[]', async () => {
+    const search = vi.fn().mockResolvedValue(makeWireResponse());
+    const services = { searchService: { search } } as unknown as AppServices;
+    const app = createApp(buildConfig(), fakePool(), services);
+    await app.request('/v1/search?q=hi&tags=ai,ml,%20nlp%20');
+    expect(search.mock.calls[0]![1]).toMatchObject({
+      tags: ['ai', 'ml', 'nlp'],
+    });
+  });
+
+  it('parses ?runtime_env into a string[] and ?category as a scalar', async () => {
+    const search = vi.fn().mockResolvedValue(makeWireResponse());
+    const services = { searchService: { search } } as unknown as AppServices;
+    const app = createApp(buildConfig(), fakePool(), services);
+    await app.request('/v1/search?q=hi&runtime_env=api,vm&category=nlp');
+    expect(search.mock.calls[0]![1]).toMatchObject({
+      runtimeEnv: ['api', 'vm'],
+      category: 'nlp',
+    });
+  });
+
+  it('parses ?visibility=public|private|unlisted', async () => {
+    const search = vi.fn().mockResolvedValue(makeWireResponse());
+    const services = { searchService: { search } } as unknown as AppServices;
+    const app = createApp(buildConfig(), fakePool(), services);
+    await app.request('/v1/search?q=hi&visibility=private');
+    expect(search.mock.calls[0]![1]).toMatchObject({ visibility: 'private' });
+  });
+
+  it('parses ?portable as boolean (true|false|1|0)', async () => {
+    const search = vi.fn().mockResolvedValue(makeWireResponse());
+    const services = { searchService: { search } } as unknown as AppServices;
+    const app = createApp(buildConfig(), fakePool(), services);
+
+    await app.request('/v1/search?q=hi&portable=true');
+    expect(search.mock.calls.at(-1)![1]).toMatchObject({ portable: true });
+
+    await app.request('/v1/search?q=hi&portable=0');
+    expect(search.mock.calls.at(-1)![1]).toMatchObject({ portable: false });
+  });
+
+  it('rejects missing q with 400 bad_request', async () => {
+    const search = vi.fn();
+    const services = { searchService: { search } } as unknown as AppServices;
+    const app = createApp(buildConfig(), fakePool(), services);
+    const res = await app.request('/v1/search');
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: { code: string } };
+    expect(body.error.code).toBe('bad_request');
+    expect(search).not.toHaveBeenCalled();
+  });
+
+  it('rejects empty (whitespace-only) q with 400', async () => {
+    const search = vi.fn();
+    const services = { searchService: { search } } as unknown as AppServices;
+    const app = createApp(buildConfig(), fakePool(), services);
+    const res = await app.request('/v1/search?q=%20%20');
+    expect(res.status).toBe(400);
+    expect(search).not.toHaveBeenCalled();
+  });
+
+  it('rejects non-integer limit with 400', async () => {
+    const search = vi.fn();
+    const services = { searchService: { search } } as unknown as AppServices;
+    const app = createApp(buildConfig(), fakePool(), services);
+    const res = await app.request('/v1/search?q=hi&limit=abc');
+    expect(res.status).toBe(400);
+    expect(search).not.toHaveBeenCalled();
+  });
+
+  it('rejects limit=0 and limit=51 with 400 (range 1..50)', async () => {
+    const search = vi.fn();
+    const services = { searchService: { search } } as unknown as AppServices;
+    const app = createApp(buildConfig(), fakePool(), services);
+
+    const zero = await app.request('/v1/search?q=hi&limit=0');
+    expect(zero.status).toBe(400);
+
+    const over = await app.request('/v1/search?q=hi&limit=51');
+    expect(over.status).toBe(400);
+
+    expect(search).not.toHaveBeenCalled();
+  });
+
+  it('rejects unknown appetite value with 400', async () => {
+    const search = vi.fn();
+    const services = { searchService: { search } } as unknown as AppServices;
+    const app = createApp(buildConfig(), fakePool(), services);
+    const res = await app.request('/v1/search?q=hi&appetite=reckless');
+    expect(res.status).toBe(400);
+    expect(search).not.toHaveBeenCalled();
+  });
+
+  it('rejects unknown visibility value with 400', async () => {
+    const search = vi.fn();
+    const services = { searchService: { search } } as unknown as AppServices;
+    const app = createApp(buildConfig(), fakePool(), services);
+    const res = await app.request('/v1/search?q=hi&visibility=secret');
+    expect(res.status).toBe(400);
+    expect(search).not.toHaveBeenCalled();
+  });
+
+  it('rejects unknown portable value with 400', async () => {
+    const search = vi.fn();
+    const services = { searchService: { search } } as unknown as AppServices;
+    const app = createApp(buildConfig(), fakePool(), services);
+    const res = await app.request('/v1/search?q=hi&portable=maybe');
+    expect(res.status).toBe(400);
+    expect(search).not.toHaveBeenCalled();
+  });
+
+  it('propagates unexpected errors from SearchService (e.g. embedder down)', async () => {
+    const services = {
+      searchService: {
+        search: async () => {
+          throw new Error('embedder down');
+        },
+      },
+    } as unknown as AppServices;
+    const app = createApp(buildConfig(), fakePool(), services);
+    // No dedicated mapper for non-UpstreamError; falls through to Hono's
+    // default 500 handler.
+    const res = await app.request('/v1/search?q=hi');
+    expect(res.status).toBe(500);
   });
 });

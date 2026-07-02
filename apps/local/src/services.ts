@@ -49,9 +49,24 @@ import {
   ensureKvStoreTable,
 } from './adapters/index.js';
 import type { EmbedderAdapter } from '@skillsregistry/domain/adapters';
+import {
+  CompositionDetector,
+  ConfidenceGate,
+  DeepSearch,
+  Reranker,
+} from '@skillsregistry/domain/intelligence';
+import { PgVectorProvider } from '@skillsregistry/domain/providers';
+import { CircuitBreaker } from '@skillsregistry/domain/resilience';
 import { BudgetMeter } from './budget/index.js';
 import type { AppConfig } from './config.js';
 import { PublishToMothershipClient } from './migration/index.js';
+import {
+  NoopSearchLogger,
+  PgSearchCache,
+  SearchService,
+  StubLlmAdapter,
+  StubRerankerBackend,
+} from './search/index.js';
 import { SkillsClient } from './skills/index.js';
 import { TrustClient } from './trust-client.js';
 import { UpstreamClient } from './upstream-client/index.js';
@@ -106,6 +121,16 @@ export interface AppServices {
    * this. Air-gap: local misses surface as 404, not 503.
    */
   skillsClient: SkillsClient;
+  /**
+   * T-2.11c public `GET /v1/search` handler. Thin wrapper around the
+   * domain `ConfidenceGate`, projecting `FindSkillResponse` into the
+   * contract-shaped `SearchResponseSchema`. Local-only in MVP: deep
+   * search + reranker default to disabled (stub LLM + reranker
+   * backends throw if the flags are flipped without wiring real
+   * backends). No upstream fallback — the mothership has no
+   * `/v1/search` contract in `@skillsregistry/contracts/upstream.ts`.
+   */
+  searchService: SearchService;
 }
 
 /**
@@ -189,6 +214,90 @@ export async function buildAppServices(
     pool,
   });
 
+  // 3m — search service. Wires PgVectorProvider + ConfidenceGate +
+  //      PgSearchCache + NoopSearchLogger + stub LLM/reranker backends.
+  //      MVP defaults: deepSearchEnabled=false, rerankerEnabled=false.
+  //      The stub backends satisfy the ConfidenceGateOptions type contract
+  //      but throw at call time — the flags gate the actual invocations.
+  //      No upstream fallback in MVP (mothership has no /v1/search
+  //      contract yet); local misses return low-confidence responses with
+  //      whatever hits exist, or an empty result set.
+  const provider = new PgVectorProvider({
+    pool,
+    fusionMode: config.search.fusionMode,
+    tier1Threshold: config.search.tier1Threshold,
+    tier2Threshold: config.search.tier2Threshold,
+  });
+  const searchCache = new PgSearchCache({
+    kv,
+    ttlTier1: config.search.cacheTtlTier1,
+    ttlTier2: config.search.cacheTtlTier2,
+    ttlTier3: config.search.cacheTtlTier3,
+  });
+  const searchLogger = new NoopSearchLogger();
+  const embedFn = async (text: string): Promise<number[]> => {
+    const vec = await embedder.embed(text);
+    return Array.from(vec);
+  };
+  const stubLlm = new StubLlmAdapter();
+  const stubRerankerBackend = new StubRerankerBackend();
+  // Circuit breakers are shared by module (gate builds its own for LLM
+  // work); DeepSearch + Reranker + CompositionDetector each get their own.
+  const deepSearchBreaker = new CircuitBreaker(
+    config.search.circuitBreakerThreshold,
+    config.search.circuitBreakerCooldownMs,
+  );
+  const rerankerBreaker = new CircuitBreaker(
+    config.search.circuitBreakerThreshold,
+    config.search.circuitBreakerCooldownMs,
+  );
+  const compositionBreaker = new CircuitBreaker(
+    config.search.circuitBreakerThreshold,
+    config.search.circuitBreakerCooldownMs,
+  );
+  const deepSearch = new DeepSearch({
+    llm: stubLlm,
+    provider,
+    embedFn,
+    circuitBreaker: deepSearchBreaker,
+    fusionMode: config.search.fusionMode,
+    tier2Threshold: config.search.tier2Threshold,
+  });
+  const reranker = new Reranker({
+    pool,
+    circuitBreaker: rerankerBreaker,
+    backend: stubRerankerBackend,
+  });
+  const compositionDetector = new CompositionDetector({
+    llm: stubLlm,
+    provider,
+    embedFn,
+    circuitBreaker: compositionBreaker,
+  });
+  const confidenceGate = new ConfidenceGate({
+    provider,
+    embedFn,
+    cache: searchCache,
+    logger: searchLogger,
+    pool,
+    deepSearch,
+    compositionDetector,
+    reranker,
+    fusionMode: config.search.fusionMode,
+    tier1Threshold: config.search.tier1Threshold,
+    tier2Threshold: config.search.tier2Threshold,
+    deepSearchEnabled: config.search.deepSearchEnabled,
+    rerankerEnabled: config.search.rerankerEnabled,
+    circuitBreakerThreshold: config.search.circuitBreakerThreshold,
+    circuitBreakerCooldownMs: config.search.circuitBreakerCooldownMs,
+    defaultAppetite: config.search.defaultAppetite,
+    llmIdentity: stubLlm.identity,
+  });
+  const searchService = new SearchService({
+    gate: confidenceGate,
+    afterResponse,
+  });
+
   return {
     kv,
     embedQueue,
@@ -201,6 +310,7 @@ export async function buildAppServices(
     budgetMeter,
     migrationClient,
     skillsClient,
+    searchService,
   };
 }
 
