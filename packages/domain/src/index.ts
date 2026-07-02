@@ -14,3 +14,4 @@
 // ══════════════════════════════════════════════════════════════════════════════
 
 export * from './adapters/index.js';
+export * from './resilience/index.js';
