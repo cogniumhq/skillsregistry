@@ -60,7 +60,8 @@ See `.env.example` for the full list. Required:
 - ☑ **T-2.4** — Config module (`src/config.ts`) with env parsing + boot-time validation
 - ☑ **T-2.5 + T-2.6** — Schema-version guard + migration runner (`src/boot/schema.ts`)
 - ☑ **T-2.7** — `UpstreamClient` at `src/upstream-client/` — token-bucket rate limit + circuit breaker + typed `UpstreamError` taxonomy
-- ☐ T-2.3, T-2.8 through T-2.18 — see `.specifica/mvp/tasks.md`
+- ☑ **T-2.3** — Composition root (`src/services.ts` → `buildAppServices`) + auth/tenant middleware (`src/middleware/`) + public/admin/mcp sub-apps mounted from `src/index.ts` (handlers ship as 501 stubs pointing to T-2.10 / T-2.11 / T-2.12 / T-2.13 / T-2.14)
+- ☐ T-2.8 through T-2.18 — see `.specifica/mvp/tasks.md`
 
 ## License
 

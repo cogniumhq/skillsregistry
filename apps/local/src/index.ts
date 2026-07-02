@@ -6,12 +6,19 @@
 //   1. loadConfig()             — parse env, throw ConfigError on any issue
 //   2. createPool()             — instantiate pg.Pool with tuning knobs
 //   3. bootSchema(pool)         — apply pending migrations, assert version
-//   4. createApp(config)        — mount Hono routes
-//   5. serve()                  — bind + listen
+//   4. buildAppServices()       — wire adapters + upstream client
+//   5. createApp(config, ..)    — mount Hono routes
+//   6. serve()                  — bind + listen
 //
-// Real routing (public + admin + /mcp) lands in T-2.3. `GET /v1/health` is
-// the T-2.18 liveness endpoint and depends on the DB being reachable, so it
-// pings the pool.
+// Route surface mounted here (see `routes/*` for per-module docs):
+//   - GET /v1/health           — liveness (T-2.18); pings pool
+//   - /v1/*                    — public routes (T-2.11 fills handlers)
+//   - /v1/admin/*, /v1/migrate/*  — admin routes behind bearer auth
+//                                    (T-2.9 / T-2.10 / T-2.12 fill handlers)
+//   - /mcp, /mcp.json, /.well-known/mcp.json — MCP surface
+//                                    (T-2.13 / T-2.14 fill handlers)
+//
+// Shutdown: SIGINT/SIGTERM → stop server → close services → drain pool.
 //
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -21,6 +28,16 @@ import type { Pool } from 'pg';
 import { bootSchema } from './boot/schema.js';
 import { loadConfig, ConfigError, type AppConfig } from './config.js';
 import { createPool } from './db/pool.js';
+import {
+  createAdminRoutes,
+  createMcpRoutes,
+  createPublicRoutes,
+} from './routes/index.js';
+import {
+  buildAppServices,
+  closeAppServices,
+  type AppServices,
+} from './services.js';
 
 interface HealthPayload {
   status: 'ok' | 'degraded';
@@ -31,7 +48,11 @@ interface HealthPayload {
   dbReachable: boolean;
 }
 
-export function createApp(config: AppConfig, pool: Pool): Hono {
+export function createApp(
+  config: AppConfig,
+  pool: Pool,
+  services: AppServices,
+): Hono {
   const app = new Hono();
 
   app.get('/v1/health', async (c) => {
@@ -46,6 +67,15 @@ export function createApp(config: AppConfig, pool: Pool): Hono {
     };
     return c.json(payload, dbReachable ? 200 : 503);
   });
+
+  // Public + admin share the /v1 prefix. Admin mounts first so its more
+  // specific paths (/v1/admin/*, /v1/migrate/*) win over any collisions.
+  app.route('/v1', createAdminRoutes(services, config.admin.token));
+  app.route('/v1', createPublicRoutes(services));
+
+  // MCP mounts at root — its paths (/mcp, /mcp.json, /.well-known/mcp.json)
+  // don't share a prefix with /v1.
+  app.route('/', createMcpRoutes(services, config));
 
   return app;
 }
@@ -76,12 +106,27 @@ async function main(): Promise<void> {
   try {
     await bootSchema(pool);
   } catch (err) {
-    console.error('[skillsregistry-local] schema boot failed:', (err as Error).message);
+    console.error(
+      '[skillsregistry-local] schema boot failed:',
+      (err as Error).message,
+    );
     await pool.end().catch(() => {});
     process.exit(1);
   }
 
-  const app = createApp(config, pool);
+  let services: AppServices;
+  try {
+    services = await buildAppServices(config, pool);
+  } catch (err) {
+    console.error(
+      '[skillsregistry-local] services init failed:',
+      (err as Error).message,
+    );
+    await pool.end().catch(() => {});
+    process.exit(1);
+  }
+
+  const app = createApp(config, pool, services);
 
   const server = serve(
     { fetch: app.fetch, hostname: config.http.host, port: config.http.port },
@@ -98,6 +143,7 @@ async function main(): Promise<void> {
   const shutdown = async (signal: string): Promise<void> => {
     console.log(`[skillsregistry-local] ${signal} received, shutting down`);
     server.close();
+    await closeAppServices(services).catch(() => {});
     await pool.end().catch(() => {});
     process.exit(0);
   };

@@ -19,6 +19,8 @@
 //
 // ══════════════════════════════════════════════════════════════════════════════
 
+import { isAbsolute, join } from 'node:path';
+
 export type NodeEnv = 'development' | 'production' | 'test';
 export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal';
 
@@ -41,6 +43,14 @@ export interface PostgresConfig {
 export interface AdminConfig {
   /** Bearer token for admin routes. Required. */
   token: string;
+}
+
+export interface ArtifactConfig {
+  /**
+   * Absolute filesystem path for artifact storage. Default `${cwd}/data/artifacts`.
+   * The directory is created on first write; the process must have write access.
+   */
+  baseDir: string;
 }
 
 export type EmbedderConfig =
@@ -68,6 +78,7 @@ export interface AppConfig {
   http: HttpConfig;
   postgres: PostgresConfig;
   admin: AdminConfig;
+  artifact: ArtifactConfig;
   embedder: EmbedderConfig;
   /** null when no mothership is configured (air-gap mode). */
   upstream: UpstreamConfig | null;
@@ -84,6 +95,7 @@ const ENV = {
   POSTGRES_POOL_MAX: 'POSTGRES_POOL_MAX',
   POSTGRES_STATEMENT_TIMEOUT_MS: 'POSTGRES_STATEMENT_TIMEOUT_MS',
   ADMIN_TOKEN: 'ADMIN_TOKEN',
+  ARTIFACT_BASE_DIR: 'ARTIFACT_BASE_DIR',
   EMBEDDER: 'EMBEDDER',
   OLLAMA_URL: 'OLLAMA_URL',
   OLLAMA_EMBEDDING_MODEL: 'OLLAMA_EMBEDDING_MODEL',
@@ -166,6 +178,20 @@ function parseLogLevel(raw: string, issues: Issues): LogLevel {
   return 'info';
 }
 
+function parseArtifact(env: EnvSource, issues: Issues): ArtifactConfig {
+  const raw = env[ENV.ARTIFACT_BASE_DIR]?.trim();
+  const baseDir =
+    raw === undefined || raw === '' ? join(process.cwd(), 'data', 'artifacts') : raw;
+  if (!isAbsolute(baseDir)) {
+    issues.add(
+      ENV.ARTIFACT_BASE_DIR,
+      `must be an absolute path (got "${baseDir}")`,
+    );
+    return { baseDir: join(process.cwd(), 'data', 'artifacts') };
+  }
+  return { baseDir };
+}
+
 function parseEmbedder(env: EnvSource, issues: Issues): EmbedderConfig {
   const kind = optional(env, ENV.EMBEDDER, 'ollama');
   if (kind === 'ollama') {
@@ -244,6 +270,7 @@ export function loadConfig(env: EnvSource = process.env): AppConfig {
     token: required(env, ENV.ADMIN_TOKEN, issues),
   };
 
+  const artifact = parseArtifact(env, issues);
   const embedder = parseEmbedder(env, issues);
   const upstream = parseUpstream(env, issues);
 
@@ -253,7 +280,7 @@ export function loadConfig(env: EnvSource = process.env): AppConfig {
 
   issues.throwIfAny();
 
-  return { nodeEnv, http, postgres, admin, embedder, upstream, log };
+  return { nodeEnv, http, postgres, admin, artifact, embedder, upstream, log };
 }
 
 /** Names of every env var this module reads. Handy for docs / tests. */
