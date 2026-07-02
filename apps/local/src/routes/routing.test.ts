@@ -172,15 +172,46 @@ describe('createApp route surface', () => {
       expect(res.status).toBe(501);
     });
 
-    it('serves POST /v1/migrate/publish as a 501 stub with the T-2.10 marker', async () => {
-      const app = createApp(buildConfig(), fakePool(), NULL_SERVICES);
+    it('serves POST /v1/migrate/publish through the wired T-2.10 handler', async () => {
+      // Air-gap posture — no upstream configured — so the wired handler
+      // reaches `UpstreamClient.publish` which throws
+      // `UpstreamError('upstream_not_configured')` → 503. Confirms the
+      // handler is wired end-to-end (not the 501 stub) and the code taxonomy
+      // reaches the response body.
+      const services = {
+        migrationClient: {
+          publish: async () => {
+            const { UpstreamError } = await import(
+              '../upstream-client/errors.js'
+            );
+            throw new UpstreamError(
+              'upstream_not_configured',
+              'Mothership is not configured (air-gap mode)',
+            );
+          },
+        },
+      } as unknown as AppServices;
+      const app = createApp(buildConfig(), fakePool(), services);
       const res = await app.request('/v1/migrate/publish?skill_id=x', {
         method: 'POST',
         headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
       });
-      expect(res.status).toBe(501);
-      const body = (await res.json()) as { error: { task: string } };
-      expect(body.error.task).toBe('T-2.10');
+      expect(res.status).toBe(503);
+      const body = (await res.json()) as {
+        error: { code: string; message: string };
+      };
+      expect(body.error.code).toBe('upstream_not_configured');
+    });
+
+    it('rejects POST /v1/migrate/publish without a skill_id', async () => {
+      const app = createApp(buildConfig(), fakePool(), NULL_SERVICES);
+      const res = await app.request('/v1/migrate/publish', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
+      });
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as { error: { code: string } };
+      expect(body.error.code).toBe('bad_request');
     });
 
     it('rejects /v1/migrate/publish without a token', async () => {

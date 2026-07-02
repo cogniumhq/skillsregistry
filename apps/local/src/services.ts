@@ -51,6 +51,7 @@ import {
 import type { EmbedderAdapter } from '@skillsregistry/domain/adapters';
 import { BudgetMeter } from './budget/index.js';
 import type { AppConfig } from './config.js';
+import { PublishToMothershipClient } from './migration/index.js';
 import { TrustClient } from './trust-client.js';
 import { UpstreamClient } from './upstream-client/index.js';
 
@@ -88,6 +89,15 @@ export interface AppServices {
    * by `main()`.
    */
   budgetMeter: BudgetMeter;
+  /**
+   * Migration door — reads a local `skills` row, promotes it to the
+   * mothership via `upstream.publish(...)`, writes the returned mothership
+   * identity + status back onto the same row. T-2.10's
+   * `POST /v1/migrate/publish` handler calls into this. In air-gap mode
+   * every call throws `UpstreamError('upstream_not_configured')` via the
+   * underlying `UpstreamClient`.
+   */
+  migrationClient: PublishToMothershipClient;
 }
 
 /**
@@ -155,6 +165,13 @@ export async function buildAppServices(
     tenantId: config.upstream?.tenantId ?? null,
   });
 
+  // 3k — migration client. Reads local rows + delegates to `upstream.publish`.
+  //      Air-gap posture is inherited from `upstream`; no separate branch.
+  const migrationClient = new PublishToMothershipClient({
+    upstream,
+    pool,
+  });
+
   return {
     kv,
     embedQueue,
@@ -165,6 +182,7 @@ export async function buildAppServices(
     upstream,
     trustClient,
     budgetMeter,
+    migrationClient,
   };
 }
 

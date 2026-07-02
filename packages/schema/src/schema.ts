@@ -174,6 +174,13 @@ export const skills = pgTable(
     signatureNonce: text('signature_nonce'),
     signatureVerifiedAt: timestamp('signature_verified_at'),
     signatureFailureReason: text('signature_failure_reason'),
+    // T-2.10 (migration 0033): mothership promotion tracking. Populated only
+    // when the operator explicitly promotes a local skill via
+    // POST /v1/migrate/publish. Rows synced from third-party sources stay NULL.
+    mothershipSkillId: text('mothership_skill_id'),
+    mothershipPublishStatus: text('mothership_publish_status'),
+    mothershipPublishedAt: timestamp('mothership_published_at'),
+    mothershipUrl: text('mothership_url'),
   },
   (table) => ({
     trustScoreIdx: index('idx_skills_trust_score').on(table.trustScore),
