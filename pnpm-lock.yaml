@@ -78,6 +78,22 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@22.20.0)
 
+  packages/mcp:
+    dependencies:
+      '@skillsregistry/domain':
+        specifier: workspace:*
+        version: link:../domain
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.0
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@22.20.0)
+
   packages/schema:
     dependencies:
       drizzle-orm:
