@@ -149,3 +149,180 @@ export interface SearchMeta {
   totalCandidates: number;
   cacheHit: boolean;
 }
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Risk appetite — trust filter applied at the intelligence layer
+// ──────────────────────────────────────────────────────────────────────────────
+
+export type Appetite = 'strict' | 'cautious' | 'balanced' | 'adventurous';
+
+export function appetiteToTrustThreshold(appetite: Appetite): number {
+  switch (appetite) {
+    case 'strict':
+      return 0.85;
+    case 'cautious':
+      return 0.7;
+    case 'balanced':
+      return 0.5; // default
+    case 'adventurous':
+      return 0.2;
+  }
+}
+
+export function appetiteToAllowVulnerable(appetite: Appetite): boolean {
+  return appetite === 'balanced' || appetite === 'adventurous';
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// findSkill request + response — the intelligence-layer surface
+// ──────────────────────────────────────────────────────────────────────────────
+
+export interface FindSkillRequest {
+  query: string;
+  tenantId: string;
+  appetite?: Appetite;
+  tags?: string[];
+  category?: string;
+  limit?: number;
+  runtimeEnv?: string[];
+  visibility?: 'public' | 'private' | 'unlisted';
+  portable?: boolean;
+}
+
+export interface FindSkillResponse {
+  results: SkillResult[];
+  confidence: 'high' | 'medium' | 'low_enriched' | 'no_match';
+  enriched: boolean;
+  enrichmentPromise?: Promise<FindSkillResponse>;
+  composition?: CompositionResult;
+  searchTrace?: {
+    originalQuery: string;
+    alternateQueries?: string[];
+    terminologyMap?: Record<string, string>;
+    reasoning?: string;
+  };
+  generationHints?: {
+    intent: string;
+    capabilities: string[];
+    complexity: string;
+  };
+  meta: {
+    matchSources: string[];
+    latencyMs: number;
+    tier: 1 | 2 | 3;
+    cacheHit: boolean;
+    llmInvoked: boolean;
+    degraded?: boolean;
+    reranked?: boolean;
+  };
+}
+
+export interface SkillResult {
+  id: string;
+  name: string;
+  slug: string;
+  version: string;
+  agentSummary: string;
+
+  trustScore: number;
+  verificationTier: VerificationTier;
+  trustBadge: TrustBadge | null;
+
+  status: SkillStatus;
+  revokedReason?: string;
+  remediationMessage?: string;
+  remediationUrl?: string;
+
+  executionLayer: string;
+  mcpUrl?: string;
+  capabilitiesRequired: string[];
+
+  skillType: SkillType;
+  forkedFrom?: string;
+
+  runtimeEnv: string;
+  visibility: string;
+
+  runCount: number;
+  lastRunAt?: string;
+
+  score: number;
+  matchSource: string;
+  matchText?: string;
+
+  replacementSkillId?: string;
+  replacementSlug?: string;
+
+  shareUrl: string;
+
+  authorHandle?: string;
+  authorType?: 'human' | 'bot' | 'org';
+  humanStarCount?: number;
+  humanForkCount?: number;
+  agentInvocationCount?: number;
+  compositionInclusionCount?: number;
+  avgExecutionTimeMs?: number;
+  errorRate?: number;
+  tags?: string[];
+  cooccursWith?: { skillId: string; slug: string; compositionCount: number }[];
+
+  qualityScore?: number;
+  qualityTier?: string;
+  trustTier?: string;
+  specAlignmentScore?: number;
+
+  publisherKeyId?: string | null;
+  signatureVerifiedAt?: string | null;
+  signatureFailureReason?: string | null;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Composition detection
+// ──────────────────────────────────────────────────────────────────────────────
+
+export interface CompositionResult {
+  detected: boolean;
+  parts: Array<{
+    purpose: string;
+    skill: ScoredSkill | null;
+  }>;
+  reasoning: string;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Search log entry — one row per search, written non-blocking via AfterResponse
+// ──────────────────────────────────────────────────────────────────────────────
+
+export interface SearchLogEntry {
+  query: string;
+  tenantId: string;
+  appetite?: string;
+
+  tier: 1 | 2 | 3;
+  cacheHit: boolean;
+
+  topScore?: number;
+  gapToSecond?: number;
+  clusterDensity?: number;
+  keywordHits?: number;
+  resultCount: number;
+  matchSource?: string;
+  resultSkillIds: string[];
+
+  totalLatencyMs: number;
+  vectorSearchMs?: number;
+  fullTextSearchMs?: number;
+  fusionStrategy?: string;
+
+  llmInvoked: boolean;
+  llmLatencyMs?: number;
+  llmModel?: string;
+  llmTokensUsed?: number;
+
+  embeddingCost: number;
+  llmCost: number;
+
+  alternateQueriesUsed?: string[];
+  compositionDetected: boolean;
+  generationHintReturned: boolean;
+}

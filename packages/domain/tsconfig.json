@@ -4,7 +4,15 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "tsBuildInfoFile": "./.tsbuildinfo",
-    "composite": true
+    "composite": true,
+    // The intelligence + provider ports match the mothership's option-heavy
+    // shape (`foo?: string` populated from optional inputs). Under
+    // `exactOptionalPropertyTypes: true`, assigning `undefined` to those
+    // fields is a type error. Mothership itself uses standard `strict`
+    // without this flag; the domain package mirrors that to keep the port
+    // 1:1. The flag can be reintroduced when we can widen every optional
+    // field to `T | undefined` in one sweep.
+    "exactOptionalPropertyTypes": false
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist", "src/**/*.test.ts"]

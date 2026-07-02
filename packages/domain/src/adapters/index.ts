@@ -26,3 +26,9 @@ export type {
   SqlPool,
   SqlQueryResult,
 } from './sql.js';
+export type { LlmAdapter, LlmCompleteInput } from './llm.js';
+export type { SearchCachePort } from './search-cache.js';
+export type {
+  SearchLoggerPort,
+  SearchLoggerInput,
+} from './search-logger.js';
