@@ -20,6 +20,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 
 import { isAbsolute, join } from 'node:path';
+import cron from 'node-cron';
 
 export type NodeEnv = 'development' | 'production' | 'test';
 export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal';
@@ -53,6 +54,24 @@ export interface ArtifactConfig {
   baseDir: string;
 }
 
+export interface BudgetConfig {
+  /**
+   * `node-cron` schedule for the tenant-budget poller. Default `0 3 * * *`
+   * (03:00 daily, host-local time). See `node-cron` README for syntax. The
+   * meter also runs one refresh at startup so the KV cache is warm before
+   * the first cron tick.
+   */
+  refreshCron: string;
+  /**
+   * TTL (seconds) applied to the cached snapshot in `kv_store`. Default
+   * `93600` (26h) — deliberately longer than the daily cron cadence so a
+   * missed refresh does not silently evict the row. Downstream readers
+   * treat a missing row as "no cache" and skip the local precheck; the
+   * mothership stays authoritative.
+   */
+  ttlSeconds: number;
+}
+
 export type EmbedderConfig =
   | { kind: 'ollama'; url: string; model: string }
   | { kind: 'upstream' };
@@ -79,6 +98,7 @@ export interface AppConfig {
   postgres: PostgresConfig;
   admin: AdminConfig;
   artifact: ArtifactConfig;
+  budget: BudgetConfig;
   embedder: EmbedderConfig;
   /** null when no mothership is configured (air-gap mode). */
   upstream: UpstreamConfig | null;
@@ -96,6 +116,8 @@ const ENV = {
   POSTGRES_STATEMENT_TIMEOUT_MS: 'POSTGRES_STATEMENT_TIMEOUT_MS',
   ADMIN_TOKEN: 'ADMIN_TOKEN',
   ARTIFACT_BASE_DIR: 'ARTIFACT_BASE_DIR',
+  BUDGET_REFRESH_CRON: 'BUDGET_REFRESH_CRON',
+  BUDGET_TTL_SECONDS: 'BUDGET_TTL_SECONDS',
   EMBEDDER: 'EMBEDDER',
   OLLAMA_URL: 'OLLAMA_URL',
   OLLAMA_EMBEDDING_MODEL: 'OLLAMA_EMBEDDING_MODEL',
@@ -176,6 +198,23 @@ function parseLogLevel(raw: string, issues: Issues): LogLevel {
   if ((allowed as string[]).includes(raw)) return raw as LogLevel;
   issues.add(ENV.LOG_LEVEL, `must be one of ${allowed.join('|')} (got "${raw}")`);
   return 'info';
+}
+
+function parseBudget(env: EnvSource, issues: Issues): BudgetConfig {
+  const refreshCron = optional(env, ENV.BUDGET_REFRESH_CRON, '0 3 * * *');
+  if (!cron.validate(refreshCron)) {
+    issues.add(
+      ENV.BUDGET_REFRESH_CRON,
+      `must be a valid cron expression (got "${refreshCron}")`,
+    );
+  }
+  const ttlSeconds = parseInt10(
+    ENV.BUDGET_TTL_SECONDS,
+    optional(env, ENV.BUDGET_TTL_SECONDS, '93600'),
+    issues,
+    60,
+  );
+  return { refreshCron, ttlSeconds };
 }
 
 function parseArtifact(env: EnvSource, issues: Issues): ArtifactConfig {
@@ -271,6 +310,7 @@ export function loadConfig(env: EnvSource = process.env): AppConfig {
   };
 
   const artifact = parseArtifact(env, issues);
+  const budget = parseBudget(env, issues);
   const embedder = parseEmbedder(env, issues);
   const upstream = parseUpstream(env, issues);
 
@@ -280,7 +320,17 @@ export function loadConfig(env: EnvSource = process.env): AppConfig {
 
   issues.throwIfAny();
 
-  return { nodeEnv, http, postgres, admin, artifact, embedder, upstream, log };
+  return {
+    nodeEnv,
+    http,
+    postgres,
+    admin,
+    artifact,
+    budget,
+    embedder,
+    upstream,
+    log,
+  };
 }
 
 /** Names of every env var this module reads. Handy for docs / tests. */

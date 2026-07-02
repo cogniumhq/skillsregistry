@@ -150,7 +150,7 @@ export class TrustClient {
       return null;
     }
     if (raw === null) return null;
-    return this.parseSnapshot(raw);
+    return parseBudgetSnapshot(raw, this.logger);
   }
 
   /**
@@ -266,23 +266,32 @@ export class TrustClient {
       });
     }
   }
+}
 
-  private parseSnapshot(raw: string): BudgetSnapshot | null {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(raw);
-    } catch (err) {
-      this.logger.warn('cached budget: JSON parse failed', {
-        error: (err as Error).message,
-      });
-      return null;
-    }
-    if (!isBudgetSnapshot(parsed)) {
-      this.logger.warn('cached budget: shape mismatch', { raw });
-      return null;
-    }
-    return parsed;
+/**
+ * Shared JSON → `BudgetSnapshot` parser. Used by `TrustClient.getCachedBudget`
+ * and `BudgetMeter.getCached` so the reader logic can't drift between the
+ * writer (meter) and the pre-check consumer (trust client). Logs a warning
+ * on JSON parse failure or shape mismatch and returns `null` — never throws.
+ */
+export function parseBudgetSnapshot(
+  raw: string,
+  logger?: TrustClientLogger,
+): BudgetSnapshot | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    logger?.warn('cached budget: JSON parse failed', {
+      error: (err as Error).message,
+    });
+    return null;
   }
+  if (!isBudgetSnapshot(parsed)) {
+    logger?.warn('cached budget: shape mismatch', { raw });
+    return null;
+  }
+  return parsed;
 }
 
 // ── Type guard ────────────────────────────────────────────────────────────

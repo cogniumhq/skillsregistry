@@ -49,6 +49,7 @@ import {
   ensureKvStoreTable,
 } from './adapters/index.js';
 import type { EmbedderAdapter } from '@skillsregistry/domain/adapters';
+import { BudgetMeter } from './budget/index.js';
 import type { AppConfig } from './config.js';
 import { TrustClient } from './trust-client.js';
 import { UpstreamClient } from './upstream-client/index.js';
@@ -79,6 +80,14 @@ export interface AppServices {
    * T-2.11's `POST /v1/trust/score` handler calls into this.
    */
   trustClient: TrustClient;
+  /**
+   * Nightly poller of `GET /v1/tenant/budget` → cached in `kv_store` under
+   * the `trust:budget:v1:<tenantId>` key T-2.8 shares. T-2.12's
+   * `GET /v1/admin/budget` reads via `getCached()` and
+   * `POST /v1/admin/budget/refresh` calls `refresh()`. Started + stopped
+   * by `main()`.
+   */
+  budgetMeter: BudgetMeter;
 }
 
 /**
@@ -136,6 +145,16 @@ export async function buildAppServices(
     tenantId: config.upstream?.tenantId ?? null,
   });
 
+  // 3j — budget meter. Cron + KV cache of `GET /v1/tenant/budget`. In
+  //      air-gap mode `tenantId` is null and start()/refresh() no-op.
+  //      main() calls start() after createApp() and stop() during shutdown.
+  const budgetMeter = new BudgetMeter({
+    upstream,
+    kv,
+    config: config.budget,
+    tenantId: config.upstream?.tenantId ?? null,
+  });
+
   return {
     kv,
     embedQueue,
@@ -145,6 +164,7 @@ export async function buildAppServices(
     afterResponse,
     upstream,
     trustClient,
+    budgetMeter,
   };
 }
 
@@ -154,7 +174,10 @@ export async function buildAppServices(
  * owns the pool's lifecycle.
  */
 export async function closeAppServices(services: AppServices): Promise<void> {
-  // Nothing durable to flush today. Kept as a seam so a Postgres LISTEN/NOTIFY
-  // queue variant can drain in-flight messages without changing callers.
-  void services;
+  // Cron teardown — idempotent, safe to call even if start() was skipped
+  // (air-gap) or never invoked (short-lived process).
+  services.budgetMeter.stop();
+  // No other durable state to flush today. Kept as a seam so a Postgres
+  // LISTEN/NOTIFY queue variant can drain in-flight messages without
+  // changing callers.
 }

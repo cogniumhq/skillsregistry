@@ -128,6 +128,11 @@ async function main(): Promise<void> {
 
   const app = createApp(config, pool, services);
 
+  // Start the budget meter cron. No-op in air-gap mode. Started after
+  // createApp so a failing warm-refresh (mothership down at boot) still
+  // logs after route wiring, not before.
+  services.budgetMeter.start();
+
   const server = serve(
     { fetch: app.fetch, hostname: config.http.host, port: config.http.port },
     (info) => {
