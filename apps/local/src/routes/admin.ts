@@ -19,47 +19,10 @@
 // ══════════════════════════════════════════════════════════════════════════════
 
 import { Hono } from 'hono';
-import type { UpstreamErrorCode } from '@skillsregistry/contracts';
+import { upstreamErrorToResponse } from '../http/upstream-response.js';
 import { adminAuth } from '../middleware/index.js';
 import type { AppServices } from '../services.js';
 import { UpstreamError } from '../upstream-client/errors.js';
-
-/**
- * Map an `UpstreamErrorCode` to the HTTP status the admin/migrate surface
- * returns. Kept as a table (not a switch on `error.retryAfter`) so the
- * caller sees the code taxonomy at a glance.
- */
-const UPSTREAM_ERROR_STATUS: Record<UpstreamErrorCode, number> = {
-  upstream_not_configured: 503,
-  budget_exhausted: 402,
-  unauthenticated: 502, // upstream auth problem, not caller-side
-  forbidden: 502, // upstream authz problem, not caller-side
-  not_found: 404,
-  rate_limited: 429,
-  bad_request: 400,
-  upstream_unavailable: 503,
-  upstream_timeout: 504,
-};
-
-interface UpstreamErrorBody {
-  error: {
-    code: UpstreamErrorCode;
-    message: string;
-    retry_after?: number;
-    detail?: Record<string, unknown>;
-    request_id?: string;
-  };
-}
-
-function upstreamErrorBody(err: UpstreamError): UpstreamErrorBody {
-  const body: UpstreamErrorBody = {
-    error: { code: err.code, message: err.message },
-  };
-  if (err.retryAfter !== undefined) body.error.retry_after = err.retryAfter;
-  if (err.detail !== undefined) body.error.detail = err.detail;
-  if (err.requestId !== undefined) body.error.request_id = err.requestId;
-  return body;
-}
 
 /**
  * Build the admin sub-app. The auth middleware is attached inside so
@@ -138,11 +101,8 @@ export function createAdminRoutes(
       return c.json(response, 200);
     } catch (err) {
       if (err instanceof UpstreamError) {
-        const status = UPSTREAM_ERROR_STATUS[err.code];
-        return c.json(
-          upstreamErrorBody(err),
-          status as Parameters<typeof c.json>[1],
-        );
+        const { status, body } = upstreamErrorToResponse(err);
+        return c.json(body, status as Parameters<typeof c.json>[1]);
       }
       // Unexpected local failure — bubble as 500 without leaking internals.
       const message = err instanceof Error ? err.message : String(err);

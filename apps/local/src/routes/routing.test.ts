@@ -102,7 +102,7 @@ describe('createApp route surface', () => {
         error: { code: string; task: string };
       };
       expect(body.error.code).toBe('not_implemented');
-      expect(body.error.task).toBe('T-2.11');
+      expect(body.error.task).toBe('T-2.11c');
     });
 
     it('mounts GET /v1/skills/:id as a 501 stub', async () => {
@@ -117,16 +117,88 @@ describe('createApp route surface', () => {
       expect(res.status).toBe(501);
     });
 
-    it('mounts GET /v1/leaderboards/:kind as a 501 stub', async () => {
-      const app = createApp(buildConfig(), fakePool(), NULL_SERVICES);
+    it('serves GET /v1/leaderboards/:kind through the wired T-2.11a proxy', async () => {
+      // Air-gap posture — UpstreamClient throws `upstream_not_configured`
+      // → 503. Confirms the handler is wired end-to-end (not the 501 stub)
+      // and the code taxonomy reaches the response body.
+      const services = {
+        upstream: {
+          getLeaderboard: async () => {
+            const { UpstreamError } = await import(
+              '../upstream-client/errors.js'
+            );
+            throw new UpstreamError(
+              'upstream_not_configured',
+              'Mothership is not configured (air-gap mode)',
+            );
+          },
+        },
+      } as unknown as AppServices;
+      const app = createApp(buildConfig(), fakePool(), services);
       const res = await app.request('/v1/leaderboards/trust');
-      expect(res.status).toBe(501);
+      expect(res.status).toBe(503);
+      const body = (await res.json()) as { error: { code: string } };
+      expect(body.error.code).toBe('upstream_not_configured');
     });
 
-    it('mounts POST /v1/trust/score as a 501 stub', async () => {
+    it('rejects GET /v1/leaderboards/:kind with a non-integer limit', async () => {
       const app = createApp(buildConfig(), fakePool(), NULL_SERVICES);
-      const res = await app.request('/v1/trust/score', { method: 'POST' });
-      expect(res.status).toBe(501);
+      const res = await app.request('/v1/leaderboards/trust?limit=abc');
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as { error: { code: string } };
+      expect(body.error.code).toBe('bad_request');
+    });
+
+    it('serves POST /v1/trust/score through the wired T-2.11a handler', async () => {
+      // Air-gap posture — TrustClient re-throws UpstreamError from the
+      // underlying UpstreamClient. Confirms wiring + body validation +
+      // error mapping.
+      const services = {
+        trustClient: {
+          score: async () => {
+            const { UpstreamError } = await import(
+              '../upstream-client/errors.js'
+            );
+            throw new UpstreamError(
+              'upstream_not_configured',
+              'Mothership is not configured (air-gap mode)',
+            );
+          },
+        },
+      } as unknown as AppServices;
+      const app = createApp(buildConfig(), fakePool(), services);
+      const res = await app.request('/v1/trust/score', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ skill_id: 'skill-1' }),
+      });
+      expect(res.status).toBe(503);
+      const body = (await res.json()) as { error: { code: string } };
+      expect(body.error.code).toBe('upstream_not_configured');
+    });
+
+    it('rejects POST /v1/trust/score with an invalid body', async () => {
+      const app = createApp(buildConfig(), fakePool(), NULL_SERVICES);
+      const res = await app.request('/v1/trust/score', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as { error: { code: string } };
+      expect(body.error.code).toBe('bad_request');
+    });
+
+    it('rejects POST /v1/trust/score with non-JSON body', async () => {
+      const app = createApp(buildConfig(), fakePool(), NULL_SERVICES);
+      const res = await app.request('/v1/trust/score', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: 'not json',
+      });
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as { error: { code: string } };
+      expect(body.error.code).toBe('bad_request');
     });
   });
 
