@@ -1,0 +1,62 @@
+# One-command local run: `docker compose up`.
+# Postgres 16 with pgvector, Ollama for embeddings, and the local node itself.
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: skillsregistry
+      POSTGRES_PASSWORD: skillsregistry
+      POSTGRES_DB: skillsregistry
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U skillsregistry -d skillsregistry"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  app:
+    build:
+      context: ../..
+      dockerfile: apps/local/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://skillsregistry:skillsregistry@postgres:5432/skillsregistry
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-change-me}
+      EMBEDDER: ollama
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
+      MOTHERSHIP_URL: ${MOTHERSHIP_URL:-}
+      MOTHERSHIP_API_KEY: ${MOTHERSHIP_API_KEY:-}
+      TENANT_ID: ${TENANT_ID:-}
+      UPSTREAM_SEARCH_FALLBACK: ${UPSTREAM_SEARCH_FALLBACK:-true}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "3000:3000"
+
+volumes:
+  postgres-data:
+  ollama-models:

@@ -1,0 +1,41 @@
+{
+  "name": "@skillsregistry/local",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Self-hostable SkillsRegistry node. Runs on Node 22 + Postgres + Ollama.",
+  "license": "Apache-2.0",
+  "author": "Cognium Labs",
+  "type": "module",
+  "main": "./dist/index.js",
+  "bin": {
+    "skillsregistry-local": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "start": "node ./dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "clean": "rm -rf dist .tsbuildinfo"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.0",
+    "@skillsregistry/contracts": "workspace:*",
+    "@skillsregistry/dag": "workspace:*",
+    "@skillsregistry/domain": "workspace:*",
+    "@skillsregistry/mcp": "workspace:*",
+    "@skillsregistry/schema": "workspace:*",
+    "hono": "^4.6.0",
+    "pg": "^8.13.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.11.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}
