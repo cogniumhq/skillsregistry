@@ -52,6 +52,7 @@ import type { EmbedderAdapter } from '@skillsregistry/domain/adapters';
 import { BudgetMeter } from './budget/index.js';
 import type { AppConfig } from './config.js';
 import { PublishToMothershipClient } from './migration/index.js';
+import { SkillsClient } from './skills/index.js';
 import { TrustClient } from './trust-client.js';
 import { UpstreamClient } from './upstream-client/index.js';
 
@@ -98,6 +99,13 @@ export interface AppServices {
    * underlying `UpstreamClient`.
    */
   migrationClient: PublishToMothershipClient;
+  /**
+   * Local-first skill read + single-tenant publish. T-2.11b's
+   * `GET /v1/skills/:id` (local DB → upstream write-through cache) and
+   * `POST /v1/skills` (INSERT into local `skills`) handlers call into
+   * this. Air-gap: local misses surface as 404, not 503.
+   */
+  skillsClient: SkillsClient;
 }
 
 /**
@@ -172,6 +180,15 @@ export async function buildAppServices(
     pool,
   });
 
+  // 3l — skills client. Local-first read (with upstream write-through
+  //      cache) + single-tenant publish. Air-gap-aware: on local miss
+  //      mints `not_found` instead of propagating
+  //      `upstream_not_configured`.
+  const skillsClient = new SkillsClient({
+    upstream,
+    pool,
+  });
+
   return {
     kv,
     embedQueue,
@@ -183,6 +200,7 @@ export async function buildAppServices(
     trustClient,
     budgetMeter,
     migrationClient,
+    skillsClient,
   };
 }
 

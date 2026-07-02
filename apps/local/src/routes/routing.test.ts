@@ -105,16 +105,80 @@ describe('createApp route surface', () => {
       expect(body.error.task).toBe('T-2.11c');
     });
 
-    it('mounts GET /v1/skills/:id as a 501 stub', async () => {
-      const app = createApp(buildConfig(), fakePool(), NULL_SERVICES);
+    it('serves GET /v1/skills/:id through the wired T-2.11b handler', async () => {
+      // Air-gap posture — SkillsClient collapses the local-miss +
+      // upstream_not_configured combo to `not_found` so callers see a
+      // truthful 404 instead of a misleading 503.
+      const services = {
+        skillsClient: {
+          getSkill: async () => {
+            const { UpstreamError } = await import(
+              '../upstream-client/errors.js'
+            );
+            throw new UpstreamError('not_found', 'no local skill with id abc');
+          },
+        },
+      } as unknown as AppServices;
+      const app = createApp(buildConfig(), fakePool(), services);
       const res = await app.request('/v1/skills/abc');
-      expect(res.status).toBe(501);
+      expect(res.status).toBe(404);
+      const body = (await res.json()) as { error: { code: string } };
+      expect(body.error.code).toBe('not_found');
     });
 
-    it('mounts POST /v1/skills as a 501 stub', async () => {
+    it('serves POST /v1/skills through the wired T-2.11b handler', async () => {
+      const services = {
+        skillsClient: {
+          publishLocal: async () => ({
+            id: 'local-uuid-1',
+            slug: 'demo-skill',
+            version: '1.0.0',
+            status: 'published',
+          }),
+        },
+      } as unknown as AppServices;
+      const app = createApp(buildConfig(), fakePool(), services);
+      const res = await app.request('/v1/skills', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          manifest: {
+            name: 'demo-skill',
+            slug: 'demo-skill',
+            version: '1.0.0',
+            source: 'publish',
+            execution_layer: 'api',
+          },
+        }),
+      });
+      expect(res.status).toBe(201);
+      const body = (await res.json()) as { id: string; slug: string };
+      expect(body.id).toBe('local-uuid-1');
+      expect(body.slug).toBe('demo-skill');
+    });
+
+    it('rejects POST /v1/skills with an invalid body', async () => {
       const app = createApp(buildConfig(), fakePool(), NULL_SERVICES);
-      const res = await app.request('/v1/skills', { method: 'POST' });
-      expect(res.status).toBe(501);
+      const res = await app.request('/v1/skills', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ manifest: {} }),
+      });
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as { error: { code: string } };
+      expect(body.error.code).toBe('bad_request');
+    });
+
+    it('rejects POST /v1/skills with non-JSON body', async () => {
+      const app = createApp(buildConfig(), fakePool(), NULL_SERVICES);
+      const res = await app.request('/v1/skills', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: 'not json',
+      });
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as { error: { code: string } };
+      expect(body.error.code).toBe('bad_request');
     });
 
     it('serves GET /v1/leaderboards/:kind through the wired T-2.11a proxy', async () => {

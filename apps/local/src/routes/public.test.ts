@@ -337,3 +337,256 @@ describe('GET /v1/leaderboards/:kind (T-2.11a)', () => {
     expect(body.error.detail).toEqual({ field: 'category', reason: 'unknown' });
   });
 });
+
+describe('GET /v1/skills/:id (T-2.11b)', () => {
+  it('returns the SkillDetail body verbatim on local hit', async () => {
+    const skill = {
+      id: 'local-uuid-1',
+      slug: 'test-skill',
+      name: 'test-skill',
+      version: '1.0.0',
+      source: 'local',
+    };
+    const getSkill = vi
+      .fn()
+      .mockResolvedValue({ source: 'local', skill });
+    const services = { skillsClient: { getSkill } } as unknown as AppServices;
+
+    const app = createApp(buildConfig(), fakePool(), services);
+    const res = await app.request('/v1/skills/test-skill');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual(skill);
+    expect(getSkill).toHaveBeenCalledWith('test-skill');
+  });
+
+  it('returns upstream-cached body verbatim on local miss + upstream hit', async () => {
+    const skill = {
+      id: 'ms-uuid-1',
+      slug: 'upstream-skill',
+      name: 'upstream-skill',
+      version: '2.0.0',
+      source: 'upstream',
+    };
+    const services = {
+      skillsClient: {
+        getSkill: async () => ({ source: 'upstream', skill }),
+      },
+    } as unknown as AppServices;
+
+    const app = createApp(buildConfig(), fakePool(), services);
+    const res = await app.request('/v1/skills/upstream-skill');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual(skill);
+  });
+
+  it('maps air-gap not_found → 404 with truthful code', async () => {
+    const services = {
+      skillsClient: {
+        getSkill: async () => {
+          throw new UpstreamError(
+            'not_found',
+            'no local skill with id x (air-gap mode)',
+          );
+        },
+      },
+    } as unknown as AppServices;
+
+    const app = createApp(buildConfig(), fakePool(), services);
+    const res = await app.request('/v1/skills/does-not-exist');
+    expect(res.status).toBe(404);
+    const body = (await res.json()) as { error: { code: string } };
+    expect(body.error.code).toBe('not_found');
+  });
+
+  it('maps upstream_unavailable → 503', async () => {
+    const services = {
+      skillsClient: {
+        getSkill: async () => {
+          throw new UpstreamError('upstream_unavailable', 'circuit open');
+        },
+      },
+    } as unknown as AppServices;
+    const app = createApp(buildConfig(), fakePool(), services);
+    const res = await app.request('/v1/skills/anything');
+    expect(res.status).toBe(503);
+  });
+
+  it('maps upstream_timeout → 504', async () => {
+    const services = {
+      skillsClient: {
+        getSkill: async () => {
+          throw new UpstreamError('upstream_timeout', 'timed out');
+        },
+      },
+    } as unknown as AppServices;
+    const app = createApp(buildConfig(), fakePool(), services);
+    const res = await app.request('/v1/skills/anything');
+    expect(res.status).toBe(504);
+  });
+
+  it('maps rate_limited → 429', async () => {
+    const services = {
+      skillsClient: {
+        getSkill: async () => {
+          throw new UpstreamError('rate_limited', 'slow down', {
+            retryAfter: 30,
+          });
+        },
+      },
+    } as unknown as AppServices;
+    const app = createApp(buildConfig(), fakePool(), services);
+    const res = await app.request('/v1/skills/anything');
+    expect(res.status).toBe(429);
+    const body = (await res.json()) as {
+      error: { code: string; retry_after?: number };
+    };
+    expect(body.error.retry_after).toBe(30);
+  });
+
+  it('maps bad_request with empty id → 400', async () => {
+    // Empty id after `/skills/` collapses to `/skills` which is POST-only,
+    // so this route only fires for non-empty ids. Simulate the client-side
+    // guard by throwing bad_request explicitly.
+    const services = {
+      skillsClient: {
+        getSkill: async () => {
+          throw new UpstreamError(
+            'bad_request',
+            'skill id must be non-empty',
+          );
+        },
+      },
+    } as unknown as AppServices;
+    const app = createApp(buildConfig(), fakePool(), services);
+    const res = await app.request('/v1/skills/%20'); // encoded space
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('POST /v1/skills (T-2.11b)', () => {
+  const validRequest = {
+    manifest: {
+      name: 'my-skill',
+      slug: 'my-skill',
+      version: '1.0.0',
+      source: 'local',
+      description: 'a skill',
+      execution_layer: 'sandboxed',
+    },
+  };
+
+  it('returns 201 + LocalPublishResult on happy path', async () => {
+    const publishLocal = vi.fn().mockResolvedValue({
+      id: 'local-uuid-1',
+      slug: 'my-skill',
+      version: '1.0.0',
+      status: 'published',
+    });
+    const services = {
+      skillsClient: { publishLocal },
+    } as unknown as AppServices;
+
+    const app = createApp(buildConfig(), fakePool(), services);
+    const res = await app.request('/v1/skills', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(validRequest),
+    });
+    expect(res.status).toBe(201);
+    expect(await res.json()).toEqual({
+      id: 'local-uuid-1',
+      slug: 'my-skill',
+      version: '1.0.0',
+      status: 'published',
+    });
+    expect(publishLocal).toHaveBeenCalledWith(validRequest);
+  });
+
+  it('rejects invalid body with 400 bad_request + issues detail', async () => {
+    const publishLocal = vi.fn();
+    const services = {
+      skillsClient: { publishLocal },
+    } as unknown as AppServices;
+    const app = createApp(buildConfig(), fakePool(), services);
+    const res = await app.request('/v1/skills', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'missing-slug-and-version' }),
+    });
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as {
+      error: { code: string; detail?: { issues?: unknown[] } };
+    };
+    expect(body.error.code).toBe('bad_request');
+    expect(Array.isArray(body.error.detail?.issues)).toBe(true);
+    expect(publishLocal).not.toHaveBeenCalled();
+  });
+
+  it('rejects non-JSON body with 400', async () => {
+    const publishLocal = vi.fn();
+    const services = {
+      skillsClient: { publishLocal },
+    } as unknown as AppServices;
+    const app = createApp(buildConfig(), fakePool(), services);
+    const res = await app.request('/v1/skills', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: 'not-json{{',
+    });
+    expect(res.status).toBe(400);
+    expect(publishLocal).not.toHaveBeenCalled();
+  });
+
+  it('maps unique-slug bad_request → 400 with detail preserved', async () => {
+    const services = {
+      skillsClient: {
+        publishLocal: async () => {
+          throw new UpstreamError(
+            'bad_request',
+            'slug already exists: my-skill',
+            {
+              detail: {
+                slug: 'my-skill',
+                constraint: 'unique_violation',
+              },
+            },
+          );
+        },
+      },
+    } as unknown as AppServices;
+    const app = createApp(buildConfig(), fakePool(), services);
+    const res = await app.request('/v1/skills', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(validRequest),
+    });
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as {
+      error: { code: string; detail?: Record<string, unknown> };
+    };
+    expect(body.error.code).toBe('bad_request');
+    expect(body.error.detail).toEqual({
+      slug: 'my-skill',
+      constraint: 'unique_violation',
+    });
+  });
+
+  it('propagates unrelated UpstreamError codes (e.g. upstream_unavailable → 503)', async () => {
+    // publishLocal itself doesn't call upstream, but the handler still
+    // routes any UpstreamError through the shared mapper so nothing leaks.
+    const services = {
+      skillsClient: {
+        publishLocal: async () => {
+          throw new UpstreamError('upstream_unavailable', 'db down');
+        },
+      },
+    } as unknown as AppServices;
+    const app = createApp(buildConfig(), fakePool(), services);
+    const res = await app.request('/v1/skills', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(validRequest),
+    });
+    expect(res.status).toBe(503);
+  });
+});

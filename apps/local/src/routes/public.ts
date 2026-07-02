@@ -23,7 +23,10 @@
 // ══════════════════════════════════════════════════════════════════════════════
 
 import { Hono } from 'hono';
-import { TrustScoreRequestSchema } from '@skillsregistry/contracts';
+import {
+  PublishRequestSchema,
+  TrustScoreRequestSchema,
+} from '@skillsregistry/contracts';
 import { upstreamErrorToResponse } from '../http/upstream-response.js';
 import { tenantContext } from '../middleware/index.js';
 import type { AppServices } from '../services.js';
@@ -49,31 +52,69 @@ export function createPublicRoutes(services: AppServices): Hono {
     ),
   );
 
-  app.get('/skills/:id', (c) =>
-    c.json(
-      {
-        error: {
-          code: 'not_implemented',
-          message: 'GET /v1/skills/:id handler lands in T-2.11b',
-          task: 'T-2.11b',
-        },
-      },
-      501,
-    ),
-  );
+  // T-2.11b: local-first skill read. `SkillsClient.getSkill(id)` resolves
+  // by (id | slug | mothership_skill_id) against the local `skills` table;
+  // on miss delegates to `upstream.getSkill(...)` and best-effort caches
+  // the mothership row locally. Air-gap misses collapse to `not_found`
+  // inside the client so callers see a truthful 404, not a misleading 503.
+  app.get('/skills/:id', async (c) => {
+    const id = c.req.param('id');
+    try {
+      const result = await services.skillsClient.getSkill(id);
+      return c.json(result.skill as Record<string, unknown>, 200);
+    } catch (err) {
+      if (err instanceof UpstreamError) {
+        const { status, body } = upstreamErrorToResponse(err);
+        return c.json(body, status as Parameters<typeof c.json>[1]);
+      }
+      throw err;
+    }
+  });
 
-  app.post('/skills', (c) =>
-    c.json(
-      {
-        error: {
-          code: 'not_implemented',
-          message: 'POST /v1/skills handler lands in T-2.11b',
-          task: 'T-2.11b',
+  // T-2.11b: single-tenant local publish. Validates against the
+  // `PublishRequestSchema` contract (same shape the mothership accepts on
+  // `POST /v1/publish`), then INSERTs into local `skills`. This is
+  // *local* — the row stays on the node until the operator explicitly
+  // calls `POST /v1/migrate/publish` (T-2.10) to promote it.
+  app.post('/skills', async (c) => {
+    let raw: unknown;
+    try {
+      raw = await c.req.json();
+    } catch {
+      return c.json(
+        {
+          error: {
+            code: 'bad_request' as const,
+            message: 'request body must be valid JSON',
+          },
         },
-      },
-      501,
-    ),
-  );
+        400,
+      );
+    }
+    const parsed = PublishRequestSchema.safeParse(raw);
+    if (!parsed.success) {
+      return c.json(
+        {
+          error: {
+            code: 'bad_request' as const,
+            message: 'request body failed schema validation',
+            detail: { issues: parsed.error.issues },
+          },
+        },
+        400,
+      );
+    }
+    try {
+      const result = await services.skillsClient.publishLocal(parsed.data);
+      return c.json(result, 201);
+    } catch (err) {
+      if (err instanceof UpstreamError) {
+        const { status, body } = upstreamErrorToResponse(err);
+        return c.json(body, status as Parameters<typeof c.json>[1]);
+      }
+      throw err;
+    }
+  });
 
   // T-2.11a: leaderboards are always mothership-owned (there is no local
   // ranking today). Handler is a thin proxy: parse the path param + a
