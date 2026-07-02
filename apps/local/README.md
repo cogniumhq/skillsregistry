@@ -58,7 +58,8 @@ See `.env.example` for the full list. Required:
 - ☑ **T-2.1** — Scaffold (package.json, tsconfig, index.ts stub, Dockerfile, compose)
 - ☑ **T-2.4** — Config module (`src/config.ts`) with env parsing + boot-time validation
 - ☑ **T-2.5 + T-2.6** — Schema-version guard + migration runner (`src/boot/schema.ts`)
-- ☐ T-2.2, T-2.3, T-2.7 through T-2.18 — see `.specifica/mvp/tasks.md`
+- ▶ **T-2.2** — Node adapters at `src/adapters/`: `PgKv`, `MemoryQueue`, `FsArtifact`, `createOllamaEmbedder`, `NodeAfterResponse` (5/6 done; `upstream-embedder` deferred to T-2.7)
+- ☐ T-2.3, T-2.7 through T-2.18 — see `.specifica/mvp/tasks.md`
 
 ## License
 
