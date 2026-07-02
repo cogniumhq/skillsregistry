@@ -35,6 +35,10 @@
       "types": "./dist/intelligence/index.d.ts",
       "import": "./dist/intelligence/index.js"
     },
+    "./scoring": {
+      "types": "./dist/scoring/index.d.ts",
+      "import": "./dist/scoring/index.js"
+    },
     "./types": {
       "types": "./dist/types.d.ts",
       "import": "./dist/types.js"

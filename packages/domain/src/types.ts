@@ -326,3 +326,84 @@ export interface SearchLogEntry {
   compositionDetected: boolean;
   generationHintReturned: boolean;
 }
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Scoring-policy inputs — Circle-IR scan findings + minimal skill projection
+// ──────────────────────────────────────────────────────────────────────────────
+
+/** Analysis phase produced by Circle-IR — surfaces on `ScanFinding.phase`. */
+export type CircleIRAnalysisPhase =
+  | 'sast'
+  | 'instruction_safety'
+  | 'capability_mismatch';
+
+/**
+ * Normalized scan finding consumed by the scoring policy. Registry-side
+ * shape — Circle-IR's own `CircleIRFinding` gets flattened into this before
+ * `computeTrustScore(...)` runs.
+ */
+export interface ScanFinding {
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  cweId?: string;
+  tool: string;
+  phase?: CircleIRAnalysisPhase;
+  title: string;
+  description: string;
+  confidence: number;
+  verdict: 'VULNERABLE' | 'SAFE' | 'NEEDS_REVIEW';
+  llmVerified: boolean;
+  remediationHint?: string;
+  remediationUrl?: string;
+  capabilityMismatch?: boolean;
+}
+
+/** Minimal skill projection the scoring policy needs — kept lean on purpose. */
+export interface SkillRow {
+  id: string;
+  slug: string;
+  version: string;
+  name: string;
+  description: string;
+  source: string;
+  status: SkillStatus;
+  executionLayer: string;
+  skillMd?: string | null;
+  r2BundleKey?: string | null;
+  sourceUrl?: string | null;
+  repositoryUrl?: string | null;
+  rootSource?: string | null;
+  skillType?: string | null;
+  compositionSkillIds?: string[] | null;
+  schemaJson?: Record<string, unknown> | null;
+  capabilitiesRequired?: string[] | null;
+  agentSummary?: string | null;
+  changelog?: string | null;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Composition — fork/copy/compose/extend inputs + results
+// ──────────────────────────────────────────────────────────────────────────────
+
+export interface CompositionInput {
+  name: string;
+  slug?: string;
+  description: string;
+  tags?: string[];
+  authorId: string;
+  authorType: 'human' | 'bot';
+  steps: {
+    skillId: string;
+    stepName?: string;
+    inputMapping?: Record<string, string>;
+    onError?: 'fail' | 'skip' | 'retry';
+  }[];
+}
+
+export interface ForkResult {
+  id: string;
+  slug: string;
+  version: string;
+  forkedFrom: string;
+  trustScore: number;
+  status: SkillStatus;
+}
