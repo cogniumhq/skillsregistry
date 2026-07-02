@@ -50,6 +50,7 @@ import {
 } from './adapters/index.js';
 import type { EmbedderAdapter } from '@skillsregistry/domain/adapters';
 import type { AppConfig } from './config.js';
+import { TrustClient } from './trust-client.js';
 import { UpstreamClient } from './upstream-client/index.js';
 
 export interface AppServices {
@@ -71,6 +72,13 @@ export interface AppServices {
    * `UpstreamError('upstream_not_configured')`.
    */
   upstream: UpstreamClient;
+  /**
+   * Budget-aware wrapper around `upstream.trustScore(...)` — reads cached
+   * budget from KV, short-circuits on exhaustion, persists returned score
+   * onto the local `skills` row, and decrements the cached budget.
+   * T-2.11's `POST /v1/trust/score` handler calls into this.
+   */
+  trustClient: TrustClient;
 }
 
 /**
@@ -117,7 +125,27 @@ export async function buildAppServices(
   //      puts it in air-gap mode.
   const upstream = new UpstreamClient({ config: config.upstream });
 
-  return { kv, embedQueue, scanQueue, artifact, embedder, afterResponse, upstream };
+  // 3i — trust client. Budget-aware wrapper. In air-gap mode the
+  //      `tenantId` is null and score() just re-throws whatever the
+  //      upstream call throws (`upstream_not_configured`); the client is
+  //      still constructable so route wiring is uniform across modes.
+  const trustClient = new TrustClient({
+    upstream,
+    kv,
+    pool,
+    tenantId: config.upstream?.tenantId ?? null,
+  });
+
+  return {
+    kv,
+    embedQueue,
+    scanQueue,
+    artifact,
+    embedder,
+    afterResponse,
+    upstream,
+    trustClient,
+  };
 }
 
 /**
