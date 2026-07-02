@@ -20,3 +20,9 @@ export type {
   EmbedderIdentity,
 } from './embedder.js';
 export type { AfterResponse } from './after-response.js';
+export type {
+  SqlClient,
+  SqlConnection,
+  SqlPool,
+  SqlQueryResult,
+} from './sql.js';

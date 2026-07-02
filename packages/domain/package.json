@@ -26,6 +26,14 @@
     "./resilience": {
       "types": "./dist/resilience/index.d.ts",
       "import": "./dist/resilience/index.js"
+    },
+    "./providers": {
+      "types": "./dist/providers/index.d.ts",
+      "import": "./dist/providers/index.js"
+    },
+    "./types": {
+      "types": "./dist/types.d.ts",
+      "import": "./dist/types.js"
     }
   },
   "files": [

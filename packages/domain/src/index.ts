@@ -15,3 +15,6 @@
 
 export * from './adapters/index.js';
 export * from './resilience/index.js';
+export * from './providers/index.js';
+export * from './types.js';
+export * from './ingestion/text-fingerprint.js';
