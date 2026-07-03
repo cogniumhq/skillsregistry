@@ -1,5 +1,29 @@
-# One-command local run: `docker compose up`.
-# Postgres 16 with pgvector, Ollama for embeddings, and the local node itself.
+# ══════════════════════════════════════════════════════════════════════════════
+# SkillsRegistry Local — one-command deploy.
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# Usage:
+#   cp .env.example .env      # then edit .env
+#   docker compose up         # first boot: pulls model (may take minutes)
+#   docker compose up -d      # subsequent boots
+#
+# Services:
+#   - postgres      Neon-shaped Postgres 16 with pgvector.
+#   - ollama        Local LLM host (embeddings).
+#   - ollama-init   One-shot warmer that pulls ${OLLAMA_EMBEDDING_MODEL} into
+#                   the shared volume so the first `/v1/search` doesn't stall
+#                   for minutes on a cold download. Blocks `app` startup via
+#                   `service_completed_successfully`.
+#   - app           The SkillsRegistry Local node (this repo's apps/local).
+#
+# Variable substitution: Docker Compose auto-loads `./.env` (same dir as this
+# file). Every `${VAR:-default}` below reads from your `.env`, falling back to
+# the value after `:-`. `.env` is git-ignored; `.env.example` is the template.
+#
+# Volumes: postgres data + ollama model cache both persist across `docker
+# compose down`. Use `docker compose down -v` to wipe them.
+#
+# ══════════════════════════════════════════════════════════════════════════════
 
 services:
   postgres:
@@ -10,7 +34,7 @@ services:
       POSTGRES_PASSWORD: skillsregistry
       POSTGRES_DB: skillsregistry
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -23,14 +47,41 @@ services:
     image: ollama/ollama:latest
     restart: unless-stopped
     ports:
-      - "11434:11434"
+      - "${OLLAMA_PORT:-11434}:11434"
     volumes:
       - ollama-models:/root/.ollama
     healthcheck:
+      # `ollama list` returns 0 once the server has accepted its first connection.
       test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 6
+
+  ollama-init:
+    # One-shot: waits for `ollama` to be reachable, pulls the embedding model
+    # into the shared volume, exits. Design §11 step 3 — "warm the Ollama
+    # model (blocking, one-time)". Idempotent (ollama pull is a no-op if the
+    # model already exists in the volume).
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_started
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        echo "ollama-init: waiting for ollama server..."
+        for i in $$(seq 1 60); do
+          if ollama list >/dev/null 2>&1; then break; fi
+          sleep 1
+        done
+        echo "ollama-init: pulling ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}..."
+        ollama pull "${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}"
+        echo "ollama-init: model ready."
+    restart: "no"
 
   app:
     build:
@@ -42,20 +93,37 @@ services:
         condition: service_healthy
       ollama:
         condition: service_started
+      ollama-init:
+        condition: service_completed_successfully
     environment:
-      NODE_ENV: production
+      # ─── Core ──────────────────────────────────────────────────────────────
+      NODE_ENV: ${NODE_ENV:-production}
+      HOST: 0.0.0.0
+      PORT: ${PORT:-3000}
       DATABASE_URL: postgres://skillsregistry:skillsregistry@postgres:5432/skillsregistry
-      ADMIN_TOKEN: ${ADMIN_TOKEN:-change-me}
-      EMBEDDER: ollama
+      ADMIN_TOKEN: ${ADMIN_TOKEN:?ADMIN_TOKEN is required — set it in .env}
+      # ─── Postgres pool ─────────────────────────────────────────────────────
+      POSTGRES_POOL_MAX: ${POSTGRES_POOL_MAX:-10}
+      POSTGRES_STATEMENT_TIMEOUT_MS: ${POSTGRES_STATEMENT_TIMEOUT_MS:-30000}
+      # ─── Embedder ──────────────────────────────────────────────────────────
+      EMBEDDER: ${EMBEDDER:-ollama}
       OLLAMA_URL: http://ollama:11434
       OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
+      # ─── Upstream (unset ⇒ air-gap mode) ───────────────────────────────────
       MOTHERSHIP_URL: ${MOTHERSHIP_URL:-}
       MOTHERSHIP_API_KEY: ${MOTHERSHIP_API_KEY:-}
       TENANT_ID: ${TENANT_ID:-}
       UPSTREAM_SEARCH_FALLBACK: ${UPSTREAM_SEARCH_FALLBACK:-true}
+      # ─── Logging ───────────────────────────────────────────────────────────
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+      LOG_REQUEST_ID_HEADER: ${LOG_REQUEST_ID_HEADER:-X-Request-Id}
+      # ─── MCP (defaults from src/config.ts unless overridden) ───────────────
+      MCP_CANONICAL_ORIGIN: ${MCP_CANONICAL_ORIGIN:-}
+      MCP_DOCUMENTATION_URL: ${MCP_DOCUMENTATION_URL:-}
+      MCP_OPENAPI_URL: ${MCP_OPENAPI_URL:-}
     ports:
-      - "3000:3000"
+      - "${PORT:-3000}:3000"
 
 volumes:
   postgres-data:
