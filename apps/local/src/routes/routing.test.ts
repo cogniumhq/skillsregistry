@@ -582,18 +582,45 @@ describe('createApp route surface', () => {
       expect(res.status).toBe(202);
     });
 
-    it('mounts GET /mcp.json as a 501 stub', async () => {
-      const app = createApp(buildConfig(), fakePool(), NULL_SERVICES);
+    it('serves GET /mcp.json as the T-2.14 discovery descriptor', async () => {
+      const services = mcpServices();
+      const app = createApp(buildConfig(), fakePool(), services);
       const res = await app.request('/mcp.json');
-      expect(res.status).toBe(501);
-      const body = (await res.json()) as { error: { task: string } };
-      expect(body.error.task).toBe('T-2.14');
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        schemaVersion: string;
+        protocolVersion: string;
+        serverInfo: { name: string; version: string };
+        transport: { type: string; endpoint: string; methods: string[] };
+        tools: Array<{ name: string }>;
+      };
+      expect(body.schemaVersion).toBe('1');
+      expect(body.protocolVersion).toBe('2025-03-26');
+      expect(body.serverInfo.name).toBe('skillsregistry-local');
+      expect(body.transport.type).toBe('streamable-http');
+      expect(body.transport.methods).toEqual(['POST']);
+      expect(body.transport.endpoint.endsWith('/mcp')).toBe(true);
+      const toolNames = body.tools.map((t) => t.name).sort();
+      expect(toolNames).toEqual([
+        'get_skill',
+        'get_trust_breakdown',
+        'list_leaderboard',
+        'resolve_composition',
+        'search_skills',
+      ]);
     });
 
-    it('mounts GET /.well-known/mcp.json as a 501 stub', async () => {
-      const app = createApp(buildConfig(), fakePool(), NULL_SERVICES);
+    it('serves GET /.well-known/mcp.json with the same descriptor', async () => {
+      const services = mcpServices();
+      const app = createApp(buildConfig(), fakePool(), services);
       const res = await app.request('/.well-known/mcp.json');
-      expect(res.status).toBe(501);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        schemaVersion: string;
+        transport: { endpoint: string };
+      };
+      expect(body.schemaVersion).toBe('1');
+      expect(body.transport.endpoint.endsWith('/mcp')).toBe(true);
     });
   });
 

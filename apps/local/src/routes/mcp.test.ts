@@ -165,6 +165,7 @@ interface AdapterOverrides {
   skills?: Partial<SkillLookupPort>;
   compositions?: Partial<CompositionLookupPort>;
   leaderboards?: Partial<LeaderboardPort>;
+  mcpConfig?: Partial<ResolvedMcpConfig>;
 }
 
 function buildServices(overrides: AdapterOverrides = {}): {
@@ -193,7 +194,7 @@ function buildServices(overrides: AdapterOverrides = {}): {
       recorder,
       afterResponse: inlineAfterResponse(),
     },
-    mcpConfig: MCP_CONFIG,
+    mcpConfig: { ...MCP_CONFIG, ...overrides.mcpConfig },
   } as unknown as AppServices;
   return { services, recorderCalls: calls };
 }
@@ -583,5 +584,130 @@ describe('POST /mcp — dispatch fan-out (T-2.13)', () => {
       const body = (await res.json()) as JsonRpcErr;
       expect(body.error.code).toBe(-32600);
     });
+  });
+});
+
+describe('GET /mcp.json + GET /.well-known/mcp.json — discovery (T-2.14)', () => {
+  interface DiscoveryDescriptor {
+    schemaVersion: string;
+    protocolVersion: string;
+    serverInfo: { name: string; version: string };
+    transport: { type: string; endpoint: string; methods: string[] };
+    capabilities: { tools: { listChanged: boolean } };
+    auth: { model: string; tenantHeader: string; notes: string };
+    tools: Array<{ name: string; description: string; inputSchema: unknown }>;
+    documentation: string;
+    openapi: string;
+  }
+
+  async function getDiscovery(
+    services: AppServices,
+    path: '/mcp.json' | '/.well-known/mcp.json',
+    reqUrl = `http://localhost:3000${path}`,
+  ): Promise<{ res: Response; body: DiscoveryDescriptor }> {
+    const app = createApp(buildConfig(), fakePool(), services);
+    const res = await app.request(reqUrl);
+    const body = (await res.json()) as DiscoveryDescriptor;
+    return { res, body };
+  }
+
+  it('emits the schemaVersion + protocolVersion + serverInfo from ResolvedMcpConfig', async () => {
+    const { services } = buildServices();
+    const { res, body } = await getDiscovery(services, '/mcp.json');
+    expect(res.status).toBe(200);
+    expect(body.schemaVersion).toBe('1');
+    expect(body.protocolVersion).toBe('2025-03-26');
+    expect(body.serverInfo).toEqual({
+      name: 'skillsregistry-local',
+      version: '0.1.0',
+    });
+  });
+
+  it('advertises the streamable-http transport pointing at /mcp with the request origin as the fallback', async () => {
+    const { services } = buildServices();
+    const { body } = await getDiscovery(
+      services,
+      '/mcp.json',
+      'http://mcp.example.test:8080/mcp.json',
+    );
+    expect(body.transport.type).toBe('streamable-http');
+    expect(body.transport.methods).toEqual(['POST']);
+    // No canonical origin set → request URL wins.
+    expect(body.transport.endpoint).toBe('http://mcp.example.test:8080/mcp');
+    expect(body.documentation).toBe('http://mcp.example.test:8080/docs');
+    expect(body.openapi).toBe('http://mcp.example.test:8080/openapi.json');
+  });
+
+  it('prefers canonicalOrigin over the request URL when configured', async () => {
+    const { services } = buildServices({
+      mcpConfig: { canonicalOrigin: 'https://mcp.skillsregistry.net' },
+    });
+    const { body } = await getDiscovery(
+      services,
+      '/mcp.json',
+      'http://workers.dev/mcp.json',
+    );
+    expect(body.transport.endpoint).toBe('https://mcp.skillsregistry.net/mcp');
+    expect(body.documentation).toBe('https://mcp.skillsregistry.net/docs');
+    expect(body.openapi).toBe('https://mcp.skillsregistry.net/openapi.json');
+  });
+
+  it('honors overridden documentationUrl + openapiUrl', async () => {
+    const { services } = buildServices({
+      mcpConfig: {
+        canonicalOrigin: 'https://mcp.skillsregistry.net',
+        documentationUrl: 'https://docs.skillsregistry.net/mcp',
+        openapiUrl: 'https://api.skillsregistry.net/openapi.json',
+      },
+    });
+    const { body } = await getDiscovery(services, '/mcp.json');
+    expect(body.documentation).toBe('https://docs.skillsregistry.net/mcp');
+    expect(body.openapi).toBe('https://api.skillsregistry.net/openapi.json');
+  });
+
+  it('advertises the auth posture as v1 read-only + tenant hint', async () => {
+    const { services } = buildServices();
+    const { body } = await getDiscovery(services, '/mcp.json');
+    expect(body.auth.model).toBe('none');
+    expect(body.auth.tenantHeader).toBe('X-Tenant-Id');
+    expect(body.capabilities.tools.listChanged).toBe(false);
+  });
+
+  it('advertises all five tools with their schemas', async () => {
+    const { services } = buildServices();
+    const { body } = await getDiscovery(services, '/mcp.json');
+    const names = body.tools.map((t) => t.name).sort();
+    expect(names).toEqual([
+      'get_skill',
+      'get_trust_breakdown',
+      'list_leaderboard',
+      'resolve_composition',
+      'search_skills',
+    ]);
+    // Each tool ships an inputSchema so clients can validate before /mcp.
+    for (const tool of body.tools) {
+      expect(tool.inputSchema).toBeTruthy();
+      expect(typeof tool.description).toBe('string');
+    }
+  });
+
+  it('serves the same descriptor at /.well-known/mcp.json (RFC 8615 alias)', async () => {
+    const { services } = buildServices({
+      mcpConfig: { canonicalOrigin: 'https://mcp.skillsregistry.net' },
+    });
+    const { res: rootRes, body: rootBody } = await getDiscovery(
+      services,
+      '/mcp.json',
+    );
+    const { res: wkRes, body: wkBody } = await getDiscovery(
+      services,
+      '/.well-known/mcp.json',
+    );
+    expect(rootRes.status).toBe(200);
+    expect(wkRes.status).toBe(200);
+    // Canonical origin freezes the endpoint URL — the two paths should be
+    // byte-for-byte identical.
+    expect(wkBody).toEqual(rootBody);
+    expect(wkBody.transport.endpoint).toBe('https://mcp.skillsregistry.net/mcp');
   });
 });

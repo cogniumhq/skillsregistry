@@ -13,7 +13,8 @@
 //   GET  /.well-known/mcp.json   — canonical MCP discovery
 //
 // T-2.13 wires POST /mcp against `handleMcpRequest` with adapters + config
-// built at boot on `AppServices`. GET handlers still stub 501 until T-2.14.
+// built at boot on `AppServices`. T-2.14 wires the discovery descriptors at
+// GET /mcp.json + GET /.well-known/mcp.json via `buildDiscoveryDescriptor`.
 //
 // The `tenantContext` middleware runs on every MCP route — v1 uses
 // `X-Tenant-Id` as an advisory scope hint (never a security boundary).
@@ -22,8 +23,9 @@
 //
 // ══════════════════════════════════════════════════════════════════════════════
 
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import {
+  buildDiscoveryDescriptor,
   handleMcpRequest,
   parseErrorResponse,
   type DispatchContext,
@@ -75,31 +77,16 @@ export function createMcpRoutes(services: AppServices, config: AppConfig): Hono 
     }
   });
 
-  app.get('/mcp.json', (c) =>
+  const discovery = (c: Context) =>
     c.json(
-      {
-        error: {
-          code: 'not_implemented',
-          message: 'GET /mcp.json handler lands in T-2.14',
-          task: 'T-2.14',
-        },
-      },
-      501,
-    ),
-  );
+      buildDiscoveryDescriptor({
+        requestUrl: c.req.url,
+        config: services.mcpConfig,
+      }),
+    );
 
-  app.get('/.well-known/mcp.json', (c) =>
-    c.json(
-      {
-        error: {
-          code: 'not_implemented',
-          message: 'GET /.well-known/mcp.json handler lands in T-2.14',
-          task: 'T-2.14',
-        },
-      },
-      501,
-    ),
-  );
+  app.get('/mcp.json', discovery);
+  app.get('/.well-known/mcp.json', discovery);
 
   return app;
 }
