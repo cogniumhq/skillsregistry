@@ -29,6 +29,13 @@ import { bootSchema } from './boot/schema.js';
 import { loadConfig, ConfigError, type AppConfig } from './config.js';
 import { createPool } from './db/pool.js';
 import {
+  adaptToPortLogger,
+  createLogger,
+  createSilentLogger,
+  type PinoLogger,
+} from './logging/index.js';
+import { requestLogger } from './middleware/index.js';
+import {
   createAdminRoutes,
   createMcpRoutes,
   createPublicRoutes,
@@ -54,6 +61,22 @@ export function createApp(
   services: AppServices,
 ): Hono {
   const app = new Hono();
+
+  // Root-scoped so every downstream sub-app (public, admin, MCP) inherits
+  // request-id assignment + per-request logging. Mounted first so the log
+  // line covers the full handler duration including tenantContext/auth.
+  //
+  // `services.logger` is set by `buildAppServices` on the real boot path; the
+  // fallback keeps unit tests that pass `{} as AppServices` from blowing up
+  // inside the middleware (no logs is fine; a thrown `undefined.child` isn't).
+  const middlewareLogger = services.logger ?? createSilentLogger();
+  app.use(
+    '*',
+    requestLogger({
+      logger: middlewareLogger,
+      requestIdHeader: config.log.requestIdHeader,
+    }),
+  );
 
   app.get('/v1/health', async (c) => {
     const dbReachable = await pingDb(pool);
@@ -95,20 +118,28 @@ async function main(): Promise<void> {
     config = loadConfig();
   } catch (err) {
     if (err instanceof ConfigError) {
+      // No logger yet — config parse is upstream of `createLogger(config.log)`.
+      // Fall back to stderr so the operator still sees the enumerated issues.
+      // eslint-disable-next-line no-console
       console.error(err.message);
       process.exit(1);
     }
     throw err;
   }
 
+  const logger: PinoLogger = createLogger(config.log);
+  const bootLogger = logger.child({ module: 'boot' });
+
   const pool = createPool(config.postgres);
 
   try {
-    await bootSchema(pool);
+    await bootSchema(pool, {
+      logger: adaptToPortLogger(logger.child({ module: 'boot-schema' })),
+    });
   } catch (err) {
-    console.error(
-      '[skillsregistry-local] schema boot failed:',
-      (err as Error).message,
+    bootLogger.error(
+      { err: (err as Error).message },
+      'schema boot failed',
     );
     await pool.end().catch(() => {});
     process.exit(1);
@@ -116,11 +147,11 @@ async function main(): Promise<void> {
 
   let services: AppServices;
   try {
-    services = await buildAppServices(config, pool);
+    services = await buildAppServices(config, pool, logger);
   } catch (err) {
-    console.error(
-      '[skillsregistry-local] services init failed:',
-      (err as Error).message,
+    bootLogger.error(
+      { err: (err as Error).message },
+      'services init failed',
     );
     await pool.end().catch(() => {});
     process.exit(1);
@@ -136,17 +167,21 @@ async function main(): Promise<void> {
   const server = serve(
     { fetch: app.fetch, hostname: config.http.host, port: config.http.port },
     (info) => {
-      console.log(
-        `[skillsregistry-local] listening on http://${info.address}:${info.port}`,
-      );
-      console.log(
-        `[skillsregistry-local] node_env=${config.nodeEnv} embedder=${config.embedder.kind} upstream=${config.upstream ? 'configured' : 'air-gap'}`,
+      bootLogger.info(
+        {
+          address: info.address,
+          port: info.port,
+          node_env: config.nodeEnv,
+          embedder: config.embedder.kind,
+          upstream: config.upstream ? 'configured' : 'air-gap',
+        },
+        'listening',
       );
     },
   );
 
   const shutdown = async (signal: string): Promise<void> => {
-    console.log(`[skillsregistry-local] ${signal} received, shutting down`);
+    bootLogger.info({ signal }, 'shutdown received');
     server.close();
     await closeAppServices(services).catch(() => {});
     await pool.end().catch(() => {});
@@ -160,6 +195,9 @@ async function main(): Promise<void> {
 const isMain = import.meta.url === `file://${process.argv[1]}`;
 if (isMain) {
   main().catch((err) => {
+    // Fatal-at-boot fallback. If we crashed before `createLogger` ran, we
+    // won't have a pino sink; stderr is the safest last-resort channel.
+    // eslint-disable-next-line no-console
     console.error('[skillsregistry-local] fatal:', err);
     process.exit(1);
   });

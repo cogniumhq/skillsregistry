@@ -37,7 +37,7 @@ function buildConfig(overrides: Partial<AppConfig> = {}): AppConfig {
       cacheTtlTier2: 1800,
       cacheTtlTier3: 600,
     },
-    log: { level: 'info' },
+    log: { level: 'info', format: 'json', requestIdHeader: 'X-Request-Id' },
     mcp: {
       serverName: 'skillsregistry-local',
       serverVersion: '0.1.0',

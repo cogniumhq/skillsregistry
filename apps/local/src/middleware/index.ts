@@ -4,4 +4,6 @@
 
 export { adminAuth } from './admin-auth.js';
 export type { AdminAuthOptions } from './admin-auth.js';
+export { requestLogger } from './request-logger.js';
+export type { RequestLoggerOptions } from './request-logger.js';
 export { getTenantId, tenantContext } from './tenant.js';

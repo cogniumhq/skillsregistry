@@ -61,6 +61,7 @@ import type { McpAdapters, ResolvedMcpConfig } from '@skillsregistry/mcp';
 import { resolveConfig as resolveMcpConfig } from '@skillsregistry/mcp';
 import { BudgetMeter } from './budget/index.js';
 import type { AppConfig } from './config.js';
+import { adaptToPortLogger, type PinoLogger } from './logging/index.js';
 import { buildMcpAdapters } from './mcp/index.js';
 import { PublishToMothershipClient } from './migration/index.js';
 import {
@@ -75,6 +76,12 @@ import { TrustClient } from './trust-client.js';
 import { UpstreamClient } from './upstream-client/index.js';
 
 export interface AppServices {
+  /**
+   * Root pino logger. Every module gets a `child({ module: '…' })` scoped
+   * copy adapted to its port-logger shape. Also exposed on Hono contexts
+   * per-request via the `requestLogger` middleware.
+   */
+  logger: PinoLogger;
   /** KvAdapter over Postgres `kv_store` — search cache, budget cache, misc. */
   kv: PgKv;
   /** In-process embed queue. */
@@ -157,6 +164,7 @@ export interface AppServices {
 export async function buildAppServices(
   config: AppConfig,
   pool: Pool,
+  logger: PinoLogger,
 ): Promise<AppServices> {
   // 3a — local kv_store DDL. Idempotent.
   await ensureKvStoreTable(pool);
@@ -203,6 +211,7 @@ export async function buildAppServices(
     kv,
     pool,
     tenantId: config.upstream?.tenantId ?? null,
+    logger: adaptToPortLogger(logger.child({ module: 'trust-client' })),
   });
 
   // 3j — budget meter. Cron + KV cache of `GET /v1/tenant/budget`. In
@@ -213,6 +222,7 @@ export async function buildAppServices(
     kv,
     config: config.budget,
     tenantId: config.upstream?.tenantId ?? null,
+    logger: adaptToPortLogger(logger.child({ module: 'budget-meter' })),
   });
 
   // 3k — migration client. Reads local rows + delegates to `upstream.publish`.
@@ -220,6 +230,7 @@ export async function buildAppServices(
   const migrationClient = new PublishToMothershipClient({
     upstream,
     pool,
+    logger: adaptToPortLogger(logger.child({ module: 'publish-to-mothership' })),
   });
 
   // 3l — skills client. Local-first read (with upstream write-through
@@ -229,6 +240,7 @@ export async function buildAppServices(
   const skillsClient = new SkillsClient({
     upstream,
     pool,
+    logger: adaptToPortLogger(logger.child({ module: 'skills-client' })),
   });
 
   // 3m — search service. Wires PgVectorProvider + ConfidenceGate +
@@ -344,6 +356,7 @@ export async function buildAppServices(
   });
 
   return {
+    logger,
     kv,
     embedQueue,
     scanQueue,

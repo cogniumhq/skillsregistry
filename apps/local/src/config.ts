@@ -147,9 +147,22 @@ export interface SearchConfig {
   cacheTtlTier3: number;
 }
 
+export type LogFormat = 'json' | 'pretty';
+
 export interface LogConfig {
   /** Log verbosity. Default `info`. */
   level: LogLevel;
+  /**
+   * Output format. `json` for production (structured, machine-parseable);
+   * `pretty` for local dev (human-readable via `pino-pretty`). Default `json`.
+   */
+  format: LogFormat;
+  /**
+   * HTTP header the request-id middleware honors on inbound requests and
+   * echoes on responses. Default `X-Request-Id`. Case-insensitive on read;
+   * emitted verbatim on write.
+   */
+  requestIdHeader: string;
 }
 
 export interface McpConfig {
@@ -244,6 +257,8 @@ const ENV = {
   MCP_BATCH_MAX: 'MCP_BATCH_MAX',
   MCP_INVOCATION_ARGS_MAX: 'MCP_INVOCATION_ARGS_MAX',
   LOG_LEVEL: 'LOG_LEVEL',
+  LOG_FORMAT: 'LOG_FORMAT',
+  LOG_REQUEST_ID_HEADER: 'LOG_REQUEST_ID_HEADER',
 } as const;
 
 // ─── errors ─────────────────────────────────────────────────────────────────
@@ -316,6 +331,24 @@ function parseLogLevel(raw: string, issues: Issues): LogLevel {
   if ((allowed as string[]).includes(raw)) return raw as LogLevel;
   issues.add(ENV.LOG_LEVEL, `must be one of ${allowed.join('|')} (got "${raw}")`);
   return 'info';
+}
+
+function parseLogFormat(raw: string, issues: Issues): LogFormat {
+  if (raw === 'json' || raw === 'pretty') return raw;
+  issues.add(ENV.LOG_FORMAT, `must be json|pretty (got "${raw}")`);
+  return 'json';
+}
+
+// RFC 7230 §3.2.6 field-name = 1*tchar; keep the set small + safe.
+const HEADER_NAME_RE = /^[A-Za-z][A-Za-z0-9-]{0,63}$/;
+
+function parseRequestIdHeader(raw: string, issues: Issues): string {
+  if (HEADER_NAME_RE.test(raw)) return raw;
+  issues.add(
+    ENV.LOG_REQUEST_ID_HEADER,
+    `must be a valid HTTP header name (RFC 7230 tchar, ≤64 chars) — got "${raw}"`,
+  );
+  return 'X-Request-Id';
 }
 
 function parseBudget(env: EnvSource, issues: Issues): BudgetConfig {
@@ -625,6 +658,11 @@ export function loadConfig(env: EnvSource = process.env): AppConfig {
 
   const log: LogConfig = {
     level: parseLogLevel(optional(env, ENV.LOG_LEVEL, 'info'), issues),
+    format: parseLogFormat(optional(env, ENV.LOG_FORMAT, 'json'), issues),
+    requestIdHeader: parseRequestIdHeader(
+      optional(env, ENV.LOG_REQUEST_ID_HEADER, 'X-Request-Id'),
+      issues,
+    ),
   };
 
   issues.throwIfAny();

@@ -47,7 +47,7 @@ function buildConfig(): AppConfig {
       cacheTtlTier2: 1800,
       cacheTtlTier3: 600,
     },
-    log: { level: 'info' },
+    log: { level: 'info', format: 'json', requestIdHeader: 'X-Request-Id' },
   };
 }
 

@@ -47,6 +47,8 @@ describe('loadConfig', () => {
       expect(cfg.postgres.poolMax).toBe(10);
       expect(cfg.postgres.statementTimeoutMs).toBe(30000);
       expect(cfg.log.level).toBe('info');
+      expect(cfg.log.format).toBe('json');
+      expect(cfg.log.requestIdHeader).toBe('X-Request-Id');
       expect(cfg.embedder).toEqual({
         kind: 'ollama',
         url: 'http://localhost:11434',
@@ -180,6 +182,39 @@ describe('loadConfig', () => {
       expect(() =>
         loadConfig({ ...REQUIRED_MIN, LOG_LEVEL: 'verbose' }),
       ).toThrow(/LOG_LEVEL: must be one of/);
+    });
+  });
+
+  describe('log format', () => {
+    it('accepts json + pretty', () => {
+      expect(loadConfig({ ...REQUIRED_MIN, LOG_FORMAT: 'json' }).log.format).toBe('json');
+      expect(loadConfig({ ...REQUIRED_MIN, LOG_FORMAT: 'pretty' }).log.format).toBe('pretty');
+    });
+
+    it('rejects unknown format', () => {
+      expect(() =>
+        loadConfig({ ...REQUIRED_MIN, LOG_FORMAT: 'xml' }),
+      ).toThrow(/LOG_FORMAT: must be json\|pretty/);
+    });
+  });
+
+  describe('log request-id header', () => {
+    it('accepts a custom header name', () => {
+      const cfg = loadConfig({ ...REQUIRED_MIN, LOG_REQUEST_ID_HEADER: 'X-Trace-Id' });
+      expect(cfg.log.requestIdHeader).toBe('X-Trace-Id');
+    });
+
+    it('rejects header names that violate RFC 7230 tchar (space, colon)', () => {
+      expect(() =>
+        loadConfig({ ...REQUIRED_MIN, LOG_REQUEST_ID_HEADER: 'X Trace Id' }),
+      ).toThrow(/LOG_REQUEST_ID_HEADER: must be a valid HTTP header name/);
+    });
+
+    it('rejects header names longer than 64 chars', () => {
+      const overlong = `X-${'a'.repeat(64)}`;
+      expect(() =>
+        loadConfig({ ...REQUIRED_MIN, LOG_REQUEST_ID_HEADER: overlong }),
+      ).toThrow(/LOG_REQUEST_ID_HEADER: must be a valid HTTP header name/);
     });
   });
 
