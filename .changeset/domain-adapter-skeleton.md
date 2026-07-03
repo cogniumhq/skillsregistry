@@ -1,5 +1,5 @@
 ---
-"@skillsregistry/domain": minor
+"@skillsregistry/domain": major
 ---
 
 Scaffold `@skillsregistry/domain` at `0.1.0` with the five adapter
