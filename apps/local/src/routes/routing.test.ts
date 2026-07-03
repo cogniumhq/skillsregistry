@@ -38,6 +38,20 @@ function buildConfig(overrides: Partial<AppConfig> = {}): AppConfig {
       cacheTtlTier3: 600,
     },
     log: { level: 'info' },
+    mcp: {
+      serverName: 'skillsregistry-local',
+      serverVersion: '0.1.0',
+      canonicalOrigin: undefined,
+      documentationUrl: undefined,
+      openapiUrl: undefined,
+      searchDefaultLimit: 10,
+      searchMaxLimit: 50,
+      searchQueryMax: 500,
+      leaderboardDefaultLimit: 20,
+      leaderboardMaxLimit: 100,
+      batchMax: 20,
+      invocationArgsMaxChars: 4096,
+    },
     ...overrides,
   };
 }
@@ -57,6 +71,36 @@ function fakePool(reachable = true): Pool {
  * T-2.11 / T-2.12 / T-2.13.
  */
 const NULL_SERVICES = {} as AppServices;
+
+/**
+ * Minimal `AppServices` that lights up the T-2.13 MCP dispatcher for the
+ * initialize / notifications paths — no adapter methods are invoked because
+ * those cases never enter `tools/call`. `mcpConfig` mirrors the McpConfig
+ * defaults so `serverInfo` in the response is deterministic.
+ */
+function mcpServices(): AppServices {
+  return {
+    mcpAdapters: {
+      search: {} as never,
+      skills: {} as never,
+      compositions: {} as never,
+      leaderboards: {} as never,
+    },
+    mcpConfig: {
+      serverName: 'skillsregistry-local',
+      serverVersion: '0.1.0',
+      canonicalOrigin: undefined,
+      documentationUrl: undefined,
+      openapiUrl: undefined,
+      searchDefaultLimit: 10,
+      searchMaxLimit: 50,
+      searchQueryMax: 500,
+      leaderboardDefaultLimit: 20,
+      leaderboardMaxLimit: 100,
+      batchMax: 20,
+    },
+  } as unknown as AppServices;
+}
 
 describe('createApp route surface', () => {
   describe('GET /v1/health', () => {
@@ -475,16 +519,67 @@ describe('createApp route surface', () => {
   });
 
   describe('MCP routes (T-2.13 / T-2.14)', () => {
-    it('mounts POST /mcp as a 501 stub', async () => {
-      const app = createApp(buildConfig(), fakePool(), NULL_SERVICES);
+    it('serves POST /mcp through the wired T-2.13 dispatcher (initialize)', async () => {
+      const services = mcpServices();
+      const app = createApp(buildConfig(), fakePool(), services);
       const res = await app.request('/mcp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'initialize',
+          params: { protocolVersion: '2025-03-26' },
+        }),
       });
-      expect(res.status).toBe(501);
-      const body = (await res.json()) as { error: { task: string } };
-      expect(body.error.task).toBe('T-2.13');
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        jsonrpc: string;
+        id: number;
+        result: {
+          protocolVersion: string;
+          capabilities: { tools: { listChanged: boolean } };
+          serverInfo: { name: string; version: string };
+        };
+      };
+      expect(body.jsonrpc).toBe('2.0');
+      expect(body.id).toBe(1);
+      expect(body.result.protocolVersion).toBe('2025-03-26');
+      expect(body.result.serverInfo.name).toBe('skillsregistry-local');
+      expect(body.result.serverInfo.version).toBe('0.1.0');
+    });
+
+    it('POST /mcp returns a JSON-RPC parse error on malformed JSON', async () => {
+      const services = mcpServices();
+      const app = createApp(buildConfig(), fakePool(), services);
+      const res = await app.request('/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: 'not json',
+      });
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as {
+        jsonrpc: string;
+        id: unknown;
+        error: { code: number; message: string };
+      };
+      expect(body.jsonrpc).toBe('2.0');
+      expect(body.id).toBeNull();
+      expect(body.error.code).toBe(-32700);
+    });
+
+    it('POST /mcp returns 202 on a notification (no id)', async () => {
+      const services = mcpServices();
+      const app = createApp(buildConfig(), fakePool(), services);
+      const res = await app.request('/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'notifications/initialized',
+        }),
+      });
+      expect(res.status).toBe(202);
     });
 
     it('mounts GET /mcp.json as a 501 stub', async () => {

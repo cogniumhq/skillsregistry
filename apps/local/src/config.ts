@@ -152,6 +152,39 @@ export interface LogConfig {
   level: LogLevel;
 }
 
+export interface McpConfig {
+  /** Server name emitted in `initialize` + discovery. Default `skillsregistry-local`. */
+  serverName: string;
+  /** Server version emitted in `initialize` + discovery. Default `0.1.0`. */
+  serverVersion: string;
+  /**
+   * Canonical origin for discovery URLs (`https://mcp.example.com`).
+   * Optional — falls back to the request URL. Env: `MCP_CANONICAL_ORIGIN`.
+   */
+  canonicalOrigin: string | undefined;
+  /** Optional documentation URL for discovery. Env: `MCP_DOCUMENTATION_URL`. */
+  documentationUrl: string | undefined;
+  /** Optional OpenAPI URL for discovery. Env: `MCP_OPENAPI_URL`. */
+  openapiUrl: string | undefined;
+  /** MCP_SEARCH_DEFAULT_LIMIT. Default 10. */
+  searchDefaultLimit: number;
+  /** MCP_SEARCH_MAX_LIMIT. Default 50. */
+  searchMaxLimit: number;
+  /** MCP_SEARCH_QUERY_MAX. Default 500 chars. */
+  searchQueryMax: number;
+  /** MCP_LEADERBOARD_DEFAULT_LIMIT. Default 20. */
+  leaderboardDefaultLimit: number;
+  /** MCP_LEADERBOARD_MAX_LIMIT. Default 100. */
+  leaderboardMaxLimit: number;
+  /** MCP_BATCH_MAX. Default 20. */
+  batchMax: number;
+  /**
+   * MCP_INVOCATION_ARGS_MAX. Max serialized args length (chars) written to
+   * `mcp_invocations.args`. Default 4096.
+   */
+  invocationArgsMaxChars: number;
+}
+
 export interface AppConfig {
   nodeEnv: NodeEnv;
   http: HttpConfig;
@@ -163,6 +196,7 @@ export interface AppConfig {
   /** null when no mothership is configured (air-gap mode). */
   upstream: UpstreamConfig | null;
   search: SearchConfig;
+  mcp: McpConfig;
   log: LogConfig;
 }
 
@@ -197,6 +231,18 @@ const ENV = {
   SEARCH_CACHE_TTL_TIER1: 'SEARCH_CACHE_TTL_TIER1',
   SEARCH_CACHE_TTL_TIER2: 'SEARCH_CACHE_TTL_TIER2',
   SEARCH_CACHE_TTL_TIER3: 'SEARCH_CACHE_TTL_TIER3',
+  MCP_SERVER_NAME: 'MCP_SERVER_NAME',
+  MCP_SERVER_VERSION: 'MCP_SERVER_VERSION',
+  MCP_CANONICAL_ORIGIN: 'MCP_CANONICAL_ORIGIN',
+  MCP_DOCUMENTATION_URL: 'MCP_DOCUMENTATION_URL',
+  MCP_OPENAPI_URL: 'MCP_OPENAPI_URL',
+  MCP_SEARCH_DEFAULT_LIMIT: 'MCP_SEARCH_DEFAULT_LIMIT',
+  MCP_SEARCH_MAX_LIMIT: 'MCP_SEARCH_MAX_LIMIT',
+  MCP_SEARCH_QUERY_MAX: 'MCP_SEARCH_QUERY_MAX',
+  MCP_LEADERBOARD_DEFAULT_LIMIT: 'MCP_LEADERBOARD_DEFAULT_LIMIT',
+  MCP_LEADERBOARD_MAX_LIMIT: 'MCP_LEADERBOARD_MAX_LIMIT',
+  MCP_BATCH_MAX: 'MCP_BATCH_MAX',
+  MCP_INVOCATION_ARGS_MAX: 'MCP_INVOCATION_ARGS_MAX',
   LOG_LEVEL: 'LOG_LEVEL',
 } as const;
 
@@ -442,6 +488,72 @@ function parseSearch(env: EnvSource, issues: Issues): SearchConfig {
   };
 }
 
+function parseMcp(env: EnvSource, issues: Issues): McpConfig {
+  const serverName = optional(env, ENV.MCP_SERVER_NAME, 'skillsregistry-local');
+  const serverVersion = optional(env, ENV.MCP_SERVER_VERSION, '0.1.0');
+  const canonicalRaw = env[ENV.MCP_CANONICAL_ORIGIN]?.trim();
+  const canonicalOrigin =
+    canonicalRaw === undefined || canonicalRaw === '' ? undefined : canonicalRaw;
+  const docRaw = env[ENV.MCP_DOCUMENTATION_URL]?.trim();
+  const documentationUrl =
+    docRaw === undefined || docRaw === '' ? undefined : docRaw;
+  const openapiRaw = env[ENV.MCP_OPENAPI_URL]?.trim();
+  const openapiUrl =
+    openapiRaw === undefined || openapiRaw === '' ? undefined : openapiRaw;
+
+  const searchDefaultLimit = parseInt10(
+    ENV.MCP_SEARCH_DEFAULT_LIMIT,
+    optional(env, ENV.MCP_SEARCH_DEFAULT_LIMIT, '10'),
+    issues,
+  );
+  const searchMaxLimit = parseInt10(
+    ENV.MCP_SEARCH_MAX_LIMIT,
+    optional(env, ENV.MCP_SEARCH_MAX_LIMIT, '50'),
+    issues,
+  );
+  const searchQueryMax = parseInt10(
+    ENV.MCP_SEARCH_QUERY_MAX,
+    optional(env, ENV.MCP_SEARCH_QUERY_MAX, '500'),
+    issues,
+  );
+  const leaderboardDefaultLimit = parseInt10(
+    ENV.MCP_LEADERBOARD_DEFAULT_LIMIT,
+    optional(env, ENV.MCP_LEADERBOARD_DEFAULT_LIMIT, '20'),
+    issues,
+  );
+  const leaderboardMaxLimit = parseInt10(
+    ENV.MCP_LEADERBOARD_MAX_LIMIT,
+    optional(env, ENV.MCP_LEADERBOARD_MAX_LIMIT, '100'),
+    issues,
+  );
+  const batchMax = parseInt10(
+    ENV.MCP_BATCH_MAX,
+    optional(env, ENV.MCP_BATCH_MAX, '20'),
+    issues,
+  );
+  const invocationArgsMaxChars = parseInt10(
+    ENV.MCP_INVOCATION_ARGS_MAX,
+    optional(env, ENV.MCP_INVOCATION_ARGS_MAX, '4096'),
+    issues,
+    64,
+  );
+
+  return {
+    serverName,
+    serverVersion,
+    canonicalOrigin,
+    documentationUrl,
+    openapiUrl,
+    searchDefaultLimit,
+    searchMaxLimit,
+    searchQueryMax,
+    leaderboardDefaultLimit,
+    leaderboardMaxLimit,
+    batchMax,
+    invocationArgsMaxChars,
+  };
+}
+
 function parseUpstream(env: EnvSource, issues: Issues): UpstreamConfig | null {
   const baseUrl = env[ENV.MOTHERSHIP_URL]?.trim();
   const apiKey = env[ENV.MOTHERSHIP_API_KEY]?.trim();
@@ -509,6 +621,7 @@ export function loadConfig(env: EnvSource = process.env): AppConfig {
   const embedder = parseEmbedder(env, issues);
   const upstream = parseUpstream(env, issues);
   const search = parseSearch(env, issues);
+  const mcp = parseMcp(env, issues);
 
   const log: LogConfig = {
     level: parseLogLevel(optional(env, ENV.LOG_LEVEL, 'info'), issues),
@@ -526,6 +639,7 @@ export function loadConfig(env: EnvSource = process.env): AppConfig {
     embedder,
     upstream,
     search,
+    mcp,
     log,
   };
 }

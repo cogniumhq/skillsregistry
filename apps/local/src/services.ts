@@ -57,8 +57,11 @@ import {
 } from '@skillsregistry/domain/intelligence';
 import { PgVectorProvider } from '@skillsregistry/domain/providers';
 import { CircuitBreaker } from '@skillsregistry/domain/resilience';
+import type { McpAdapters, ResolvedMcpConfig } from '@skillsregistry/mcp';
+import { resolveConfig as resolveMcpConfig } from '@skillsregistry/mcp';
 import { BudgetMeter } from './budget/index.js';
 import type { AppConfig } from './config.js';
+import { buildMcpAdapters } from './mcp/index.js';
 import { PublishToMothershipClient } from './migration/index.js';
 import {
   NoopSearchLogger,
@@ -131,6 +134,20 @@ export interface AppServices {
    * `/v1/search` contract in `@skillsregistry/contracts/upstream.ts`.
    */
   searchService: SearchService;
+  /**
+   * T-2.13 MCP adapter bundle wired against `@skillsregistry/mcp`.
+   * `search` delegates to `ConfidenceGate`, `skills` to `SkillsClient`,
+   * `leaderboards` to `UpstreamClient` (empty in air-gap), `compositions`
+   * always returns `{ found: false }` (no local composition support in
+   * MVP). `recorder` writes to `mcp_invocations`; `afterResponse` is the
+   * shared `NodeAfterResponse` so the write never blocks the request.
+   */
+  mcpAdapters: McpAdapters;
+  /**
+   * T-2.13 resolved MCP config (server identity, tool limits, batch cap).
+   * Derived from `config.mcp` via `resolveConfig(...)` at boot.
+   */
+  mcpConfig: ResolvedMcpConfig;
 }
 
 /**
@@ -298,6 +315,34 @@ export async function buildAppServices(
     afterResponse,
   });
 
+  // 3n — MCP adapter bundle + resolved config for `POST /mcp` (T-2.13) and
+  //      the discovery descriptor (T-2.14). `mcpAdapters` reuses the same
+  //      ConfidenceGate as `searchService` so REST and MCP search agree
+  //      byte-for-byte on the same query; `mcpConfig` is `resolveConfig()`
+  //      applied to `config.mcp` so `@skillsregistry/mcp` defaults fill any
+  //      absent knobs.
+  const mcpAdapters = buildMcpAdapters({
+    gate: confidenceGate,
+    skillsClient,
+    upstream,
+    afterResponse,
+    pool,
+    invocationArgsMaxChars: config.mcp.invocationArgsMaxChars,
+  });
+  const mcpConfig = resolveMcpConfig({
+    serverName: config.mcp.serverName,
+    serverVersion: config.mcp.serverVersion,
+    canonicalOrigin: config.mcp.canonicalOrigin,
+    documentationUrl: config.mcp.documentationUrl,
+    openapiUrl: config.mcp.openapiUrl,
+    searchDefaultLimit: config.mcp.searchDefaultLimit,
+    searchMaxLimit: config.mcp.searchMaxLimit,
+    searchQueryMax: config.mcp.searchQueryMax,
+    leaderboardDefaultLimit: config.mcp.leaderboardDefaultLimit,
+    leaderboardMaxLimit: config.mcp.leaderboardMaxLimit,
+    batchMax: config.mcp.batchMax,
+  });
+
   return {
     kv,
     embedQueue,
@@ -311,6 +356,8 @@ export async function buildAppServices(
     migrationClient,
     skillsClient,
     searchService,
+    mcpAdapters,
+    mcpConfig,
   };
 }
 
