@@ -8,7 +8,7 @@
 #   1. GET  /v1/health              → 200, upstreamConfigured=false, dbReachable=true
 #   2. GET  /v1/search?q=<term>     → 200, `results` array present
 #   3. POST /mcp {tools/list}       → 200, 5 tools advertised
-#   4. POST /v1/skills               → 201, `skill_id` present
+#   4. POST /v1/skills               → 201, `id` present
 #   5. POST /v1/trust/score          → 503, `error.code = upstream_not_configured`
 #
 # Design:
@@ -80,13 +80,13 @@ status=$(  echo "$body" | jq -r '.status')
 [ "$status"   = "ok"    ] || die "expected status=ok, got $status"                   "$body"
 pass "/v1/health OK (air-gap posture confirmed)"
 
-# ── 2. /v1/search — 200 with results array ───────────────────────────────────
-step "GET /v1/search?q=example → 200 with .results[]"
+# ── 2. /v1/search — 200 with skills array ────────────────────────────────────
+step "GET /v1/search?q=example → 200 with .skills[]"
 body=$(curl -sf "$BASE_URL/v1/search?q=example&limit=5") \
   || die "search endpoint did not return 200"
-echo "$body" | jq -e '.results | type == "array"' >/dev/null \
-  || die "expected .results to be an array" "$body"
-pass "/v1/search returned .results[]"
+echo "$body" | jq -e '.skills | type == "array"' >/dev/null \
+  || die "expected .skills to be an array" "$body"
+pass "/v1/search returned .skills[]"
 
 # ── 3. POST /mcp — tools/list advertises 5 tools ─────────────────────────────
 step "POST /mcp {tools/list} → 200 with 5 tools"
@@ -101,7 +101,7 @@ echo "$body" | jq -e '.result.tools | map(.name) | contains(["search_skills","ge
 pass "/mcp advertised all 5 tools"
 
 # ── 4. POST /v1/skills — publish a local skill ───────────────────────────────
-step "POST /v1/skills → 201 with .skill_id"
+step "POST /v1/skills → 201 with .id"
 publish_body=$(cat <<JSON
 {
   "manifest": {
@@ -120,14 +120,14 @@ body=$(curl -sf -X POST "$BASE_URL/v1/skills" \
   -H 'Content-Type: application/json' \
   -d "$publish_body") \
   || die "publish endpoint did not return 2xx"
-skill_id=$(echo "$body" | jq -r '.skill_id // empty')
-[ -n "$skill_id" ] || die "expected .skill_id in publish response" "$body"
-pass "/v1/skills published skill_id=$skill_id"
+id=$(echo "$body" | jq -r '.id // empty')
+[ -n "$id" ] || die "expected .id in publish response" "$body"
+pass "/v1/skills published id=$id"
 
 # ── 5. POST /v1/trust/score — expect 503 upstream_not_configured ─────────────
 step "POST /v1/trust/score → 503 with .error.code=upstream_not_configured"
 score_body=$(cat <<JSON
-{ "skill_id": "$skill_id" }
+{ "skill_id": "$id" }
 JSON
 )
 # -f would swallow the 503 body; we need it, so use -w to capture status
