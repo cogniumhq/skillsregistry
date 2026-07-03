@@ -16,6 +16,7 @@
     "test": "vitest run",
     "start": "node ./dist/index.js",
     "dev": "tsx watch src/index.ts",
+    "smoke:airgap": "./scripts/smoke-airgap.sh",
     "clean": "rm -rf dist .tsbuildinfo"
   },
   "dependencies": {
