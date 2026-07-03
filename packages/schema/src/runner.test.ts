@@ -18,7 +18,7 @@ import {
 
 interface Call {
   sql: string;
-  values?: unknown[];
+  values?: unknown[] | undefined;
 }
 
 interface ScriptStep {
