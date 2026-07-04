@@ -1,0 +1,56 @@
+---
+// Shared skills table skeleton — mounted on both /admin/skills/ and
+// /admin/migration/. Client scripts fill `#skills-tbody` at load time from
+// `/v1/admin/skills`. The `mode` prop toggles the mothership-action column:
+//
+//   list    — read-only, links to skill detail (/v1/skills/:id)
+//   migrate — per-row "Publish to mothership" action + status pill
+//
+// Kept dependency-free — no reactive framework, no hydration, just a table
+// + a data-slot the page's <script> writes to.
+import Skeleton from '~/components/Skeleton.astro';
+
+export interface Props {
+  mode: 'list' | 'migrate';
+  tableId?: string;
+}
+const { mode, tableId = 'skills-table' } = Astro.props;
+---
+<div
+  id={tableId}
+  class="w-full overflow-x-auto rounded-md border"
+  style="border-color: var(--color-border-subtle);"
+  data-skills-mode={mode}
+>
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="text-left" style="background-color: var(--color-bg-elevated); color: var(--color-text-muted);">
+        <th class="px-3 py-2 font-mono text-xs uppercase tracking-wider">Slug</th>
+        <th class="px-3 py-2 font-mono text-xs uppercase tracking-wider">Name</th>
+        <th class="px-3 py-2 font-mono text-xs uppercase tracking-wider">Source</th>
+        <th class="px-3 py-2 font-mono text-xs uppercase tracking-wider">Version</th>
+        {mode === 'migrate' && (
+          <>
+            <th class="px-3 py-2 font-mono text-xs uppercase tracking-wider">Mothership</th>
+            <th class="px-3 py-2 font-mono text-xs uppercase tracking-wider">Action</th>
+          </>
+        )}
+        {mode === 'list' && (
+          <th class="px-3 py-2 font-mono text-xs uppercase tracking-wider">Created</th>
+        )}
+      </tr>
+    </thead>
+    <tbody id={`${tableId}-tbody`} style="color: var(--color-text-secondary);">
+      <tr>
+        <td class="px-3 py-3" colspan={mode === 'migrate' ? 6 : 5}>
+          <Skeleton height="1.5rem" />
+        </td>
+      </tr>
+    </tbody>
+  </table>
+  <p
+    id={`${tableId}-caption`}
+    class="px-3 py-2 text-xs font-mono border-t"
+    style="color: var(--color-text-muted); border-color: var(--color-border-subtle);"
+  >—</p>
+</div>

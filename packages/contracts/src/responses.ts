@@ -464,3 +464,35 @@ export const AuthorSkillsResponseSchema = z
     offset: z.number(),
   })
   .openapi('AuthorSkillsResponse');
+
+// ── Admin: local skills list (T-3.4 admin UI) ──
+//
+// Powers the admin skills + migration pages in `apps/local/web`. Fields are
+// the minimum needed to render a table + drive the "publish to mothership"
+// button; the detail view still goes through /v1/skills/:id. Mothership
+// columns are populated only on the local node — the mothership itself
+// never emits them.
+
+const AdminSkillsListItemSchema = z.object({
+  id: z.string(),
+  slug: z.string(),
+  name: z.string(),
+  source: z.string(),
+  version: z.string(),
+  mothershipPublishStatus: z.string().nullable(),
+  mothershipUrl: z.string().nullable(),
+  mothershipPublishedAt: z.string().nullable(),
+  createdAt: z.string().nullable(),
+});
+
+export const AdminSkillsListResponseSchema = z
+  .object({
+    skills: z.array(AdminSkillsListItemSchema),
+    total: z.number(),
+    limit: z.number(),
+    offset: z.number(),
+  })
+  .openapi('AdminSkillsListResponse');
+
+export type AdminSkillsListItem = z.infer<typeof AdminSkillsListItemSchema>;
+export type AdminSkillsListResponse = z.infer<typeof AdminSkillsListResponseSchema>;

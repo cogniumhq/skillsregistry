@@ -43,6 +43,7 @@ import {
   DeleteResultSchema,
   AuthorProfileSchema,
   AuthorSkillsResponseSchema,
+  AdminSkillsListResponseSchema,
   // upstream
   TrustScoreRequestSchema,
   TrustScoreResponseSchema,
@@ -592,6 +593,71 @@ describe('author envelopes', () => {
   it('AuthorSkillsResponse round-trips', () => {
     const v = { skills: [], limit: 20, offset: 0 };
     expect(AuthorSkillsResponseSchema.parse(v)).toEqual(v);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Admin skills list (T-3.4 admin UI)
+// ──────────────────────────────────────────────────────────────────────────────
+
+describe('AdminSkillsListResponseSchema', () => {
+  it('round-trips an empty page', () => {
+    const v = { skills: [], total: 0, limit: 100, offset: 0 };
+    expect(AdminSkillsListResponseSchema.parse(v)).toEqual(v);
+  });
+
+  it('round-trips a populated row with mothership metadata', () => {
+    const v = {
+      skills: [
+        {
+          id: 'sk_1',
+          slug: 'a',
+          name: 'A',
+          source: 'manual',
+          version: '1.0.0',
+          mothershipPublishStatus: 'published',
+          mothershipUrl: 'https://api.skillsregistry.net/v1/skills/sk_1',
+          mothershipPublishedAt: '2026-06-01T00:00:00Z',
+          createdAt: '2026-05-01T00:00:00Z',
+        },
+      ],
+      total: 1,
+      limit: 100,
+      offset: 0,
+    };
+    expect(AdminSkillsListResponseSchema.parse(v)).toEqual(v);
+  });
+
+  it('accepts nullable mothership + createdAt fields on unpublished rows', () => {
+    const v = {
+      skills: [
+        {
+          id: 'sk_2',
+          slug: 'b',
+          name: 'B',
+          source: 'manual',
+          version: '1.0.0',
+          mothershipPublishStatus: null,
+          mothershipUrl: null,
+          mothershipPublishedAt: null,
+          createdAt: null,
+        },
+      ],
+      total: 1,
+      limit: 100,
+      offset: 0,
+    };
+    expect(AdminSkillsListResponseSchema.parse(v)).toEqual(v);
+  });
+
+  it('rejects a row with a missing required field', () => {
+    const bad = {
+      skills: [{ id: 'sk_1', slug: 'a', name: 'A' }],
+      total: 1,
+      limit: 100,
+      offset: 0,
+    };
+    expect(() => AdminSkillsListResponseSchema.parse(bad)).toThrow();
   });
 });
 

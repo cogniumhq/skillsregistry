@@ -1,0 +1,178 @@
+---
+import Base from '~/layouts/Base.astro';
+import DataCard from '~/components/DataCard.astro';
+import SkillsTable from '~/components/SkillsTable.astro';
+---
+<Base title="Migration">
+  <div class="mb-8 flex items-start justify-between gap-4 flex-wrap">
+    <div>
+      <h1 class="text-2xl font-semibold tracking-tight" style="color: var(--color-text-primary);">
+        Mothership migration
+      </h1>
+      <p class="text-sm mt-1" style="color: var(--color-text-secondary);">
+        Push local skills up to <code class="font-mono text-xs" style="color: var(--color-text-primary);">api.skillsregistry.net</code>.
+        Each row shows the last-known publish status; the button drives
+        <code class="font-mono text-xs" style="color: var(--color-text-primary);">POST /v1/migrate/publish</code>.
+      </p>
+    </div>
+    <button
+      id="reload-btn"
+      type="button"
+      class="text-sm px-3 py-1.5 rounded-md border transition-colors disabled:opacity-50"
+      style="background-color: var(--color-accent-glow); border-color: var(--color-accent-dim); color: var(--color-accent);"
+    >Reload</button>
+  </div>
+
+  <div
+    id="migration-banner"
+    class="hidden mb-4 rounded-md border px-4 py-2 text-sm"
+    role="status"
+  ></div>
+
+  <DataCard title="Publish queue" hint="page: 100">
+    <SkillsTable mode="migrate" tableId="migration-table" />
+  </DataCard>
+</Base>
+
+<script>
+  import {
+    escapeHtml,
+    fetchJson,
+    pillMarkup,
+    publishStatusToPill,
+    toPublishStatus,
+    type AdminSkillItem,
+    type AdminSkillsListPayload,
+  } from '~/scripts/dashboard-client';
+
+  const banner = document.getElementById('migration-banner');
+  const btn = document.getElementById('reload-btn') as HTMLButtonElement | null;
+
+  function showBanner(kind: 'ok' | 'err', message: string): void {
+    if (!banner) return;
+    banner.textContent = message;
+    banner.classList.remove('hidden');
+    if (kind === 'ok') {
+      banner.style.backgroundColor = 'rgba(110, 231, 183, 0.12)';
+      banner.style.borderColor = '#34d399';
+      banner.style.color = '#6ee7b7';
+    } else {
+      banner.style.backgroundColor = 'rgba(248, 113, 113, 0.12)';
+      banner.style.borderColor = '#ef4444';
+      banner.style.color = '#f87171';
+    }
+  }
+
+  function actionCell(s: AdminSkillItem): string {
+    const status = toPublishStatus(s.mothershipPublishStatus);
+    if (status === 'published' && s.mothershipUrl !== null && s.mothershipUrl !== '') {
+      // rel=noopener because the target lives on api.skillsregistry.net —
+      // different origin, don't leak window.opener.
+      return (
+        `<a class="text-xs font-mono underline" ` +
+        `style="color: var(--color-accent);" ` +
+        `href="${escapeHtml(s.mothershipUrl)}" target="_blank" rel="noopener noreferrer">` +
+        `open on mothership</a>`
+      );
+    }
+    return (
+      `<button type="button" data-publish-id="${escapeHtml(s.id)}" ` +
+      `class="text-xs px-2 py-1 rounded-md border transition-colors disabled:opacity-50" ` +
+      `style="background-color: var(--color-accent-glow); border-color: var(--color-accent-dim); color: var(--color-accent);">` +
+      `Publish</button>`
+    );
+  }
+
+  function renderRows(
+    payload: AdminSkillsListPayload | undefined,
+    httpStatus: number,
+  ): void {
+    const tbody = document.getElementById('migration-table-tbody');
+    const caption = document.getElementById('migration-table-caption');
+    if (!tbody || !caption) return;
+
+    if (!payload || !Array.isArray(payload.skills)) {
+      tbody.innerHTML =
+        `<tr><td class="px-3 py-4 text-xs font-mono" colspan="6" style="color: #f87171;">Failed to load skills (HTTP ${httpStatus}).</td></tr>`;
+      caption.textContent = '—';
+      return;
+    }
+
+    if (payload.skills.length === 0) {
+      tbody.innerHTML =
+        `<tr><td class="px-3 py-4 text-xs" colspan="6" style="color: var(--color-text-muted);">No skills to publish. Add one via POST /v1/skills first.</td></tr>`;
+      caption.textContent = '0 of 0';
+      return;
+    }
+
+    tbody.innerHTML = payload.skills
+      .map((s) => {
+        const status = toPublishStatus(s.mothershipPublishStatus);
+        const pillLabel = status === 'unpublished' ? 'not published' : status;
+        return (
+          `<tr class="border-t" style="border-color: var(--color-border-subtle);">` +
+          `<td class="px-3 py-2 font-mono text-xs">${escapeHtml(s.slug)}</td>` +
+          `<td class="px-3 py-2">${escapeHtml(s.name)}</td>` +
+          `<td class="px-3 py-2 font-mono text-xs" style="color: var(--color-text-muted);">${escapeHtml(s.source)}</td>` +
+          `<td class="px-3 py-2 font-mono text-xs">${escapeHtml(s.version)}</td>` +
+          `<td class="px-3 py-2">${pillMarkup(publishStatusToPill(status), pillLabel)}</td>` +
+          `<td class="px-3 py-2" data-cell-for="${escapeHtml(s.id)}">${actionCell(s)}</td>` +
+          `</tr>`
+        );
+      })
+      .join('');
+
+    for (const btnEl of tbody.querySelectorAll<HTMLButtonElement>('button[data-publish-id]')) {
+      btnEl.addEventListener('click', () => {
+        const id = btnEl.getAttribute('data-publish-id');
+        if (id !== null && id !== '') void publish(id, btnEl);
+      });
+    }
+
+    const shown = payload.skills.length;
+    caption.textContent = `${shown} of ${payload.total} skill${payload.total === 1 ? '' : 's'}`;
+  }
+
+  async function publish(skillId: string, btnEl: HTMLButtonElement): Promise<void> {
+    btnEl.disabled = true;
+    const originalText = btnEl.textContent;
+    btnEl.textContent = 'Publishing…';
+    banner?.classList.add('hidden');
+    try {
+      const res = await fetchJson<{ error?: { message?: string } }>(
+        `/v1/migrate/publish?skill_id=${encodeURIComponent(skillId)}`,
+        { method: 'POST' },
+      );
+      if (res.ok) {
+        showBanner('ok', `Published ${skillId} to mothership.`);
+        // Reload to pick up the new mothership_publish_status + url.
+        await load();
+      } else {
+        const msg = res.body?.error?.message ?? `HTTP ${res.status}`;
+        showBanner('err', `Publish failed: ${msg}`);
+        btnEl.disabled = false;
+        btnEl.textContent = originalText;
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      showBanner('err', `Publish failed: ${message}`);
+      btnEl.disabled = false;
+      btnEl.textContent = originalText;
+    }
+  }
+
+  async function load(): Promise<void> {
+    if (btn) btn.disabled = true;
+    try {
+      const res = await fetchJson<AdminSkillsListPayload>('/v1/admin/skills?limit=100');
+      renderRows(res.body, res.status);
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    void load();
+    btn?.addEventListener('click', () => void load());
+  });
+</script>

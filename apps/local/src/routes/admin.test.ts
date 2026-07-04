@@ -362,3 +362,210 @@ describe('auth guard', () => {
     expect(res.status).toBe(401);
   });
 });
+
+// ── GET /v1/admin/skills (T-3.4) ──────────────────────────────────────────
+
+interface SkillsRow {
+  id: string;
+  slug: string;
+  name: string;
+  source: string;
+  version: string;
+  mothership_publish_status: string | null;
+  mothership_url: string | null;
+  mothership_published_at: string | null;
+  created_at: string | null;
+}
+
+function skillsRow(overrides: Partial<SkillsRow> = {}): SkillsRow {
+  return {
+    id: 'sk_a',
+    slug: 'a',
+    name: 'A',
+    source: 'manual',
+    version: '1.0.0',
+    mothership_publish_status: null,
+    mothership_url: null,
+    mothership_published_at: null,
+    created_at: '2026-05-01T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
+interface SkillsPoolCall {
+  sql: string;
+  params: unknown[];
+}
+
+/**
+ * Pool that returns `rows` for `SELECT ... FROM skills LIMIT`, `[{c: count}]`
+ * for the count query, and captures every call for assertion.
+ */
+function skillsPool(rows: SkillsRow[], count: number): {
+  pool: Pool;
+  calls: SkillsPoolCall[];
+} {
+  const calls: SkillsPoolCall[] = [];
+  const pool = {
+    query: async (sql: string, params?: unknown[]) => {
+      calls.push({ sql, params: params ?? [] });
+      if (sql.includes('COUNT(*)')) {
+        return { rows: [{ c: String(count) }] };
+      }
+      if (sql.includes('FROM skills')) {
+        return { rows };
+      }
+      // schema_migrations fallback for the health probe wire-in (not used here).
+      return { rows: [{ v: SCHEMA_VERSION }] };
+    },
+  } as unknown as Pool;
+  return { pool, calls };
+}
+
+describe('GET /v1/admin/skills', () => {
+  it('returns an empty page with default limit/offset when the table is empty', async () => {
+    const { pool } = skillsPool([], 0);
+    const app = mount(healthyServices(), pool);
+    const res = await app.request('/v1/admin/skills', { headers: BEARER });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      skills: unknown[];
+      total: number;
+      limit: number;
+      offset: number;
+    };
+    expect(body).toEqual({ skills: [], total: 0, limit: 100, offset: 0 });
+  });
+
+  it('projects DB rows to camelCase items with mothership metadata preserved', async () => {
+    const rows = [
+      skillsRow({
+        id: 'sk_a',
+        slug: 'a',
+        name: 'A',
+        mothership_publish_status: 'published',
+        mothership_url: 'https://api.skillsregistry.net/v1/skills/sk_a',
+        mothership_published_at: '2026-06-01T00:00:00.000Z',
+      }),
+      skillsRow({ id: 'sk_b', slug: 'b', name: 'B' }),
+    ];
+    const { pool } = skillsPool(rows, 2);
+    const app = mount(healthyServices(), pool);
+    const res = await app.request('/v1/admin/skills', { headers: BEARER });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      skills: Array<{
+        id: string;
+        slug: string;
+        mothershipPublishStatus: string | null;
+        mothershipUrl: string | null;
+        createdAt: string | null;
+      }>;
+      total: number;
+    };
+    expect(body.total).toBe(2);
+    expect(body.skills).toHaveLength(2);
+    expect(body.skills[0]?.slug).toBe('a');
+    expect(body.skills[0]?.mothershipPublishStatus).toBe('published');
+    expect(body.skills[0]?.mothershipUrl).toBe(
+      'https://api.skillsregistry.net/v1/skills/sk_a',
+    );
+    expect(body.skills[1]?.mothershipPublishStatus).toBeNull();
+    expect(body.skills[1]?.mothershipUrl).toBeNull();
+    expect(body.skills[1]?.createdAt).toBe('2026-05-01T00:00:00.000Z');
+  });
+
+  it('accepts numeric limit / offset query params and passes them to the pool', async () => {
+    const { pool, calls } = skillsPool([], 42);
+    const app = mount(healthyServices(), pool);
+    const res = await app.request('/v1/admin/skills?limit=25&offset=50', {
+      headers: BEARER,
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { limit: number; offset: number; total: number };
+    expect(body.limit).toBe(25);
+    expect(body.offset).toBe(50);
+    expect(body.total).toBe(42);
+    const selectCall = calls.find((c) => c.sql.includes('FROM skills') && !c.sql.includes('COUNT'));
+    expect(selectCall?.params).toEqual([25, 50]);
+  });
+
+  it('clamps limit above 500 to 500', async () => {
+    const { pool, calls } = skillsPool([], 0);
+    const app = mount(healthyServices(), pool);
+    const res = await app.request('/v1/admin/skills?limit=99999', {
+      headers: BEARER,
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { limit: number };
+    expect(body.limit).toBe(500);
+    const selectCall = calls.find((c) => c.sql.includes('FROM skills') && !c.sql.includes('COUNT'));
+    expect(selectCall?.params).toEqual([500, 0]);
+  });
+
+  it('rejects a non-integer limit with 400 bad_request', async () => {
+    const { pool } = skillsPool([], 0);
+    const app = mount(healthyServices(), pool);
+    const res = await app.request('/v1/admin/skills?limit=abc', {
+      headers: BEARER,
+    });
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: { code: string } };
+    expect(body.error.code).toBe('bad_request');
+  });
+
+  it('rejects a negative offset with 400 bad_request', async () => {
+    const { pool } = skillsPool([], 0);
+    const app = mount(healthyServices(), pool);
+    const res = await app.request('/v1/admin/skills?offset=-1', {
+      headers: BEARER,
+    });
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: { code: string } };
+    expect(body.error.code).toBe('bad_request');
+  });
+
+  it('rejects a limit=0 with 400 bad_request (min is 1)', async () => {
+    const { pool } = skillsPool([], 0);
+    const app = mount(healthyServices(), pool);
+    const res = await app.request('/v1/admin/skills?limit=0', {
+      headers: BEARER,
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 500 with internal_error when the DB throws', async () => {
+    const app = mount(healthyServices(), unreachablePool());
+    const res = await app.request('/v1/admin/skills', { headers: BEARER });
+    expect(res.status).toBe(500);
+    const body = (await res.json()) as { error: { code: string; message: string } };
+    expect(body.error.code).toBe('internal_error');
+    expect(body.error.message).toContain('db unreachable');
+  });
+
+  it('rejects without a bearer token', async () => {
+    const { pool } = skillsPool([], 0);
+    const app = mount(healthyServices(), pool);
+    const res = await app.request('/v1/admin/skills');
+    expect(res.status).toBe(401);
+  });
+
+  it('handles Date instances in created_at by rendering ISO strings', async () => {
+    const date = new Date('2026-05-01T12:34:56.000Z');
+    const rows = [
+      skillsRow({
+        created_at: date as unknown as string,
+        mothership_published_at: date as unknown as string,
+      }),
+    ];
+    const { pool } = skillsPool(rows, 1);
+    const app = mount(healthyServices(), pool);
+    const res = await app.request('/v1/admin/skills', { headers: BEARER });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      skills: Array<{ createdAt: string | null; mothershipPublishedAt: string | null }>;
+    };
+    expect(body.skills[0]?.createdAt).toBe('2026-05-01T12:34:56.000Z');
+    expect(body.skills[0]?.mothershipPublishedAt).toBe('2026-05-01T12:34:56.000Z');
+  });
+});

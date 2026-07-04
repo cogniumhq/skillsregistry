@@ -49,6 +49,52 @@ export interface BudgetPayload {
   mode: 'configured' | 'air_gapped';
 }
 
+export interface AdminSkillItem {
+  id: string;
+  slug: string;
+  name: string;
+  source: string;
+  version: string;
+  mothershipPublishStatus: string | null;
+  mothershipUrl: string | null;
+  mothershipPublishedAt: string | null;
+  createdAt: string | null;
+}
+
+export interface AdminSkillsListPayload {
+  skills: AdminSkillItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export type PublishStatus = 'unpublished' | 'pending' | 'published' | 'failed' | 'unknown';
+
+/**
+ * Normalise DB-shaped mothership_publish_status to the tags the UI knows
+ * how to render. NULL / unset counts as "unpublished" — the skill was
+ * ingested locally and never promoted to the mothership.
+ */
+export function toPublishStatus(s: string | null | undefined): PublishStatus {
+  if (s === null || s === undefined || s === '') return 'unpublished';
+  if (s === 'pending' || s === 'published' || s === 'failed' || s === 'unpublished') {
+    return s;
+  }
+  return 'unknown';
+}
+
+const PUBLISH_STATUS_TO_PILL: Record<PublishStatus, CheckStatus> = {
+  unpublished: 'unknown',
+  pending: 'degraded',
+  published: 'ok',
+  failed: 'error',
+  unknown: 'unknown',
+};
+
+export function publishStatusToPill(s: PublishStatus): CheckStatus {
+  return PUBLISH_STATUS_TO_PILL[s];
+}
+
 const STATUS_CONFIG: Record<CheckStatus, { fg: string; bg: string; border: string }> = {
   ok:       { fg: '#6ee7b7', bg: 'rgba(110, 231, 183, 0.12)', border: '#34d399' },
   degraded: { fg: '#fbbf24', bg: 'rgba(251, 191, 36, 0.12)',  border: '#f59e0b' },

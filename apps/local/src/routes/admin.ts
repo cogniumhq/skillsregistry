@@ -75,6 +75,35 @@ interface HealthResponseBody {
   };
 }
 
+// ── Admin skills list (T-3.4) ────────────────────────────────────────────────
+//
+// Feeds the admin UI's skills + migration tables. Minimal projection: fields
+// downstream renders as columns + the mothership metadata that drives the
+// "publish to mothership" button. Detail view still goes through
+// /v1/skills/:id.
+
+interface AdminSkillsListItem {
+  id: string;
+  slug: string;
+  name: string;
+  source: string;
+  version: string;
+  mothershipPublishStatus: string | null;
+  mothershipUrl: string | null;
+  mothershipPublishedAt: string | null;
+  createdAt: string | null;
+}
+
+interface AdminSkillsListResponseBody {
+  skills: AdminSkillsListItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+const ADMIN_SKILLS_DEFAULT_LIMIT = 100;
+const ADMIN_SKILLS_MAX_LIMIT = 500;
+
 /**
  * Build the admin sub-app. The auth middleware is attached inside so
  * mounting is a one-liner in `createApp()`.
@@ -198,6 +227,81 @@ export function createAdminRoutes(
     return c.json(body, aggregate === 'ok' ? 200 : 503);
   });
 
+  // ── GET /v1/admin/skills (T-3.4) ───────────────────────────────────────
+  //
+  // Paginated list of local skills for the admin UI. Loopback-friendly
+  // (bypass on 127.0.0.1) + bearer-gated over the network. Query params:
+  //
+  //   limit  — 1..500, default 100
+  //   offset — 0..N,    default 0
+  //
+  // Ordering is by created_at DESC so the freshest publishes surface at
+  // the top of the table. `total` is a separate COUNT(*) — cheap on the
+  // local corpus (self-host runs never exceed a few thousand skills), and
+  // lets the UI render a "X of N" caption without a second round-trip.
+  app.get('/admin/skills', async (c) => {
+    const limitRaw = c.req.query('limit');
+    const offsetRaw = c.req.query('offset');
+    const limit = clampInt(
+      limitRaw,
+      ADMIN_SKILLS_DEFAULT_LIMIT,
+      1,
+      ADMIN_SKILLS_MAX_LIMIT,
+    );
+    const offset = clampInt(offsetRaw, 0, 0, Number.MAX_SAFE_INTEGER);
+    if (limit === null || offset === null) {
+      return c.json(
+        {
+          error: {
+            code: 'bad_request' as const,
+            message: 'limit and offset must be non-negative integers',
+          },
+        },
+        400,
+      );
+    }
+
+    try {
+      const [rowsResult, countResult] = await Promise.all([
+        pool.query(
+          `SELECT id, slug, name, source, version,
+                  mothership_publish_status, mothership_url,
+                  mothership_published_at, created_at
+             FROM skills
+            ORDER BY created_at DESC NULLS LAST, id
+            LIMIT $1 OFFSET $2`,
+          [limit, offset],
+        ),
+        pool.query('SELECT COUNT(*)::text AS c FROM skills'),
+      ]);
+
+      const skills = (rowsResult.rows as AdminSkillsRow[]).map(rowToItem);
+      const total = Number.parseInt(
+        (countResult.rows[0] as { c?: string } | undefined)?.c ?? '0',
+        10,
+      );
+
+      const body: AdminSkillsListResponseBody = {
+        skills,
+        total: Number.isFinite(total) ? total : 0,
+        limit,
+        offset,
+      };
+      return c.json(body, 200);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return c.json(
+        {
+          error: {
+            code: 'internal_error' as const,
+            message: `skills list failed: ${message}`,
+          },
+        },
+        500,
+      );
+    }
+  });
+
   // ── POST /v1/migrate/publish (T-2.10) ──────────────────────────────────
   //
   // Migration door. Reads `?skill_id=<uuid>`, delegates to the migration
@@ -290,6 +394,61 @@ function probeMothership(services: AppServices): MothershipCheck {
     mode: 'configured',
     circuitState,
   };
+}
+
+// ── Admin skills list helpers ────────────────────────────────────────────────
+
+interface AdminSkillsRow {
+  id: string;
+  slug: string;
+  name: string;
+  source: string;
+  version: string;
+  mothership_publish_status: string | null;
+  mothership_url: string | null;
+  mothership_published_at: Date | string | null;
+  created_at: Date | string | null;
+}
+
+function rowToItem(row: AdminSkillsRow): AdminSkillsListItem {
+  return {
+    id: row.id,
+    slug: row.slug,
+    name: row.name,
+    source: row.source,
+    version: row.version,
+    mothershipPublishStatus: row.mothership_publish_status,
+    mothershipUrl: row.mothership_url,
+    mothershipPublishedAt: toIso(row.mothership_published_at),
+    createdAt: toIso(row.created_at),
+  };
+}
+
+function toIso(v: Date | string | null): string | null {
+  if (v === null || v === undefined) return null;
+  if (v instanceof Date) return v.toISOString();
+  return v;
+}
+
+/**
+ * Parse a `?limit`/`?offset` query param. Returns the fallback when the
+ * param is absent; returns null when it is present but not a
+ * non-negative integer or is out of range. Clamps to [min, max].
+ */
+function clampInt(
+  raw: string | undefined,
+  fallback: number,
+  min: number,
+  max: number,
+): number | null {
+  if (raw === undefined) return fallback;
+  const trimmed = raw.trim();
+  if (trimmed === '') return fallback;
+  if (!/^\d+$/.test(trimmed)) return null;
+  const n = Number.parseInt(trimmed, 10);
+  if (!Number.isFinite(n)) return null;
+  if (n < min) return null;
+  return n > max ? max : n;
 }
 
 async function probeMigrations(pool: Pool): Promise<MigrationsCheck> {
