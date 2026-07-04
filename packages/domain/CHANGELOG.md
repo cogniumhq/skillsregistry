@@ -1,5 +1,12 @@
 # @skillsregistry/domain
 
+## 1.0.1
+
+### Patch Changes
+
+- Updated dependencies [020250d]
+  - @skillsregistry/contracts@1.0.1
+
 ## 1.0.0
 
 ### Major Changes
