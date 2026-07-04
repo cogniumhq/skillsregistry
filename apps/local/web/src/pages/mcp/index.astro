@@ -1,0 +1,167 @@
+---
+import Base from '~/layouts/Base.astro';
+import DataCard from '~/components/DataCard.astro';
+import CodeBlock from '~/components/CodeBlock.astro';
+import Skeleton from '~/components/Skeleton.astro';
+
+// The client-side script resolves the real origin at load time
+// (window.location.origin), so the snippets rendered at build time use a
+// `__ORIGIN__` sentinel that the script rewrites in-place. This keeps the
+// static build output truly static — no need to know the deploy URL at
+// build time.
+const ORIGIN = '__ORIGIN__';
+
+const curlSnippet = `curl -X POST ${ORIGIN}/mcp \\
+  -H 'content-type: application/json' \\
+  -H 'x-tenant-id: local' \\
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'`;
+
+const claudeDesktopSnippet = `{
+  "mcpServers": {
+    "skillsregistry-local": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "${ORIGIN}/mcp"
+      ]
+    }
+  }
+}`;
+---
+<Base title="MCP">
+  <div class="mb-8 flex items-start justify-between gap-4 flex-wrap">
+    <div>
+      <h1 class="text-2xl font-semibold tracking-tight" style="color: var(--color-text-primary);">
+        MCP wiring
+      </h1>
+      <p class="text-sm mt-1" style="color: var(--color-text-secondary);">
+        Point an MCP client (Claude Desktop, Cortex, custom) at this node.
+        Discovery lives at
+        <code class="font-mono text-xs" style="color: var(--color-text-primary);">/.well-known/mcp.json</code>
+        with an alias at
+        <code class="font-mono text-xs" style="color: var(--color-text-primary);">/mcp.json</code>; JSON-RPC
+        transport is
+        <code class="font-mono text-xs" style="color: var(--color-text-primary);">POST /mcp</code>.
+      </p>
+    </div>
+  </div>
+
+  <div class="grid gap-4 md:grid-cols-2 mb-6">
+    <DataCard title="Endpoint" id="mcp-endpoint-card">
+      <dl class="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-sm">
+        <dt style="color: var(--color-text-muted);">transport</dt>
+        <dd class="font-mono text-xs" style="color: var(--color-text-secondary);">streamable-http (POST)</dd>
+        <dt style="color: var(--color-text-muted);">endpoint</dt>
+        <dd class="font-mono text-xs" style="color: var(--color-text-primary); word-break: break-word;">
+          <span data-slot="endpoint">—</span>
+        </dd>
+        <dt style="color: var(--color-text-muted);">tenant header</dt>
+        <dd class="font-mono text-xs" style="color: var(--color-text-secondary);">X-Tenant-Id (advisory)</dd>
+        <dt style="color: var(--color-text-muted);">auth model</dt>
+        <dd class="font-mono text-xs" style="color: var(--color-text-secondary);">none (v1 read-only)</dd>
+      </dl>
+    </DataCard>
+
+    <DataCard title="Discovery status" id="mcp-status-card" hint="live from /mcp.json">
+      <div id="mcp-status-row" class="flex items-center gap-2 mb-3">
+        <Skeleton height="1.5rem" width="6rem" />
+      </div>
+      <ul id="mcp-tools-list" class="text-sm font-mono space-y-1" style="color: var(--color-text-secondary);">
+        <li><Skeleton height="1rem" /></li>
+      </ul>
+    </DataCard>
+  </div>
+
+  <div class="space-y-4">
+    <DataCard title="curl · tools/list" hint="quick smoke test">
+      <CodeBlock id="snippet-curl" code={curlSnippet} language="bash" />
+    </DataCard>
+
+    <DataCard title="Claude Desktop config" hint="~/.config/Claude/claude_desktop_config.json">
+      <p class="text-xs mb-3" style="color: var(--color-text-muted);">
+        Paste into your Claude Desktop config, restart Claude Desktop, and the
+        five MCP tools will surface as
+        <code class="font-mono" style="color: var(--color-text-primary);">search_skills</code>,
+        <code class="font-mono" style="color: var(--color-text-primary);">get_skill</code>,
+        <code class="font-mono" style="color: var(--color-text-primary);">list_leaderboard</code>,
+        <code class="font-mono" style="color: var(--color-text-primary);">get_trust_breakdown</code>,
+        <code class="font-mono" style="color: var(--color-text-primary);">resolve_composition</code>.
+      </p>
+      <CodeBlock id="snippet-claude" code={claudeDesktopSnippet} language="json" />
+    </DataCard>
+  </div>
+</Base>
+
+<script>
+  import { escapeHtml, fetchJson, pillMarkup } from '~/scripts/dashboard-client';
+
+  interface McpDiscoveryDescriptor {
+    schemaVersion?: string;
+    protocolVersion?: string;
+    serverInfo?: { name?: string; version?: string };
+    transport?: { endpoint?: string; methods?: string[] };
+    tools?: Array<{ name: string; description?: string }>;
+  }
+
+  const ORIGIN_SENTINEL = '__ORIGIN__';
+
+  function rewriteSnippet(id: string, origin: string): void {
+    const pre = document.getElementById(id);
+    if (!pre) return;
+    pre.textContent = (pre.textContent ?? '').split(ORIGIN_SENTINEL).join(origin);
+  }
+
+  function paintEndpoint(origin: string): void {
+    const slot = document.querySelector<HTMLElement>('[data-slot="endpoint"]');
+    if (slot) slot.textContent = `${origin}/mcp`;
+  }
+
+  function paintDiscovery(
+    payload: McpDiscoveryDescriptor | undefined,
+    httpStatus: number,
+  ): void {
+    const statusRow = document.getElementById('mcp-status-row');
+    const toolsList = document.getElementById('mcp-tools-list');
+    if (!statusRow || !toolsList) return;
+
+    if (!payload) {
+      statusRow.innerHTML = pillMarkup('error', `HTTP ${httpStatus}`);
+      toolsList.innerHTML =
+        `<li style="color: var(--color-text-muted);">no descriptor returned</li>`;
+      return;
+    }
+
+    const tools = Array.isArray(payload.tools) ? payload.tools : [];
+    statusRow.innerHTML =
+      pillMarkup('ok', `${tools.length} tool${tools.length === 1 ? '' : 's'}`) +
+      `<span class="text-xs font-mono" style="color: var(--color-text-muted);">` +
+      `${escapeHtml(payload.serverInfo?.name ?? 'skillsregistry-local')} · protocol ${escapeHtml(payload.protocolVersion ?? '—')}` +
+      `</span>`;
+
+    if (tools.length === 0) {
+      toolsList.innerHTML =
+        `<li style="color: var(--color-text-muted);">no tools advertised</li>`;
+      return;
+    }
+
+    toolsList.innerHTML = tools
+      .map(
+        (t) =>
+          `<li class="flex items-baseline gap-2">` +
+          `<span style="color: var(--color-accent);">${escapeHtml(t.name)}</span>` +
+          `<span class="text-xs" style="color: var(--color-text-muted);">${escapeHtml(t.description ?? '')}</span>` +
+          `</li>`,
+      )
+      .join('');
+  }
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    const origin = window.location.origin;
+    rewriteSnippet('snippet-curl', origin);
+    rewriteSnippet('snippet-claude', origin);
+    paintEndpoint(origin);
+
+    const res = await fetchJson<McpDiscoveryDescriptor>('/mcp.json');
+    paintDiscovery(res.body, res.status);
+  });
+</script>

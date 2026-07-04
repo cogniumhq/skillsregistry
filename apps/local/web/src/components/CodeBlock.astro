@@ -1,0 +1,71 @@
+---
+// Code block with a copy-to-clipboard button. Client-side handler is a tiny
+// inline script — no framework, no hydration. `id` is required so the client
+// can find the <pre> to read; caller passes a unique id per instance.
+//
+// The `code` prop is rendered verbatim into the <pre>; caller is
+// responsible for the string being clipboard-ready (no leading indent, no
+// wrapper backticks).
+export interface Props {
+  id: string;
+  code: string;
+  label?: string;
+  language?: string;
+}
+const { id, code, label, language } = Astro.props;
+---
+<div class="rounded-md border overflow-hidden" style="border-color: var(--color-border-subtle);">
+  {(label || language) && (
+    <div
+      class="flex items-center justify-between px-3 py-1.5 text-xs font-mono"
+      style="background-color: var(--color-bg-elevated); color: var(--color-text-muted); border-bottom: 1px solid var(--color-border-subtle);"
+    >
+      <span>{label ?? language ?? ''}</span>
+      <button
+        type="button"
+        data-copy-target={id}
+        class="text-xs font-mono px-2 py-0.5 rounded border transition-colors"
+        style="background-color: transparent; border-color: var(--color-border-subtle); color: var(--color-text-secondary);"
+      >
+        <span data-slot="idle">Copy</span>
+        <span data-slot="done" class="hidden" style="color: var(--color-accent);">Copied</span>
+      </button>
+    </div>
+  )}
+  <pre
+    id={id}
+    class="text-xs font-mono overflow-x-auto p-3"
+    style="background-color: var(--color-bg-elevated); color: var(--color-text-secondary);"
+  >{code}</pre>
+</div>
+
+<script>
+  // Delegated click — covers every CodeBlock on the page in one listener.
+  // Safe on pages that use CodeBlock zero times (querySelector returns null).
+  document.addEventListener('click', (ev) => {
+    const target = ev.target as HTMLElement | null;
+    const btn = target?.closest<HTMLButtonElement>('button[data-copy-target]');
+    if (!btn) return;
+    const id = btn.getAttribute('data-copy-target');
+    if (id === null || id === '') return;
+    const pre = document.getElementById(id);
+    if (!pre) return;
+    const text = pre.textContent ?? '';
+    void navigator.clipboard.writeText(text).then(
+      () => {
+        const idle = btn.querySelector<HTMLElement>('[data-slot="idle"]');
+        const done = btn.querySelector<HTMLElement>('[data-slot="done"]');
+        idle?.classList.add('hidden');
+        done?.classList.remove('hidden');
+        window.setTimeout(() => {
+          idle?.classList.remove('hidden');
+          done?.classList.add('hidden');
+        }, 1500);
+      },
+      () => {
+        // Clipboard API blocked (older browser / insecure context). Do
+        // nothing — user can still select-and-copy from the <pre> block.
+      },
+    );
+  });
+</script>
