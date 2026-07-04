@@ -34,14 +34,18 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Build first so cross-package type resolution works — packages/mcp
+      # imports from @skillsregistry/domain via its dist/ typings, and
+      # apps/local imports from every @skillsregistry/* dist. Without
+      # dist/ present, typecheck fails on the pristine CI checkout.
+      - name: Build
+        run: pnpm build
+
       - name: Typecheck
         run: pnpm typecheck
 
       - name: Test
         run: pnpm test
-
-      - name: Build
-        run: pnpm build
 
   changeset-check:
     name: changeset required on packages/* PRs
