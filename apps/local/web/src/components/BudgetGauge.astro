@@ -1,0 +1,43 @@
+---
+// Renders a horizontal gauge for token budget: emerald when > 25% remaining,
+// amber at 10-25%, red under 10%. When `id` is set the inner elements are
+// tagged so client scripts can update the gauge in place from /v1/admin/budget.
+export interface Props {
+  id?: string;
+  compact?: boolean;
+}
+const { id, compact = false } = Astro.props;
+---
+<div id={id} class="w-full" data-budget-gauge>
+  <div class="flex items-baseline justify-between mb-2">
+    <span class="text-xs font-mono uppercase tracking-wider" style="color: var(--color-text-muted);">
+      tokens remaining
+    </span>
+    <span class="text-xs font-mono" style="color: var(--color-text-secondary);">
+      <span data-slot="remaining">—</span>
+      <span style="color: var(--color-text-muted);">/</span>
+      <span data-slot="total">—</span>
+    </span>
+  </div>
+  <div
+    class="w-full rounded-full overflow-hidden"
+    style="background-color: var(--color-bg-elevated); height: 0.5rem; border: 1px solid var(--color-border-subtle);"
+  >
+    <div
+      data-slot="bar"
+      class="h-full transition-all duration-500"
+      style="width: 0%; background-color: var(--color-accent);"
+    ></div>
+  </div>
+  {!compact && (
+    <dl class="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+      <dt style="color: var(--color-text-muted);">plan</dt>
+      <dd data-slot="plan" class="font-mono" style="color: var(--color-text-secondary);">—</dd>
+      <dt style="color: var(--color-text-muted);">resets at</dt>
+      <dd data-slot="reset" class="font-mono" style="color: var(--color-text-secondary);">—</dd>
+      <dt style="color: var(--color-text-muted);">cached at</dt>
+      <dd data-slot="cached" class="font-mono" style="color: var(--color-text-secondary);">—</dd>
+    </dl>
+  )}
+  <p data-slot="empty" class="text-xs mt-2 hidden" style="color: var(--color-text-muted);"></p>
+</div>

@@ -1,6 +1,7 @@
 ---
 import Base from '~/layouts/Base.astro';
 import DataCard from '~/components/DataCard.astro';
+import BudgetGauge from '~/components/BudgetGauge.astro';
 import Skeleton from '~/components/Skeleton.astro';
 ---
 <Base title="Dashboard">
@@ -9,21 +10,121 @@ import Skeleton from '~/components/Skeleton.astro';
       Dashboard
     </h1>
     <p class="text-sm mt-1" style="color: var(--color-text-secondary);">
-      Live view of the local node. Data lands in C.3.
+      Live view of the local node. Data is fetched on-load from <code class="font-mono text-xs" style="color: var(--color-text-primary);">/v1/admin/health</code> and <code class="font-mono text-xs" style="color: var(--color-text-primary);">/v1/admin/budget</code>.
     </p>
   </div>
 
   <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-    <DataCard title="Subsystem health" id="card-health" hint="C.3">
-      <Skeleton height="6rem" />
+    <DataCard title="Subsystem health" id="card-health" hint="auto-refresh 30s">
+      <div id="health-summary" class="mb-4 flex items-center gap-2">
+        <Skeleton height="1.25rem" width="6rem" />
+      </div>
+      <ul id="health-checks" class="space-y-2 text-sm" style="color: var(--color-text-secondary);">
+        <li class="flex items-center justify-between">
+          <span>database</span><Skeleton height="1.25rem" width="4rem" />
+        </li>
+        <li class="flex items-center justify-between">
+          <span>embedder</span><Skeleton height="1.25rem" width="4rem" />
+        </li>
+        <li class="flex items-center justify-between">
+          <span>mothership</span><Skeleton height="1.25rem" width="4rem" />
+        </li>
+        <li class="flex items-center justify-between">
+          <span>migrations</span><Skeleton height="1.25rem" width="4rem" />
+        </li>
+      </ul>
     </DataCard>
-    <DataCard title="Mothership budget" id="card-budget" hint="C.3">
-      <Skeleton height="6rem" />
+
+    <DataCard title="Mothership budget" id="card-budget" hint="auto-refresh 30s">
+      <BudgetGauge id="dashboard-budget-gauge" compact={false} />
     </DataCard>
-    <DataCard title="Recent activity" id="card-activity" hint="coming soon">
+
+    <DataCard title="Recent activity" hint="coming soon">
       <p class="text-sm" style="color: var(--color-text-muted);">
         Activity feed is deferred to a follow-up commit.
       </p>
     </DataCard>
   </div>
+
+  <p class="mt-6 text-xs" style="color: var(--color-text-muted);">
+    <span id="last-updated" class="font-mono">—</span>
+  </p>
 </Base>
+
+<script>
+  import {
+    fetchJson,
+    pillMarkup,
+    renderBudgetGauge,
+    toPillStatus,
+    type BudgetPayload,
+    type HealthPayload,
+  } from '~/scripts/dashboard-client';
+
+  const REFRESH_MS = 30_000;
+
+  async function refresh(): Promise<void> {
+    const [health, budget] = await Promise.all([
+      fetchJson<HealthPayload>('/v1/admin/health'),
+      fetchJson<BudgetPayload>('/v1/admin/budget'),
+    ]);
+    paintHealth(health.body, health.status);
+    paintBudget(budget.body, budget.status);
+    const stamp = document.getElementById('last-updated');
+    if (stamp) stamp.textContent = `last refreshed ${new Date().toLocaleTimeString()}`;
+  }
+
+  function paintHealth(payload: HealthPayload | undefined, httpStatus: number): void {
+    const summary = document.getElementById('health-summary');
+    const list = document.getElementById('health-checks');
+    if (!summary || !list) return;
+
+    if (!payload || !payload.checks) {
+      summary.innerHTML = pillMarkup('error', `HTTP ${httpStatus}`);
+      list.innerHTML = '';
+      return;
+    }
+
+    summary.innerHTML =
+      pillMarkup(payload.status === 'ok' ? 'ok' : 'degraded', payload.status) +
+      `<span class="text-xs font-mono" style="color: var(--color-text-muted);">` +
+      `schema v${payload.schemaVersion.current} / required v${payload.schemaVersion.required}` +
+      `</span>`;
+
+    const rows = [
+      { key: 'database',   status: toPillStatus(payload.checks.db.status),         label: payload.checks.db.status },
+      { key: 'embedder',   status: toPillStatus(payload.checks.embedder.status),   label: payload.checks.embedder.status,   sub: payload.checks.embedder.identity },
+      { key: 'mothership', status: toPillStatus(payload.checks.mothership.status), label: payload.checks.mothership.mode === 'air_gapped' ? 'air-gap' : payload.checks.mothership.status },
+      { key: 'migrations', status: toPillStatus(payload.checks.migrations.status), label: `v${payload.checks.migrations.current}` },
+    ];
+
+    list.innerHTML = rows
+      .map(
+        (r) =>
+          `<li class="flex items-center justify-between">` +
+          `<span>${r.key}${r.sub ? ` <span class="text-xs" style="color: var(--color-text-muted);">${r.sub}</span>` : ''}</span>` +
+          pillMarkup(r.status, r.label) +
+          `</li>`,
+      )
+      .join('');
+  }
+
+  function paintBudget(payload: BudgetPayload | undefined, httpStatus: number): void {
+    const root = document.getElementById('dashboard-budget-gauge');
+    if (!root) return;
+    if (!payload) {
+      const empty = root.querySelector<HTMLElement>('[data-slot="empty"]');
+      if (empty) {
+        empty.textContent = `Failed to load budget (HTTP ${httpStatus}).`;
+        empty.classList.remove('hidden');
+      }
+      return;
+    }
+    renderBudgetGauge(root, payload);
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    void refresh();
+    setInterval(() => void refresh(), REFRESH_MS);
+  });
+</script>

@@ -1,0 +1,117 @@
+---
+import Base from '~/layouts/Base.astro';
+import DataCard from '~/components/DataCard.astro';
+import BudgetGauge from '~/components/BudgetGauge.astro';
+---
+<Base title="Budget">
+  <div class="mb-8 flex items-start justify-between gap-4 flex-wrap">
+    <div>
+      <h1 class="text-2xl font-semibold tracking-tight" style="color: var(--color-text-primary);">
+        Mothership budget
+      </h1>
+      <p class="text-sm mt-1" style="color: var(--color-text-secondary);">
+        Cached snapshot from <code class="font-mono text-xs" style="color: var(--color-text-primary);">/v1/admin/budget</code>. Refresh forces a live call to the mothership meter.
+      </p>
+    </div>
+    <button
+      id="refresh-btn"
+      type="button"
+      class="text-sm px-3 py-1.5 rounded-md border transition-colors disabled:opacity-50"
+      style="background-color: var(--color-accent-glow); border-color: var(--color-accent-dim); color: var(--color-accent);"
+    >
+      <span data-slot="btn-idle">Refresh from mothership</span>
+      <span data-slot="btn-busy" class="hidden">Refreshing…</span>
+    </button>
+  </div>
+
+  <div
+    id="refresh-banner"
+    class="hidden mb-4 rounded-md border px-4 py-2 text-sm"
+    role="status"
+  ></div>
+
+  <div class="grid gap-4 md:grid-cols-2">
+    <DataCard title="Snapshot">
+      <BudgetGauge id="budget-page-gauge" compact={false} />
+    </DataCard>
+    <DataCard title="Raw response" hint="last fetch">
+      <pre
+        id="budget-raw"
+        class="text-xs font-mono overflow-x-auto p-3 rounded"
+        style="background-color: var(--color-bg-elevated); color: var(--color-text-secondary); border: 1px solid var(--color-border-subtle);"
+      >—</pre>
+    </DataCard>
+  </div>
+</Base>
+
+<script>
+  import {
+    fetchJson,
+    renderBudgetGauge,
+    type BudgetPayload,
+  } from '~/scripts/dashboard-client';
+
+  const rawEl = document.getElementById('budget-raw');
+  const gaugeEl = document.getElementById('budget-page-gauge');
+  const banner = document.getElementById('refresh-banner');
+  const btn = document.getElementById('refresh-btn') as HTMLButtonElement | null;
+  const btnIdle = btn?.querySelector<HTMLElement>('[data-slot="btn-idle"]');
+  const btnBusy = btn?.querySelector<HTMLElement>('[data-slot="btn-busy"]');
+
+  function showBanner(kind: 'ok' | 'err', message: string): void {
+    if (!banner) return;
+    banner.textContent = message;
+    banner.classList.remove('hidden');
+    if (kind === 'ok') {
+      banner.style.backgroundColor = 'rgba(110, 231, 183, 0.12)';
+      banner.style.borderColor = '#34d399';
+      banner.style.color = '#6ee7b7';
+    } else {
+      banner.style.backgroundColor = 'rgba(248, 113, 113, 0.12)';
+      banner.style.borderColor = '#ef4444';
+      banner.style.color = '#f87171';
+    }
+  }
+
+  function paint(payload: BudgetPayload | undefined, httpStatus: number): void {
+    if (rawEl) rawEl.textContent = payload ? JSON.stringify(payload, null, 2) : `HTTP ${httpStatus}`;
+    if (gaugeEl && payload) renderBudgetGauge(gaugeEl, payload);
+  }
+
+  async function load(): Promise<void> {
+    const res = await fetchJson<BudgetPayload>('/v1/admin/budget');
+    paint(res.body, res.status);
+  }
+
+  async function refresh(): Promise<void> {
+    if (!btn) return;
+    btn.disabled = true;
+    btnIdle?.classList.add('hidden');
+    btnBusy?.classList.remove('hidden');
+    banner?.classList.add('hidden');
+    try {
+      const res = await fetchJson<BudgetPayload>('/v1/admin/budget/refresh', { method: 'POST' });
+      if (res.ok) {
+        paint(res.body, res.status);
+        showBanner('ok', 'Refreshed from mothership.');
+      } else {
+        const msg =
+          (res.body as { error?: { message?: string } })?.error?.message ??
+          `HTTP ${res.status}`;
+        showBanner('err', `Refresh failed: ${msg}`);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      showBanner('err', `Refresh failed: ${message}`);
+    } finally {
+      btn.disabled = false;
+      btnIdle?.classList.remove('hidden');
+      btnBusy?.classList.add('hidden');
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    void load();
+    btn?.addEventListener('click', () => void refresh());
+  });
+</script>

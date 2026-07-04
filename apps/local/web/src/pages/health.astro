@@ -1,0 +1,160 @@
+---
+import Base from '~/layouts/Base.astro';
+import DataCard from '~/components/DataCard.astro';
+import Skeleton from '~/components/Skeleton.astro';
+---
+<Base title="Health">
+  <div class="mb-8 flex items-start justify-between gap-4 flex-wrap">
+    <div>
+      <h1 class="text-2xl font-semibold tracking-tight" style="color: var(--color-text-primary);">
+        Subsystem health
+      </h1>
+      <p class="text-sm mt-1" style="color: var(--color-text-secondary);">
+        Deep probe of DB, embedder, mothership, and migration state via <code class="font-mono text-xs" style="color: var(--color-text-primary);">/v1/admin/health</code>.
+      </p>
+    </div>
+    <button
+      id="recheck-btn"
+      type="button"
+      class="text-sm px-3 py-1.5 rounded-md border transition-colors disabled:opacity-50"
+      style="background-color: var(--color-accent-glow); border-color: var(--color-accent-dim); color: var(--color-accent);"
+    >
+      <span data-slot="btn-idle">Re-check</span>
+      <span data-slot="btn-busy" class="hidden">Probing…</span>
+    </button>
+  </div>
+
+  <div id="health-summary" class="mb-6 flex items-center gap-3">
+    <Skeleton height="1.5rem" width="8rem" />
+  </div>
+
+  <div id="checks-grid" class="grid gap-4 md:grid-cols-2">
+    <DataCard title="Database" id="check-db">
+      <Skeleton height="4rem" />
+    </DataCard>
+    <DataCard title="Embedder" id="check-embedder">
+      <Skeleton height="4rem" />
+    </DataCard>
+    <DataCard title="Mothership" id="check-mothership">
+      <Skeleton height="4rem" />
+    </DataCard>
+    <DataCard title="Migrations" id="check-migrations">
+      <Skeleton height="4rem" />
+    </DataCard>
+  </div>
+</Base>
+
+<script>
+  import {
+    escapeHtml,
+    fetchJson,
+    pillMarkup,
+    toPillStatus,
+    type HealthPayload,
+  } from '~/scripts/dashboard-client';
+
+  const btn = document.getElementById('recheck-btn') as HTMLButtonElement | null;
+  const btnIdle = btn?.querySelector<HTMLElement>('[data-slot="btn-idle"]');
+  const btnBusy = btn?.querySelector<HTMLElement>('[data-slot="btn-busy"]');
+
+  function renderCheckBody(
+    fields: Array<{ label: string; value: string; mono?: boolean }>,
+  ): string {
+    return (
+      `<dl class="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-sm">` +
+      fields
+        .map(
+          (f) =>
+            `<dt style="color: var(--color-text-muted);">${escapeHtml(f.label)}</dt>` +
+            `<dd class="${f.mono ? 'font-mono text-xs' : ''}" style="color: var(--color-text-secondary); word-break: break-word;">${escapeHtml(f.value)}</dd>`,
+        )
+        .join('') +
+      `</dl>`
+    );
+  }
+
+  function renderCheck(
+    cardId: string,
+    status: 'ok' | 'degraded' | 'unknown',
+    fields: Array<{ label: string; value: string; mono?: boolean }>,
+  ): void {
+    const card = document.getElementById(cardId);
+    if (!card) return;
+    // Replace everything after the header — DataCard wraps children in the
+    // slot after `<header>`. We rebuild via a "content" wrapper.
+    const header = card.querySelector('header');
+    while (card.lastChild && card.lastChild !== header) {
+      card.removeChild(card.lastChild);
+    }
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML =
+      `<div class="mb-3">${pillMarkup(toPillStatus(status), status)}</div>` +
+      renderCheckBody(fields);
+    card.appendChild(wrapper);
+  }
+
+  function paint(payload: HealthPayload | undefined, httpStatus: number): void {
+    const summary = document.getElementById('health-summary');
+    if (!summary) return;
+
+    if (!payload || !payload.checks) {
+      summary.innerHTML =
+        pillMarkup('error', `HTTP ${httpStatus}`) +
+        `<span class="text-xs font-mono" style="color: var(--color-text-muted);">no health payload returned</span>`;
+      return;
+    }
+
+    summary.innerHTML =
+      pillMarkup(payload.status === 'ok' ? 'ok' : 'degraded', payload.status) +
+      `<span class="text-xs font-mono" style="color: var(--color-text-muted);">` +
+      `schema v${payload.schemaVersion.current} required v${payload.schemaVersion.required}` +
+      `</span>`;
+
+    renderCheck('check-db', payload.checks.db.status, [
+      ...(payload.checks.db.message
+        ? [{ label: 'message', value: payload.checks.db.message, mono: true }]
+        : [{ label: 'probe', value: 'SELECT 1 succeeded' }]),
+    ]);
+
+    renderCheck('check-embedder', payload.checks.embedder.status, [
+      { label: 'identity', value: payload.checks.embedder.identity ?? '—', mono: true },
+      ...(payload.checks.embedder.message
+        ? [{ label: 'message', value: payload.checks.embedder.message, mono: true }]
+        : [{ label: 'probe', value: 'embed(".") succeeded' }]),
+    ]);
+
+    renderCheck('check-mothership', payload.checks.mothership.status, [
+      { label: 'mode', value: payload.checks.mothership.mode },
+      ...(payload.checks.mothership.circuitState
+        ? [{ label: 'circuit', value: payload.checks.mothership.circuitState, mono: true }]
+        : []),
+    ]);
+
+    renderCheck('check-migrations', payload.checks.migrations.status, [
+      { label: 'current', value: `v${payload.checks.migrations.current}`, mono: true },
+      { label: 'required', value: `v${payload.checks.migrations.required}`, mono: true },
+      ...(payload.checks.migrations.message
+        ? [{ label: 'message', value: payload.checks.migrations.message, mono: true }]
+        : []),
+    ]);
+  }
+
+  async function load(): Promise<void> {
+    if (btn) btn.disabled = true;
+    btnIdle?.classList.add('hidden');
+    btnBusy?.classList.remove('hidden');
+    try {
+      const res = await fetchJson<HealthPayload>('/v1/admin/health');
+      paint(res.body, res.status);
+    } finally {
+      if (btn) btn.disabled = false;
+      btnIdle?.classList.remove('hidden');
+      btnBusy?.classList.add('hidden');
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    void load();
+    btn?.addEventListener('click', () => void load());
+  });
+</script>
