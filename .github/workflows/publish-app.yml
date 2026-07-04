@@ -42,7 +42,11 @@ jobs:
         with:
           context: .
           file: apps/local/Dockerfile
-          platforms: linux/amd64,linux/arm64
+          # arm64 dropped for 1.0.0 — QEMU-emulated pnpm install on the
+          # ubuntu-latest runner blows past the 30min job timeout. Track
+          # arm64 as a follow-up (self-hosted arm64 runner or a `pnpm
+          # fetch` layer cache) once the amd64 path is stable.
+          platforms: linux/amd64
           push: true
           tags: |
             ghcr.io/cogniumhq/skillsregistry-local:${{ steps.version.outputs.version }}
