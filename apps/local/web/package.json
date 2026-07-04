@@ -1,0 +1,21 @@
+{
+  "name": "@skillsregistry/local-web",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Admin UI for skillsregistry-local, built as static Astro bundle and served by Hono at /admin/*.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "astro check"
+  },
+  "dependencies": {
+    "@fontsource-variable/inter": "^5.1.0",
+    "@fontsource-variable/jetbrains-mono": "^5.1.0",
+    "@tailwindcss/vite": "^4.0.0",
+    "astro": "^5.0.0",
+    "tailwindcss": "^4.0.0"
+  }
+}

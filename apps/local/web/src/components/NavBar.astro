@@ -1,0 +1,64 @@
+---
+import Logo from './Logo.astro';
+
+const links = [
+  { href: '/admin/',            label: 'Dashboard' },
+  { href: '/admin/skills/',     label: 'Skills' },
+  { href: '/admin/budget/',     label: 'Budget' },
+  { href: '/admin/migration/',  label: 'Migration' },
+  { href: '/admin/mcp/',        label: 'MCP' },
+  { href: '/admin/health/',     label: 'Health' },
+];
+
+const currentPath = Astro.url.pathname.replace(/\/$/, '') || '/admin';
+---
+<header
+  class="sticky top-0 z-20 backdrop-blur border-b"
+  style="background-color: rgba(10,10,11,0.85); border-color: var(--color-border-subtle);"
+>
+  <nav class="max-w-6xl mx-auto flex items-center gap-6 px-4 md:px-6 py-3">
+    <Logo />
+    <ul class="hidden md:flex items-center gap-1 text-sm ml-4">
+      {links.map((link) => {
+        const target = link.href.replace(/\/$/, '') || '/admin';
+        const active = currentPath === target;
+        return (
+          <li>
+            <a
+              href={link.href}
+              class="inline-block px-3 py-1.5 rounded-md transition-colors"
+              style={`color: ${active ? 'var(--color-accent)' : 'var(--color-text-secondary)'}; background-color: ${active ? 'var(--color-accent-glow)' : 'transparent'};`}
+              aria-current={active ? 'page' : undefined}
+            >
+              {link.label}
+            </a>
+          </li>
+        );
+      })}
+    </ul>
+    <div class="ml-auto flex items-center gap-3">
+      <span
+        id="global-status"
+        class="text-xs font-mono px-2 py-1 rounded-md"
+        style="color: var(--color-text-muted); background-color: var(--color-bg-card); border: 1px solid var(--color-border-subtle);"
+      >
+        loopback · localhost:3000
+      </span>
+    </div>
+  </nav>
+  <div class="md:hidden border-t px-4 py-2 flex gap-1 overflow-x-auto text-xs" style="border-color: var(--color-border-subtle);">
+    {links.map((link) => {
+      const target = link.href.replace(/\/$/, '') || '/admin';
+      const active = currentPath === target;
+      return (
+        <a
+          href={link.href}
+          class="whitespace-nowrap px-2 py-1 rounded"
+          style={`color: ${active ? 'var(--color-accent)' : 'var(--color-text-secondary)'}; background-color: ${active ? 'var(--color-accent-glow)' : 'transparent'};`}
+        >
+          {link.label}
+        </a>
+      );
+    })}
+  </div>
+</header>

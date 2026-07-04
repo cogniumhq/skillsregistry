@@ -11,13 +11,15 @@
     "skillsregistry-local": "./dist/index.js"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "pnpm run build:web && tsc -p tsconfig.json",
+    "build:web": "pnpm --filter @skillsregistry/local-web run build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "start": "node ./dist/index.js",
     "dev": "tsx watch src/index.ts",
+    "web:dev": "pnpm --filter @skillsregistry/local-web run dev",
     "smoke:airgap": "./scripts/smoke-airgap.sh",
-    "clean": "rm -rf dist .tsbuildinfo"
+    "clean": "rm -rf dist .tsbuildinfo web/dist web/.astro"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.0",

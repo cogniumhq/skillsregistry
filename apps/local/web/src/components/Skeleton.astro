@@ -1,0 +1,13 @@
+---
+export interface Props {
+  height?: string;
+  width?: string;
+  class?: string;
+}
+const { height = '1.25rem', width = '100%', class: className = '' } = Astro.props;
+---
+<div
+  class={`skeleton ${className}`}
+  style={`height: ${height}; width: ${width};`}
+  aria-hidden="true"
+></div>

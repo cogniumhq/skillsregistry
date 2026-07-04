@@ -1,0 +1,7 @@
+# Astro build output
+dist/
+.astro/
+
+# Local env
+.env
+.env.production

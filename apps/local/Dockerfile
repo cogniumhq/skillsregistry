@@ -35,16 +35,22 @@ COPY pnpm-workspace.yaml pnpm-lock.yaml package.json tsconfig.base.json ./
 COPY packages ./packages
 COPY scripts ./scripts
 COPY apps/local/package.json ./apps/local/package.json
+COPY apps/local/web/package.json ./apps/local/web/package.json
 
 RUN pnpm install --frozen-lockfile
 
-# Copy source and build.
+# Copy source and build. `@skillsregistry/local` build script also runs the
+# Astro build for apps/local/web, producing web/dist next to the app.
 COPY apps/local ./apps/local
 RUN pnpm --filter '@skillsregistry/*' build \
  && pnpm --filter '@skillsregistry/local' build
 
 # Prune to production deps only.
 RUN pnpm --filter '@skillsregistry/local' deploy --prod /out
+
+# Ship the built admin UI alongside the pruned app tree so Hono's serveStatic
+# can resolve `./web/dist` at runtime (working dir = /app).
+RUN mkdir -p /out/web && cp -r apps/local/web/dist /out/web/dist
 
 # ─── runtime stage ──────────────────────────────────────────────────────────
 FROM node:22-alpine AS runtime

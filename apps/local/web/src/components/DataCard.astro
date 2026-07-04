@@ -1,0 +1,23 @@
+---
+export interface Props {
+  title: string;
+  hint?: string;
+  id?: string;
+}
+const { title, hint, id } = Astro.props;
+---
+<section
+  id={id}
+  class="rounded-lg border p-5"
+  style="background-color: var(--color-bg-card); border-color: var(--color-border-subtle);"
+>
+  <header class="flex items-baseline justify-between mb-4">
+    <h2 class="text-sm font-semibold tracking-tight" style="color: var(--color-text-primary);">
+      {title}
+    </h2>
+    {hint && (
+      <span class="text-xs" style="color: var(--color-text-muted);">{hint}</span>
+    )}
+  </header>
+  <slot />
+</section>

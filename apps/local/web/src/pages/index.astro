@@ -1,0 +1,29 @@
+---
+import Base from '~/layouts/Base.astro';
+import DataCard from '~/components/DataCard.astro';
+import Skeleton from '~/components/Skeleton.astro';
+---
+<Base title="Dashboard">
+  <div class="mb-8">
+    <h1 class="text-2xl font-semibold tracking-tight" style="color: var(--color-text-primary);">
+      Dashboard
+    </h1>
+    <p class="text-sm mt-1" style="color: var(--color-text-secondary);">
+      Live view of the local node. Data lands in C.3.
+    </p>
+  </div>
+
+  <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+    <DataCard title="Subsystem health" id="card-health" hint="C.3">
+      <Skeleton height="6rem" />
+    </DataCard>
+    <DataCard title="Mothership budget" id="card-budget" hint="C.3">
+      <Skeleton height="6rem" />
+    </DataCard>
+    <DataCard title="Recent activity" id="card-activity" hint="coming soon">
+      <p class="text-sm" style="color: var(--color-text-muted);">
+        Activity feed is deferred to a follow-up commit.
+      </p>
+    </DataCard>
+  </div>
+</Base>

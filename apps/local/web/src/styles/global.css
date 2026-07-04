@@ -1,0 +1,67 @@
+@import "tailwindcss";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/jetbrains-mono";
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Design tokens — snapshot from mothership web/src/styles/global.css.
+   Source: cogniumhq/skillsregistry @ 4b56a99 (June 2026).
+   Do not diverge; if the mothership palette shifts, mirror the change here.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@theme {
+  --color-bg: #0a0a0b;
+  --color-bg-elevated: #111113;
+  --color-bg-card: #16161a;
+  --color-bg-card-hover: #1c1c21;
+  --color-border: #27272a;
+  --color-border-subtle: #1e1e22;
+  --color-text-primary: #ededed;
+  --color-text-secondary: #a0a0a6;
+  --color-text-muted: #8b8b93;
+  --color-accent: #6ee7b7;
+  --color-accent-dim: #34d399;
+  --color-accent-glow: rgba(110, 231, 183, 0.12);
+  --color-status-ok: #6ee7b7;
+  --color-status-warn: #fbbf24;
+  --color-status-err: #f87171;
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, "SF Mono", monospace;
+}
+
+html {
+  background-color: var(--color-bg);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  min-height: 100vh;
+}
+
+::selection {
+  background-color: var(--color-accent-glow);
+  color: var(--color-accent);
+}
+
+a,
+button,
+summary,
+[role="button"] {
+  -webkit-tap-highlight-color: rgba(110, 231, 183, 0.15);
+}
+
+/* Skeleton shimmer for loading placeholders */
+@keyframes skeleton-shimmer {
+  0%   { opacity: 0.55; }
+  50%  { opacity: 0.85; }
+  100% { opacity: 0.55; }
+}
+
+.skeleton {
+  background-color: var(--color-bg-card);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 0.5rem;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}

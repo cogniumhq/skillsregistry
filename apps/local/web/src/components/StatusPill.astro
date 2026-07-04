@@ -1,0 +1,31 @@
+---
+export type PillStatus = 'ok' | 'degraded' | 'error' | 'unknown';
+
+export interface Props {
+  status: PillStatus;
+  label?: string;
+}
+
+const { status, label } = Astro.props;
+
+const config: Record<PillStatus, { bg: string; fg: string; border: string; text: string }> = {
+  ok:        { bg: 'rgba(110, 231, 183, 0.12)', fg: '#6ee7b7', border: '#34d399', text: 'ok' },
+  degraded:  { bg: 'rgba(251, 191, 36, 0.12)',  fg: '#fbbf24', border: '#f59e0b', text: 'degraded' },
+  error:     { bg: 'rgba(248, 113, 113, 0.12)', fg: '#f87171', border: '#ef4444', text: 'error' },
+  unknown:   { bg: 'rgba(139, 139, 147, 0.12)', fg: '#8b8b93', border: '#3f3f46', text: '—' },
+};
+
+const c = config[status];
+const displayText = label ?? c.text;
+---
+<span
+  class="inline-flex items-center gap-1.5 text-xs font-mono px-2 py-0.5 rounded-full border"
+  style={`background-color: ${c.bg}; color: ${c.fg}; border-color: ${c.border};`}
+  data-status={status}
+>
+  <span
+    class="inline-block h-1.5 w-1.5 rounded-full"
+    style={`background-color: ${c.fg};`}
+  ></span>
+  {displayText}
+</span>

@@ -1,0 +1,22 @@
+---
+// Small monogram — emerald square + wordmark.
+export interface Props {
+  href?: string;
+}
+const { href = '/admin/' } = Astro.props;
+---
+<a
+  href={href}
+  class="flex items-center gap-2 group focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] rounded"
+>
+  <span
+    class="inline-block h-5 w-5 rounded-sm"
+    style="background-color: var(--color-accent); box-shadow: 0 0 0 1px var(--color-accent-dim), 0 0 12px var(--color-accent-glow);"
+  ></span>
+  <span
+    class="text-sm font-semibold tracking-tight group-hover:text-[var(--color-accent)] transition-colors"
+    style="color: var(--color-text-primary);"
+  >
+    SkillsRegistry <span style="color: var(--color-text-muted);">·</span> local
+  </span>
+</a>
