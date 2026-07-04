@@ -1,59 +1,294 @@
 # @skillsregistry/local
 
-Self-hostable SkillsRegistry node. Runs on Node 22 + Postgres 16 (pgvector)
-+ Ollama.
+Self-hostable SkillsRegistry node — a private skill discovery + trust API
+you run inside your own network. Consumer of the six `@skillsregistry/*` SDK
+packages. Ships as a Docker image (`ghcr.io/cogniumhq/skillsregistry-local`)
+and buildable from source (Node 22 + Postgres 16 + Ollama).
 
-Consumer of the six `@skillsregistry/*` SDK packages. Published as a Docker
-image (`ghcr.io/cogniumhq/skillsregistry-local`) and consumable from source.
+**What you get on `docker compose up`:**
 
-## Quick start (Docker Compose)
+- `POST /v1/skills`, `GET /v1/skills/:id`, `GET /v1/search?q=…` — a private
+  skill index over your own manifests
+- `POST /mcp` — MCP server exposing five read-only tools (`search_skills`,
+  `get_skill`, `list_leaderboard`, `get_trust_breakdown`,
+  `resolve_composition`) plus discovery at `/mcp.json`
+- `http://localhost:3000/admin/` — loopback-only web dashboard for health,
+  budget, indexed skills, mothership migration, MCP wiring
+- Optional connected-mode passthrough to `api.skillsregistry.net` for trust
+  scoring + leaderboards + publish-to-mothership
 
+Air-gap is the default posture — nothing leaves your network unless you set
+`MOTHERSHIP_URL`.
+
+## Quickstart (5 minutes)
+
+Prerequisites: [Docker Desktop](https://docs.docker.com/get-docker/) (or
+Docker Engine + Docker Compose plugin), `curl`, `git`.
+
+```bash
+git clone https://github.com/cogniumhq/skillsregistry-local.git
+cd skillsregistry-local/apps/local
+
+# Copy env template and set a random ADMIN_TOKEN — this bearer token gates
+# the /v1/admin/* + /v1/migrate/* endpoints for over-network callers.
+# (Loopback callers, e.g. the admin UI at http://127.0.0.1:3000/admin/,
+# skip the bearer check — see "Auth model" below.)
+cp .env.example .env
+# Edit .env: change ADMIN_TOKEN=change-me-to-a-long-random-value
+# On macOS: openssl rand -hex 32 | tr -d '\n' | pbcopy
+# On Linux: openssl rand -hex 32
+
+# First boot pulls postgres (~150MB), ollama (~1GB), and the embedding
+# model nomic-embed-text (~275MB). ~3-5 min on a fresh machine.
+docker compose up -d
+
+# Watch the app come up — done when you see "server listening on :3000".
+docker compose logs -f app
 ```
-cp apps/local/.env.example apps/local/.env  # edit ADMIN_TOKEN
-cd apps/local
-docker compose up
+
+**Verify the node is alive:**
+
+```bash
+# 1. Health probe — status:ok means db + embedder + migrations are all healthy.
+curl -s http://localhost:3000/v1/health | jq
+# → { "status": "ok", "checks": { "db": {...}, "embedder": {...}, ... } }
+
+# 2. Publish a skill manifest.
+curl -s -X POST http://localhost:3000/v1/skills \
+  -H 'content-type: application/json' \
+  -d '{
+    "manifest": {
+      "name": "example-skill",
+      "slug": "example-skill",
+      "version": "1.0.0",
+      "source": "local",
+      "description": "A trivial skill for smoke-testing the search path."
+    }
+  }' | jq
+# → { "id": "…uuid…", "slug": "example-skill", ... }
+
+# 3. Search for it. First query is slow (~3s) as Ollama warms;
+# subsequent queries are sub-second.
+curl -s 'http://localhost:3000/v1/search?q=example&limit=5' | jq
+# → { "skills": [ { "slug": "example-skill", "score": ..., ... } ], ... }
+
+# 4. MCP tools/list — same tools your agent will see.
+curl -s -X POST http://localhost:3000/mcp \
+  -H 'content-type: application/json' \
+  -H 'x-tenant-id: local' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | jq
+# → { "jsonrpc":"2.0","id":1,"result": { "tools": [ 5 tools ] } }
+
+# 5. Open the admin UI (loopback-only — no login needed from localhost).
+open http://localhost:3000/admin/  # macOS
+# xdg-open http://localhost:3000/admin/  # Linux
 ```
 
-Then:
+Or run the packaged smoke test — five assertions in ~5s:
 
-```
-curl http://localhost:3000/v1/health
-# → {"status":"ok","version":"0.1.0","nodeEnv":"production", ... }
+```bash
+pnpm --filter @skillsregistry/local smoke:airgap
+# ✓ /v1/health   (status: ok, air-gap posture)
+# ✓ /v1/search   (skills[] present)
+# ✓ /mcp         (5 tools advertised)
+# ✓ /v1/skills   (POST → 201 with .id)
+# ✓ /v1/trust/score → 503 upstream_not_configured (air-gap correctness)
 ```
 
-## Local dev
+## Modes: air-gap vs connected
 
+### Air-gap (default)
+
+Nothing leaves your network. Best for private-corpus deploys.
+
+Leave `MOTHERSHIP_URL` / `MOTHERSHIP_API_KEY` / `TENANT_ID` unset in `.env`.
+Behaviour:
+
+- `POST /v1/skills`, `GET /v1/skills/:id`, `GET /v1/search` — local only,
+  local Postgres only, no upstream calls
+- `POST /mcp` — full read-only surface backed by the local index
+- `POST /v1/trust/score` — `503 upstream_not_configured` (no local scoring
+  engine; trust scoring always goes through the mothership)
+- `GET /v1/leaderboards/:kind` — `503 upstream_not_configured`
+- `POST /v1/migrate/publish` — `503 upstream_not_configured`
+
+### Connected
+
+Register a tenant with the mothership at
+[skillsregistry.net](https://skillsregistry.net) to get a `TENANT_ID` +
+`MOTHERSHIP_API_KEY`, then set all three in `.env`:
+
+```bash
+# .env
+MOTHERSHIP_URL=https://api.skillsregistry.net
+MOTHERSHIP_API_KEY=sk_live_…       # from your mothership tenant dashboard
+TENANT_ID=your-tenant-slug         # from your mothership tenant dashboard
+UPSTREAM_SEARCH_FALLBACK=true      # optional: fall back to mothership search on local misses
 ```
-# from repo root
+
+`docker compose up -d --force-recreate app` to pick up the new env. Effects:
+
+- `POST /v1/trust/score` — proxies to the mothership; results cached against
+  the local skills row (`trust_score_v2`, `trust_tier`, `trust_results`,
+  `trust_analyzed_at`) and budget decremented in KV
+- `GET /v1/leaderboards/:kind` — proxied from `api.skillsregistry.net`
+- `GET /v1/admin/budget` — real budget snapshot polled hourly
+- `POST /v1/migrate/publish?skill_id=<uuid>` — publish local manifests up to
+  the mothership; each row's `mothership_publish_status` transitions to
+  `published` with a `mothership_url`
+- `GET /v1/search` — local index first; falls back to mothership on low
+  confidence (if `UPSTREAM_SEARCH_FALLBACK=true`)
+
+The upstream client at `src/upstream-client/` is the **only** module that
+talks to `api.skillsregistry.net` — token-bucket rate limited + circuit
+breaker + typed `UpstreamError` taxonomy. If the mothership is down, the
+local node stays up and gracefully returns `503 upstream_not_configured` or
+the local-only view.
+
+## Auth model
+
+Two-tier by design:
+
+- **Loopback (127.0.0.1 / ::1)** — the admin UI (`/admin/*`), admin API
+  (`/v1/admin/*`), and migration door (`/v1/migrate/*`) are all reachable
+  without any credentials from localhost. This is intentional: on a
+  single-operator local node, requiring a login on `curl 127.0.0.1:…` is
+  ceremony. Loopback middleware fails **closed** — unknown / missing socket
+  address is rejected.
+- **Over-network** — the same paths require `Authorization: Bearer
+  $ADMIN_TOKEN`. Non-loopback traffic to `/admin/*` gets 403 regardless of
+  bearer (the UI stays loopback-only even if you accidentally publish port
+  3000 to the LAN). For CI/automation, expose the API but keep the UI shut
+  by binding Docker to `-p 127.0.0.1:3000:3000` instead of `-p 3000:3000`.
+
+Public routes (`/v1/health`, `/v1/search`, `/v1/skills`, `/v1/skills/:id`,
+`/v1/trust/score`, `/v1/leaderboards/:kind`, `/mcp`, `/mcp.json`,
+`/.well-known/mcp.json`) have no auth in v1 — tenant scoping is advisory via
+`X-Tenant-Id` header. This is a read-only server by contract; write auth
+(OAuth 2.1 + RFC 8707) lands with the v2 write tools.
+
+## Admin UI
+
+Open `http://localhost:3000/admin/` (from the same machine — the UI is
+loopback-only). Six pages:
+
+| Route | What |
+|---|---|
+| `/admin/` | Dashboard: health probes + budget gauge, auto-refreshes every 30s |
+| `/admin/health/` | Per-subsystem probe view (db, embedder, mothership, migrations) |
+| `/admin/budget/` | Mothership budget snapshot + refresh button |
+| `/admin/skills/` | Indexed skills, newest first |
+| `/admin/migration/` | Per-row "Publish to mothership" action + status pill |
+| `/admin/mcp/` | Endpoint / discovery status / curl + Claude Desktop snippets |
+
+## MCP client wiring
+
+Point any MCP client at `http://localhost:3000/mcp`. The `/admin/mcp/` page
+generates copy-paste config for Claude Desktop; the equivalent by hand for
+`~/.config/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "skillsregistry-local": {
+      "command": "npx",
+      "args": ["mcp-remote", "http://localhost:3000/mcp"]
+    }
+  }
+}
+```
+
+Discovery lives at `GET /.well-known/mcp.json` (RFC 8615) with an alias at
+`GET /mcp.json`. Five tools advertised, all read-only:
+
+- `search_skills` — fused vector + text search over the local index
+- `get_skill` — lookup by id / slug / mothership_skill_id
+- `list_leaderboard` — trust / trending / agents / composed / forked (needs
+  connected mode)
+- `get_trust_breakdown` — the 7-dimension trust slice + tier (needs
+  connected mode; falls back to `{ found: false }` in air-gap)
+- `resolve_composition` — composition lineage lookup (returns
+  `{ found: false }` in v1 — no local composition index yet)
+
+## Local development
+
+For editing the SDK packages or the app itself:
+
+```bash
+# Install workspace deps + build every @skillsregistry/* package.
 pnpm install
 pnpm --filter '@skillsregistry/*' build
 
-# start Postgres + Ollama separately or use `docker compose up postgres ollama`
-export DATABASE_URL=postgres://…
-export ADMIN_TOKEN=dev-token
+# Postgres + Ollama from the compose file (skip the app container).
+cd apps/local
+docker compose up -d postgres ollama ollama-init
 
+# Point the local dev server at those bindings.
+export DATABASE_URL='postgres://skillsregistry:skillsregistry@localhost:5432/skillsregistry'
+export ADMIN_TOKEN='dev-token'
+export OLLAMA_URL='http://localhost:11434'
+
+# Watch mode with tsx.
 pnpm --filter @skillsregistry/local dev
 ```
 
-## Air-gap mode
+Admin UI dev server (standalone Astro at `:4321`, proxies API calls through
+to `:3000`):
 
-Leave `MOTHERSHIP_URL` / `MOTHERSHIP_API_KEY` / `TENANT_ID` unset. The node
-runs against local Postgres only:
+```bash
+pnpm --filter @skillsregistry/local-web dev
+```
 
-- `/v1/search` returns local hits (no upstream fallback)
-- `/v1/trust/score` returns `503 upstream_not_configured`
-- `/v1/leaderboards/*` returns `503 upstream_not_configured`
+Full test suite (~1s, 1024 tests):
+
+```bash
+pnpm -w -r test
+pnpm -w -r typecheck
+```
 
 ## Environment variables
 
-See `.env.example` for the full list. Required:
+Only two are required — everything else has a sensible default in
+`src/config.ts`. See `.env.example` for the full annotated list.
 
-| Var | Purpose |
-|---|---|
-| `DATABASE_URL` | libpq connection string |
-| `ADMIN_TOKEN` | bearer token for `/v1/admin/*` |
+| Var | Required? | Default | Purpose |
+|---|---|---|---|
+| `DATABASE_URL` | ✓ | — | libpq connection string to Postgres 16 + pgvector |
+| `ADMIN_TOKEN` | ✓ | — | Bearer token for over-network admin/migration calls |
+| `PORT` | | `3000` | HTTP bind port |
+| `EMBEDDER` | | `ollama` | `ollama` or `upstream` |
+| `OLLAMA_URL` | | `http://localhost:11434` | Ollama server for local embeddings |
+| `OLLAMA_EMBEDDING_MODEL` | | `nomic-embed-text` | 768-dim; matches the schema baseline |
+| `MOTHERSHIP_URL` | | — | Unset ⇒ air-gap mode |
+| `MOTHERSHIP_API_KEY` | | — | Required if `MOTHERSHIP_URL` is set |
+| `TENANT_ID` | | — | Required if `MOTHERSHIP_URL` is set |
+| `LOG_FORMAT` | | `json` | `json` (NDJSON for log collectors) or `pretty` (dev) |
+| `LOG_LEVEL` | | `info` | `trace` / `debug` / `info` / `warn` / `error` / `fatal` |
 
-## Status
+## Troubleshooting
+
+**`ADMIN_TOKEN is required — set it in .env` on `docker compose up`.**
+`docker-compose.yml` uses `${ADMIN_TOKEN:?…}` to fail-fast when the var is
+unset. Edit `apps/local/.env` and add a value; `.env.example` won't be
+picked up automatically (name it `.env`).
+
+**First `/v1/search` hangs for minutes.** Ollama is still pulling
+`nomic-embed-text` (~275MB). `docker compose logs ollama-init` shows the
+pull progress. Subsequent queries hit the warm model at sub-second latency.
+
+**`upstream_not_configured` on `/v1/trust/score`.** Expected in air-gap
+mode — trust scoring only runs on the mothership. Set the three upstream
+env vars to switch to connected mode.
+
+**Admin UI returns 403 from a browser on the same LAN.** By design — the UI
+is loopback-only. Access it from the machine running Docker, or SSH-tunnel
+`ssh -L 3000:localhost:3000 user@host`.
+
+**Port 3000 already in use.** Set `PORT=3001` (or any free port) in `.env`
+and re-`up -d`. The compose file threads it through as
+`"${PORT:-3000}:3000"`.
+
+## Implementation status
 
 - ☑ **T-2.1** — Scaffold (package.json, tsconfig, index.ts stub, Dockerfile, compose)
 - ☑ **T-2.2** — Node adapters at `src/adapters/`: `PgKv`, `MemoryQueue`, `FsArtifact`, `createOllamaEmbedder`, `NodeAfterResponse` (upstream-embedder deferred pending mothership `/v1/embed` contract)
