@@ -23,6 +23,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 
 import { serve } from '@hono/node-server';
+import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
 import type { Pool } from 'pg';
 import { bootSchema } from './boot/schema.js';
@@ -34,7 +35,7 @@ import {
   createSilentLogger,
   type PinoLogger,
 } from './logging/index.js';
-import { requestLogger } from './middleware/index.js';
+import { loopbackOnly, requestLogger } from './middleware/index.js';
 import {
   createAdminRoutes,
   createMcpRoutes,
@@ -99,6 +100,35 @@ export function createApp(
   // MCP mounts at root — its paths (/mcp, /mcp.json, /.well-known/mcp.json)
   // don't share a prefix with /v1.
   app.route('/', createMcpRoutes(services, config));
+
+  // Admin web UI (T-3.x). Static Astro bundle at `apps/local/web/dist/`
+  // built with `base: '/admin'`. Two-stage mount:
+  //
+  //   1. loopbackOnly() — hard-reject non-loopback callers with 403 so a
+  //      misconfigured `-p 0.0.0.0:3000:3000` Docker publish can't leak
+  //      the UI onto the LAN.
+  //   2. serveStatic()  — resolve `/admin/foo` against `./web/dist/foo`.
+  //      `path` rewrite strips the `/admin` prefix; empty result (i.e.
+  //      `/admin/` or `/admin`) falls through to `index.html`.
+  //
+  // The UI's client scripts call `/v1/admin/*` + `/v1/migrate/*` from the
+  // same origin; admin-auth's loopback exception lets those succeed
+  // without a bearer.
+  app.use('/admin', loopbackOnly());
+  app.use('/admin/*', loopbackOnly());
+  app.use(
+    '/admin/*',
+    serveStatic({
+      root: './web/dist',
+      rewriteRequestPath: (p) => {
+        const stripped = p.replace(/^\/admin\/?/, '/');
+        return stripped === '/' ? '/index.html' : stripped;
+      },
+    }),
+  );
+  // Bare `/admin` (no trailing slash) → 302 to `/admin/` so relative
+  // asset URLs (base '/admin/') resolve correctly.
+  app.get('/admin', loopbackOnly(), (c) => c.redirect('/admin/'));
 
   return app;
 }

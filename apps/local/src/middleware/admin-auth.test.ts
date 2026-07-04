@@ -62,4 +62,49 @@ describe('adminAuth', () => {
     });
     expect(res.status).toBe(200);
   });
+
+  describe('loopback exception', () => {
+    const loopbackEnv = (
+      remoteAddress: string,
+    ): Record<string, unknown> => ({
+      incoming: { socket: { remoteAddress } },
+    });
+
+    it.each(['127.0.0.1', '::1', '::ffff:127.0.0.1'])(
+      'bypasses the bearer check for %s',
+      async (addr) => {
+        // No Authorization header — would normally be 401.
+        const res = await buildApp().request('/probe', {}, loopbackEnv(addr));
+        expect(res.status).toBe(200);
+        expect(await res.json()).toEqual({ ok: true });
+      },
+    );
+
+    it('bypasses even when a wrong bearer is presented from loopback', async () => {
+      const res = await buildApp().request(
+        '/probe',
+        { headers: { Authorization: 'Bearer this-is-wrong' } },
+        loopbackEnv('127.0.0.1'),
+      );
+      expect(res.status).toBe(200);
+    });
+
+    it('still requires bearer from a LAN caller', async () => {
+      const res = await buildApp().request(
+        '/probe',
+        {},
+        loopbackEnv('192.168.1.42'),
+      );
+      expect(res.status).toBe(401);
+    });
+
+    it('LAN caller with correct bearer is accepted (over-network contract preserved)', async () => {
+      const res = await buildApp().request(
+        '/probe',
+        { headers: { Authorization: `Bearer ${TOKEN}` } },
+        loopbackEnv('192.168.1.42'),
+      );
+      expect(res.status).toBe(200);
+    });
+  });
 });

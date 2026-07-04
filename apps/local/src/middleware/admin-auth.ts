@@ -9,6 +9,12 @@
 // the scheme is defined lower-case but implementations MUST accept any case —
 // we match either).
 //
+// Loopback exception: when the inbound socket's remote address is loopback
+// (`127.x.x.x`, `::1`, or IPv4-mapped equivalents), the bearer check is
+// bypassed. This lets the same-origin admin UI at `/admin/*` call the
+// `/v1/admin/*` and `/v1/migrate/*` APIs without embedding a token in the
+// browser bundle. Over-network requests always require the bearer.
+//
 // Constant-time comparison prevents timing-based token disclosure. The
 // expected token is validated to be non-empty at construction — an empty
 // admin token would let unauth requests through.
@@ -17,6 +23,7 @@
 
 import { timingSafeEqual } from 'node:crypto';
 import type { MiddlewareHandler } from 'hono';
+import { isLoopbackRequest } from './loopback.js';
 
 export interface AdminAuthOptions {
   /** Expected bearer token. Must be non-empty. */
@@ -35,6 +42,14 @@ export function adminAuth(options: AdminAuthOptions): MiddlewareHandler {
   const expected = Buffer.from(token, 'utf8');
 
   return async (c, next) => {
+    // Loopback bypass: the admin UI lives at /admin/* on the same process
+    // and calls /v1/admin/* + /v1/migrate/* from a same-origin browser.
+    // A LAN caller still has to present the bearer token.
+    if (isLoopbackRequest(c.env)) {
+      await next();
+      return;
+    }
+
     const header = c.req.header('Authorization') ?? c.req.header('authorization');
     if (header === undefined) {
       return c.json(
