@@ -17,6 +17,11 @@ const ALLOWED_CONDITION_TOKENS = /^[\d\s.,"'true false null undefined\-+><=!&|()
  * at that path in the outputs map. The `output` segment is implicit and skipped.
  *
  * Literal strings are passed through unchanged.
+ *
+ * Non-string leaves (widened in 1.1.0 — numbers, booleans, `null`, nested
+ * objects, arrays) are passed through verbatim. This resolver is deliberately
+ * flat-only: `{{...}}` inside a nested structure is *not* expanded. Callers
+ * that need recursive expansion (e.g. Cortex) run their own resolver upstream.
  */
 export function resolveInputs(
 	step: WorkflowStep,
@@ -25,11 +30,16 @@ export function resolveInputs(
 	const resolved: Record<string, unknown> = {};
 
 	for (const [param, expr] of Object.entries(step.inputMap)) {
+		if (typeof expr !== "string") {
+			// Non-string leaf: opaque pass-through, no template expansion.
+			resolved[param] = expr;
+			continue;
+		}
 		const templateMatch = expr.match(TEMPLATE_RE);
 		if (templateMatch) {
 			resolved[param] = resolvePath(templateMatch[1], outputs);
 		} else {
-			// Literal value
+			// Literal string value
 			resolved[param] = expr;
 		}
 	}

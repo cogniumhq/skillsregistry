@@ -1,5 +1,51 @@
 import { describe, expect, it } from "vitest";
-import { RetryPolicy, WorkflowDAG, WorkflowStep } from "../schema.js";
+import {
+	DAG_SCHEMA_VERSION,
+	InputMapping,
+	RetryPolicy,
+	WorkflowDAG,
+	WorkflowStep,
+} from "../schema.js";
+
+describe("DAG_SCHEMA_VERSION", () => {
+	it("is 1.1 (widened InputMapping)", () => {
+		expect(DAG_SCHEMA_VERSION).toBe("1.1");
+	});
+});
+
+describe("InputMapping (widened in 1.1.0 — Record<string, unknown>)", () => {
+	it("accepts an empty mapping", () => {
+		expect(InputMapping.parse({})).toEqual({});
+	});
+
+	it("accepts string leaves (existing behaviour)", () => {
+		const mapping = { data: "{{s1.output}}", literal: "hello" };
+		expect(InputMapping.parse(mapping)).toEqual(mapping);
+	});
+
+	it("accepts a nested object leaf", () => {
+		const mapping = { headers: { Authorization: "{{s1.output.token}}" } };
+		expect(InputMapping.parse(mapping)).toEqual(mapping);
+	});
+
+	it("accepts an array leaf", () => {
+		const mapping = { repos: ["a", "b"] };
+		expect(InputMapping.parse(mapping)).toEqual(mapping);
+	});
+
+	it("accepts primitive leaves — number, boolean, null", () => {
+		const mapping = { count: 42, enabled: true, missing: null };
+		expect(InputMapping.parse(mapping)).toEqual(mapping);
+	});
+
+	it("accepts deeply nested structures", () => {
+		const mapping = {
+			aws: { credentials: { accessKey: "AKIA...", secret: "s3cr3t", region: "us-east-1" } },
+			retries: [1, 2, 4, 8],
+		};
+		expect(InputMapping.parse(mapping)).toEqual(mapping);
+	});
+});
 
 describe("RetryPolicy", () => {
 	it("accepts valid retry policy", () => {

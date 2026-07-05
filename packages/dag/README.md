@@ -39,7 +39,7 @@ const layers = toExecutionLayers(dag); // [["fetch"], ["summary"]]
 | Export | Kind | Purpose |
 | --- | --- | --- |
 | `DAG_SCHEMA_VERSION` | const | Current schema version string |
-| `RetryPolicy`, `InputMapping`, `WorkflowStep`, `WorkflowDAG` | Zod schemas | Runtime validation |
+| `RetryPolicy`, `InputMapping`, `WorkflowStep`, `WorkflowDAG` | Zod schemas | Runtime validation. `InputMapping` accepts `Record<string, unknown>` since 1.1.0 — nested objects, arrays, and primitives are opaque pass-throughs (`resolveInputs` does not recurse). |
 | `RetryPolicyType`, `InputMappingType`, `WorkflowStepType`, `WorkflowDAGType` | TS types | Inferred from Zod |
 | `ValidationResult`, `ExecutionLayer` | TS types | Helper return types |
 | `validateDAG(dag)` | fn | Full structural + cycle validation |

@@ -5,6 +5,28 @@ All notable changes to `@skillsregistry/dag` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] — 2026-07
+
+### Changed
+
+- **`InputMapping` widened from `Record<string, string>` to `Record<string, unknown>`.**
+  Nested objects, arrays, and primitives (numbers, booleans, `null`) are now
+  valid leaves. Existing string-only mappings continue to parse and resolve
+  unchanged — this is a compatible widening of the accepted input surface.
+- `DAG_SCHEMA_VERSION` bumped to `"1.1"` to reflect the wider input surface.
+
+### Compatibility notes
+
+- **`resolveInputs`** does *not* walk nested leaves — non-string values are
+  passed through verbatim. Callers that need recursive template expansion
+  inside nested structures must resolve them before calling `resolveInputs`,
+  or use a higher-level resolver (Cortex's `input-mapping.ts` is one).
+- **`validateDAG`** skips reference checks on non-string leaves. Inter-step
+  references embedded inside nested structures are the caller's responsibility.
+- **Downstream TypeScript consumers** that pinned the inferred
+  `InputMappingType` as `Record<string, string>` will see a widening to
+  `Record<string, unknown>`. Runtime remains fully backward-compatible.
+
 ## [1.0.0] — 2026-06
 
 ### Added

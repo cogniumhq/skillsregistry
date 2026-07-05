@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 import type { WorkflowStep } from "../types.js";
 import { hasCycle, validateDAG } from "../validate.js";
 
-function step(id: string, deps: string[] = [], inputMap: Record<string, string> = {}): WorkflowStep {
+function step(
+	id: string,
+	deps: string[] = [],
+	inputMap: Record<string, unknown> = {},
+): WorkflowStep {
 	return {
 		id,
 		skillRef: `${id}-skill@1.0.0`,
@@ -113,6 +117,41 @@ describe("validateDAG", () => {
 			steps: [step("a", [], { key: "literal-value" })],
 		});
 		expect(result.valid).toBe(true);
+	});
+
+	it("skips reference checks on non-string leaves (1.1.0 widening)", () => {
+		// The nested `{{ghost.output}}` template is NOT walked — it's inside an
+		// object leaf, which is opaque to the registry. No false positive.
+		const result = validateDAG({
+			steps: [
+				step("a"),
+				step("b", [], {
+					headers: { Authorization: "{{ghost.output}}" },
+					count: 42,
+					list: ["x", "y"],
+					flag: true,
+					none: null,
+				}),
+			],
+		});
+		expect(result.valid).toBe(true);
+		expect(result.errors).toEqual([]);
+	});
+
+	it("still catches top-level string references alongside non-string siblings", () => {
+		// The string leaf `data` is checked; the object leaf is ignored.
+		const result = validateDAG({
+			steps: [
+				step("a", [], {
+					data: "{{ghost.output}}",
+					headers: { safe: "yes" },
+				}),
+			],
+		});
+		expect(result.valid).toBe(false);
+		expect(result.errors).toContain(
+			'Step "a" input "data" maps to unknown step "ghost"',
+		);
 	});
 
 	it("detects retry policy missing when onError is retry", () => {

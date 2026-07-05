@@ -29,8 +29,13 @@ export function validateDAG(dag: { steps: WorkflowStep[] }): ValidationResult {
 			}
 		}
 
-		// Check input mapping references
+		// Check input mapping references.
+		// `InputMapping` was widened to `Record<string, unknown>` in 1.1.0.
+		// Non-string leaves are opaque to the registry — inter-step references
+		// hidden inside nested structures are the caller's responsibility to
+		// validate (see the CHANGELOG 1.1.0 compatibility note).
 		for (const [param, expr] of Object.entries(step.inputMap)) {
+			if (typeof expr !== "string") continue;
 			const refMatch = expr.match(TEMPLATE_EXPR);
 			if (refMatch) {
 				const sourceStepId = refMatch[1];

@@ -5,7 +5,7 @@ import { evaluateCondition, resolveInputs } from "../resolve.js";
 function step(
 	id: string,
 	deps: string[] = [],
-	inputMap: Record<string, string> = {},
+	inputMap: Record<string, unknown> = {},
 ): WorkflowStep {
 	return {
 		id,
@@ -81,6 +81,47 @@ describe("resolveInputs", () => {
 		const resolved = resolveInputs(s, outputs);
 		expect(resolved.f).toEqual(outputs.flights);
 		expect(resolved.h).toEqual(outputs.hotels);
+	});
+
+	// -------------------------------------------------------------------
+	// 1.1.0 widening — non-string leaves are opaque pass-throughs.
+	// The resolver deliberately does NOT walk nested structures.
+	// Callers that need recursion resolve them upstream.
+	// -------------------------------------------------------------------
+
+	it("passes nested-object leaves through verbatim (no recursion into templates)", () => {
+		// `{{...}}` sitting inside an object is NOT expanded — it stays literal.
+		const s = step("x", ["flights"], {
+			headers: { Authorization: "{{flights.output.count}}" },
+		});
+		const resolved = resolveInputs(s, outputs);
+		expect(resolved.headers).toEqual({ Authorization: "{{flights.output.count}}" });
+	});
+
+	it("passes array leaves through verbatim", () => {
+		const s = step("x", [], { repos: ["a", "b", "c"] });
+		const resolved = resolveInputs(s, outputs);
+		expect(resolved.repos).toEqual(["a", "b", "c"]);
+	});
+
+	it("passes primitive leaves (number, boolean, null) through verbatim", () => {
+		const s = step("x", [], { count: 42, enabled: true, missing: null });
+		const resolved = resolveInputs(s, outputs);
+		expect(resolved.count).toBe(42);
+		expect(resolved.enabled).toBe(true);
+		expect(resolved.missing).toBeNull();
+	});
+
+	it("mixes string-template and non-string leaves in one call", () => {
+		const s = step("x", ["flights"], {
+			resolved: "{{flights.output.count}}",
+			literal: 100,
+			nested: { key: "value" },
+		});
+		const r = resolveInputs(s, outputs);
+		expect(r.resolved).toBe(2);              // template expanded
+		expect(r.literal).toBe(100);             // passed through
+		expect(r.nested).toEqual({ key: "value" }); // passed through
 	});
 });
 

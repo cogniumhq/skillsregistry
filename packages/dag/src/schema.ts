@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const DAG_SCHEMA_VERSION = "1.0";
+export const DAG_SCHEMA_VERSION = "1.1";
 
 /** Retry policy for a workflow step. */
 export const RetryPolicy = z.object({
@@ -9,10 +9,26 @@ export const RetryPolicy = z.object({
 	delayMs: z.number().int().min(100).max(300_000).default(1000),
 });
 
-/** Maps target input parameter names to source expressions or literals. */
+/**
+ * Maps target input parameter names to source expressions or literals.
+ *
+ * Values may be:
+ *   - A whole-value template string `"{{stepId.output.field}}"` — expanded by
+ *     `resolveInputs` against prior step outputs.
+ *   - A literal string — passed through unchanged.
+ *   - Any non-string leaf (number, boolean, `null`, nested object, or array).
+ *     Non-string leaves are opaque to the registry: `resolveInputs` passes
+ *     them through verbatim, and `validateDAG` skips reference checks on them.
+ *     Recursive template expansion inside nested structures is a higher-level
+ *     resolver's responsibility (see e.g. Cortex's `input-mapping.ts`).
+ *
+ * Widened from `Record<string, string>` in 1.1.0 to support composite
+ * publishes that carry structured inputs (e.g. `{ headers: { Authorization:
+ * "..." } }`). See CHANGELOG 1.1.0.
+ */
 export const InputMapping = z.record(
 	z.string(), // target input parameter name
-	z.string(), // source: "{{stepId.output.field}}" or literal value
+	z.unknown(), // template string, literal, or nested structure (opaque to registry)
 );
 
 const STEP_ID_PATTERN = /^[a-z0-9][a-z0-9_-]*$/;
