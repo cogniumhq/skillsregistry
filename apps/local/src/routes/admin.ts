@@ -23,6 +23,10 @@
 
 import { Hono } from 'hono';
 import type { Pool } from 'pg';
+import type {
+  AdminSkillsListItem,
+  AdminSkillsListResponse,
+} from '@skillsregistry/contracts';
 import { SCHEMA_VERSION } from '@skillsregistry/schema';
 import { upstreamErrorToResponse } from '../http/upstream-response.js';
 import { adminAuth } from '../middleware/index.js';
@@ -77,29 +81,12 @@ interface HealthResponseBody {
 
 // ── Admin skills list (T-3.4) ────────────────────────────────────────────────
 //
-// Feeds the admin UI's skills + migration tables. Minimal projection: fields
-// downstream renders as columns + the mothership metadata that drives the
-// "publish to mothership" button. Detail view still goes through
-// /v1/skills/:id.
-
-interface AdminSkillsListItem {
-  id: string;
-  slug: string;
-  name: string;
-  source: string;
-  version: string;
-  mothershipPublishStatus: string | null;
-  mothershipUrl: string | null;
-  mothershipPublishedAt: string | null;
-  createdAt: string | null;
-}
-
-interface AdminSkillsListResponseBody {
-  skills: AdminSkillsListItem[];
-  total: number;
-  limit: number;
-  offset: number;
-}
+// Feeds the admin UI's skills + migration tables. Wire shape sourced from
+// `@skillsregistry/contracts` (`AdminSkillsListResponse` + item) so this
+// route and any downstream consumer share one type. Minimal projection:
+// fields downstream renders as columns + the mothership metadata that
+// drives the "publish to mothership" button. Detail view still goes
+// through /v1/skills/:id.
 
 const ADMIN_SKILLS_DEFAULT_LIMIT = 100;
 const ADMIN_SKILLS_MAX_LIMIT = 500;
@@ -281,7 +268,7 @@ export function createAdminRoutes(
         10,
       );
 
-      const body: AdminSkillsListResponseBody = {
+      const body: AdminSkillsListResponse = {
         skills,
         total: Number.isFinite(total) ? total : 0,
         limit,
