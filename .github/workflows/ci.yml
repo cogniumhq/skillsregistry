@@ -47,6 +47,44 @@ jobs:
       - name: Test
         run: pnpm test
 
+  coverage:
+    name: test coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Test with coverage
+        run: pnpm test:coverage
+
+      - name: Upload coverage artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports
+          path: |
+            packages/*/coverage
+            apps/local/coverage
+            apps/local/web/coverage
+          if-no-files-found: warn
+
   changeset-check:
     name: changeset required on packages/* PRs
     runs-on: ubuntu-latest

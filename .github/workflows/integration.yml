@@ -1,0 +1,47 @@
+name: Integration Smoke
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: integration-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke-airgap:
+    name: docker compose + air-gap smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate CI env
+        working-directory: apps/local
+        run: |
+          ADMIN_TOKEN="$(openssl rand -hex 32)"
+          printf 'ADMIN_TOKEN=%s\n' "$ADMIN_TOKEN" > .env
+          printf 'LOG_LEVEL=warn\n' >> .env
+
+      - name: Boot stack
+        working-directory: apps/local
+        run: docker compose up -d --build --wait
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Run air-gap smoke
+        working-directory: apps/local
+        env:
+          BASE_URL: http://localhost:3000
+          HEALTH_TIMEOUT: 120
+        run: ./scripts/smoke-airgap.sh
+
+      - name: Tear down
+        if: always()
+        working-directory: apps/local
+        run: docker compose down -v --remove-orphans

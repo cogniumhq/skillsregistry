@@ -21,9 +21,9 @@
   },
   "scripts": {
     "build": "pnpm -r build",
-    "test": "pnpm -r test",
+    "test": "vitest run --workspace ./vitest.workspace.ts",
+    "test:coverage": "vitest run --workspace ./vitest.workspace.ts --coverage",
     "typecheck": "pnpm -r typecheck",
-    "lint": "pnpm -r lint",
     "changeset": "changeset",
     "version": "changeset version",
     "release": "changeset publish",
@@ -33,6 +33,7 @@
   "devDependencies": {
     "@changesets/cli": "^2.27.0",
     "@vitest/coverage-v8": "^2.1.0",
-    "typescript": "^5.6.0"
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
   }
 }
