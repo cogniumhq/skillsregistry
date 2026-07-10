@@ -34,6 +34,10 @@
     "./cli": {
       "types": "./dist/cli.d.ts",
       "import": "./dist/cli.js"
+    },
+    "./seed-skills": {
+      "types": "./dist/seed-skills.d.ts",
+      "import": "./dist/seed-skills.js"
     }
   },
   "bin": {
