@@ -35,6 +35,9 @@ importers:
       '@skillsregistry/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@skillsregistry/eval':
+        specifier: workspace:*
+        version: link:../../packages/eval
       '@skillsregistry/mcp':
         specifier: workspace:*
         version: link:../../packages/mcp

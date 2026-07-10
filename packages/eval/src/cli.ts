@@ -28,6 +28,7 @@ interface CliOptions {
   verbose: boolean;
   showFailed: boolean;
   headers: Record<string, string>;
+  minRecall5?: number;
 }
 
 function parseArgs(argv: readonly string[]): CliOptions {
@@ -92,6 +93,15 @@ function parseArgs(argv: readonly string[]): CliOptions {
         options.headers[name] = value;
         break;
       }
+      case '--min-recall5': {
+        const raw = requireValue(argv, ++i, arg);
+        const n = Number.parseFloat(raw);
+        if (!Number.isFinite(n) || n < 0 || n > 1) {
+          fail(`--min-recall5 expected a number between 0 and 1, got "${raw}"`);
+        }
+        options.minRecall5 = n;
+        break;
+      }
       case '--help':
       case '-h':
         printHelp();
@@ -144,6 +154,8 @@ Options:
                              Typical: --header "X-Tenant-Id: default"
   -v, --verbose              Log per-fixture progress
   -f, --show-failed          Show detailed report of failed queries
+      --min-recall5 <rate>   Fail when Recall@5 is below this rate (0..1).
+                             Default: 0.5 for exit code 1; warnings still at 0.8.
   -h, --help                 Show this help
 
 Examples:
@@ -194,14 +206,23 @@ async function main(): Promise<void> {
     }
 
     const successRate = result.passed / result.fixtureCount;
-    if (successRate < 0.5) {
-      console.log('\n❌ Eval failed: success rate < 50%');
+    const failThreshold = options.minRecall5 ?? 0.5;
+    const warnThreshold = Math.max(failThreshold, 0.8);
+
+    if (successRate < failThreshold) {
+      console.log(
+        `\n❌ Eval failed: Recall@5 ${(successRate * 100).toFixed(1)}% < ${(failThreshold * 100).toFixed(1)}%`,
+      );
       process.exit(1);
-    } else if (successRate < 0.8) {
-      console.log('\n⚠️  Eval passed with warnings: success rate < 80%');
+    } else if (successRate < warnThreshold) {
+      console.log(
+        `\n⚠️  Eval passed with warnings: Recall@5 ${(successRate * 100).toFixed(1)}% < ${(warnThreshold * 100).toFixed(1)}%`,
+      );
       process.exit(0);
     } else {
-      console.log('\n✅ Eval passed: success rate >= 80%');
+      console.log(
+        `\n✅ Eval passed: Recall@5 ${(successRate * 100).toFixed(1)}% >= ${(warnThreshold * 100).toFixed(1)}%`,
+      );
       process.exit(0);
     }
   } catch (error) {

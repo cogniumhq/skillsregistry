@@ -41,8 +41,17 @@ jobs:
         run: npm install -g cognium-ai
 
       - name: SAST scan (summary)
-        run: cognium-ai scan $SCAN_PATHS -f summary -o scan-summary.txt
-        continue-on-error: true
+        run: |
+          set -euo pipefail
+          cognium-ai scan $SCAN_PATHS -f summary -o scan-summary.txt
+          CRIT=$(grep -m1 'Critical:' scan-summary.txt | grep -oE '[0-9]+' | head -1 || echo 0)
+          HIGH=$(grep -m1 'High:' scan-summary.txt | grep -oE '[0-9]+' | head -1 || echo 0)
+          echo "critical=$CRIT high=$HIGH"
+          if [ "$CRIT" -gt 0 ]; then
+            echo "❌ $CRIT critical SAST finding(s) — blocking merge"
+            exit 1
+          fi
+          echo "✅ No critical SAST findings (high=$HIGH)"
 
       - name: SAST scan (SARIF → Security tab)
         run: cognium-ai scan $SCAN_PATHS -f sarif -q -o cognium.sarif

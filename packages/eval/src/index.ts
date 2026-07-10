@@ -26,3 +26,11 @@ export {
   type EvalRunResult,
   type RunEvalOptions,
 } from './runner.js';
+
+export {
+  buildEvalSeedSkills,
+  evalSeedSkills,
+  type EvalSeedSkill,
+} from './seed-skills.js';
+
+export { evalCanonicalSkillIds } from './fixtures.js';
