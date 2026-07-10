@@ -1,9 +1,9 @@
 import { mergeConfig } from 'vitest/config';
-import shared from '../../vitest.shared.js';
+import shared from '../../../vitest.shared.js';
 
 export default mergeConfig(shared, {
   test: {
     include: ['src/**/*.test.ts'],
-    environment: 'node',
+    environment: 'jsdom',
   },
 });

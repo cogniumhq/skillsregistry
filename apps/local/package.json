@@ -19,6 +19,7 @@
     "dev": "tsx watch src/index.ts",
     "web:dev": "pnpm --filter @skillsregistry/local-web run dev",
     "smoke:airgap": "./scripts/smoke-airgap.sh",
+    "seed:eval": "tsx scripts/seed-eval.ts",
     "clean": "rm -rf dist .tsbuildinfo web/dist web/.astro"
   },
   "dependencies": {
@@ -26,6 +27,7 @@
     "@skillsregistry/contracts": "workspace:*",
     "@skillsregistry/dag": "workspace:*",
     "@skillsregistry/domain": "workspace:*",
+    "@skillsregistry/eval": "workspace:*",
     "@skillsregistry/mcp": "workspace:*",
     "@skillsregistry/schema": "workspace:*",
     "hono": "^4.6.0",

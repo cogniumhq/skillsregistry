@@ -73,6 +73,9 @@ const SKILL = {
   DEPENDABOT: '550e8400-e29b-41d4-a716-446655440040',
 } as const;
 
+/** Canonical eval skill UUIDs keyed by fixture constant name. */
+export const evalCanonicalSkillIds = SKILL;
+
 // Acceptable alternative skill IDs — cross-source duplicates and equivalent tools
 // that serve the same purpose as the primary expected skill.
 const ALT = {

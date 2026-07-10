@@ -48,6 +48,7 @@ import {
   createOllamaEmbedder,
   ensureKvStoreTable,
 } from './adapters/index.js';
+import { truncateEmbedding } from './embedding/truncate.js';
 import type { EmbedderAdapter } from '@skillsregistry/domain/adapters';
 import {
   CompositionDetector,
@@ -266,7 +267,7 @@ export async function buildAppServices(
   const searchLogger = new NoopSearchLogger();
   const embedFn = async (text: string): Promise<number[]> => {
     const vec = await embedder.embed(text);
-    return Array.from(vec);
+    return truncateEmbedding(Array.from(vec));
   };
   const stubLlm = new StubLlmAdapter();
   const stubRerankerBackend = new StubRerankerBackend();
