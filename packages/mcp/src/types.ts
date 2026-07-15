@@ -272,6 +272,31 @@ export interface InvocationRecorderPort {
   record(input: RecordMcpInvocationInput): Promise<void>;
 }
 
+/**
+ * Optional per-tenant policy gate per cortex.md §16.4 ("two enforcement points,
+ * same policy"). Called by dispatch at BOTH edges:
+ *
+ *   1. `tools/list` — filter the advertised tool set. A tool the caller can't
+ *      invoke shouldn't appear in discovery.
+ *   2. `tools/call` — re-check before dispatch. LLMs hallucinate tool names;
+ *      relying on the list-time filter is not enough.
+ *
+ * Returning `false` from either call point yields the same behavior the caller
+ * would see for an unknown tool: absent from the list, `-32601` on invoke.
+ *
+ * The v1 single-tenant local install adapter returns `true` for every
+ * (tenant, tool) pair — nothing changes. Tenant-scoped registries plug in a
+ * real check without dispatcher surgery.
+ */
+export interface McpPolicyPort {
+  /**
+   * @param toolName  One of the tool names advertised by `TOOLS`.
+   * @param tenantId  From `DispatchContext.tenantId` (advisory `X-Tenant-Id`
+   *                  in v1; hard scope once tenant-scoped registries land).
+   */
+  isToolAllowed(toolName: string, tenantId: string): Promise<boolean>;
+}
+
 export interface McpAdapters {
   search: SearchGatewayPort;
   skills: SkillLookupPort;
@@ -279,6 +304,11 @@ export interface McpAdapters {
   leaderboards: LeaderboardPort;
   recorder?: InvocationRecorderPort;
   afterResponse?: AfterResponse;
+  /**
+   * Optional. Omit → allow-all (v1 posture). See `McpPolicyPort` for the
+   * two enforcement points the dispatcher wires it into.
+   */
+  policy?: McpPolicyPort;
 }
 
 // ──────────────────────────────────────────────────────────────────────────────

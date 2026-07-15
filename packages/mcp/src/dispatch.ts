@@ -156,16 +156,22 @@ async function dispatch(
       case 'ping':
         return isNotification ? null : ok(id, {});
 
-      case 'tools/list':
-        return isNotification
-          ? null
-          : ok(id, {
-              tools: TOOLS.map(({ name, description, inputSchema }) => ({
-                name,
-                description,
-                inputSchema,
-              })),
-            });
+      case 'tools/list': {
+        if (isNotification) return null;
+        // cortex.md §16.4 enforcement point #1 — filter the advertised
+        // tool set through the optional per-tenant policy. Absent policy
+        // adapter = allow-all (v1 posture).
+        const visibleTools = ctx.adapters.policy
+          ? await filterAllowed(TOOLS, ctx.tenantId, ctx.adapters.policy)
+          : TOOLS;
+        return ok(id, {
+          tools: visibleTools.map(({ name, description, inputSchema }) => ({
+            name,
+            description,
+            inputSchema,
+          })),
+        });
+      }
 
       case 'tools/call': {
         const params = (req.params ?? {}) as { name?: string; arguments?: unknown };
@@ -178,6 +184,24 @@ async function dispatch(
             JSONRPC_METHOD_NOT_FOUND,
             `Unknown tool: ${params.name}`,
           );
+        }
+        // cortex.md §16.4 enforcement point #2 — re-check policy at invoke
+        // time so a hallucinated / stale tool name from the LLM cannot
+        // bypass the tenant scope. Same shape as the list-time filter:
+        // absent policy = allow. Returned as JSONRPC_METHOD_NOT_FOUND so
+        // the caller cannot distinguish "tool doesn't exist" from "tool
+        // exists but not for you" — matches the mothership's posture.
+        if (ctx.adapters.policy) {
+          const allowed = await ctx.adapters.policy.isToolAllowed(
+            params.name,
+            ctx.tenantId,
+          );
+          if (!allowed) {
+            throw new McpError(
+              JSONRPC_METHOD_NOT_FOUND,
+              `Unknown tool: ${params.name}`,
+            );
+          }
         }
         const toolCtx: ToolContext = {
           adapters: ctx.adapters,
@@ -239,6 +263,22 @@ async function dispatch(
     const message = e instanceof Error ? e.message : String(e);
     return err(id, JSONRPC_INTERNAL_ERROR, message);
   }
+}
+
+/**
+ * Filter `tools` through the per-tenant policy in parallel. Ordering is
+ * preserved so the returned list matches source order — matters for
+ * callers that pin the first advertised tool as canonical.
+ */
+async function filterAllowed<T extends { name: string }>(
+  tools: readonly T[],
+  tenantId: string,
+  policy: import('./types.js').McpPolicyPort,
+): Promise<T[]> {
+  const decisions = await Promise.all(
+    tools.map((t) => policy.isToolAllowed(t.name, tenantId)),
+  );
+  return tools.filter((_, i) => decisions[i]);
 }
 
 function scheduleRecord(

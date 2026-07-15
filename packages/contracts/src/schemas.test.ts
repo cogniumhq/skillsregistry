@@ -55,6 +55,10 @@ import {
   AppetiteSchema,
   TrustScoreDeltaSchema,
   TrustScoreSyncResponseSchema,
+  SkillRevocationEventSchema,
+  SkillRevocationSyncResponseSchema,
+  SkillRevocationReasonSchema,
+  SkillRevocationEventTypeSchema,
   UpstreamErrorSchema,
 } from './index.js';
 
@@ -1050,6 +1054,127 @@ describe('TrustScoreDelta + Sync', () => {
       deltas: [],
     };
     expect(TrustScoreSyncResponseSchema.parse(v)).toEqual(v);
+  });
+});
+
+describe('SkillRevocationReasonSchema (cortex.md §12)', () => {
+  it.each([
+    'security',
+    'compliance',
+    'policy',
+    'quality',
+    'author_request',
+    'superseded',
+    'unknown',
+  ] as const)('accepts %s', (v) => {
+    expect(SkillRevocationReasonSchema.parse(v)).toBe(v);
+  });
+
+  it('rejects unknown reason', () => {
+    expect(() => SkillRevocationReasonSchema.parse('lolwut')).toThrow();
+  });
+});
+
+describe('SkillRevocationEventTypeSchema', () => {
+  it.each(['skill.revoked', 'skill.deprecated'] as const)('accepts %s', (v) => {
+    expect(SkillRevocationEventTypeSchema.parse(v)).toBe(v);
+  });
+
+  it('rejects unknown event_type', () => {
+    expect(() =>
+      SkillRevocationEventTypeSchema.parse('skill.retired'),
+    ).toThrow();
+  });
+});
+
+describe('SkillRevocationEventSchema', () => {
+  it('accepts a minimal revocation event', () => {
+    const v = {
+      event_id: 'evt_1',
+      event_type: 'skill.revoked' as const,
+      emitted_at: '2026-07-15T00:00:00Z',
+      skill_id: 'sk_1',
+      slug: 'demo',
+      reason: 'security' as const,
+    };
+    expect(SkillRevocationEventSchema.parse(v)).toEqual(v);
+  });
+
+  it('accepts a full deprecation event with replacement + remediation', () => {
+    const v = {
+      event_id: 'evt_2',
+      event_type: 'skill.deprecated' as const,
+      emitted_at: '2026-07-15T12:00:00Z',
+      skill_id: 'sk_2',
+      slug: 'legacy-scan',
+      version: '0.9.0',
+      reason: 'superseded' as const,
+      reason_detail: 'Rolled into cognium-scan v2',
+      remediation_message: 'Migrate to @cognium/cognium-scan@2.0.0',
+      remediation_url: 'https://docs.example.com/migrate',
+      replacement_skill_id: 'sk_3',
+      replacement_slug: 'cognium-scan',
+    };
+    expect(SkillRevocationEventSchema.parse(v)).toEqual(v);
+  });
+
+  it('rejects a bad remediation_url', () => {
+    expect(() =>
+      SkillRevocationEventSchema.parse({
+        event_id: 'evt_1',
+        event_type: 'skill.revoked',
+        emitted_at: '2026-07-15T00:00:00Z',
+        skill_id: 'sk_1',
+        slug: 'demo',
+        reason: 'security',
+        remediation_url: 'not-a-url',
+      }),
+    ).toThrow();
+  });
+
+  it('rejects an empty event_id', () => {
+    expect(() =>
+      SkillRevocationEventSchema.parse({
+        event_id: '',
+        event_type: 'skill.revoked',
+        emitted_at: '2026-07-15T00:00:00Z',
+        skill_id: 'sk_1',
+        slug: 'demo',
+        reason: 'security',
+      }),
+    ).toThrow();
+  });
+});
+
+describe('SkillRevocationSyncResponseSchema', () => {
+  it('round-trips an empty window', () => {
+    const v = {
+      since: '2026-07-15T00:00:00Z',
+      until: '2026-07-15T06:00:00Z',
+      count: 0,
+      events: [],
+    };
+    expect(SkillRevocationSyncResponseSchema.parse(v)).toEqual(v);
+  });
+
+  it('round-trips a paginated window with events + next_cursor', () => {
+    const v = {
+      since: '2026-07-15T00:00:00Z',
+      until: '2026-07-15T06:00:00Z',
+      count: 1,
+      events: [
+        {
+          event_id: 'evt_a',
+          event_type: 'skill.revoked' as const,
+          emitted_at: '2026-07-15T01:00:00Z',
+          skill_id: 'sk_1',
+          slug: 'bad',
+          reason: 'security' as const,
+        },
+      ],
+      next_cursor: '2026-07-15T01:00:00Z',
+    };
+    expect(SkillRevocationSyncResponseSchema.parse(v)).toEqual(v);
   });
 });
 
