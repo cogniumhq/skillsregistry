@@ -1,6 +1,6 @@
-# SkillsRegistry Local
+# SkillsRegistry (local node) — apps/local + @skillsregistry/*
 
-Open-source runtime + SDK for the SkillsRegistry ecosystem. Companion to `~/work/cogniumhq/skillsregistry` (the proprietary mothership at `api.skillsregistry.net`).
+Open-source runtime + SDK for the SkillsRegistry ecosystem. The proprietary mothership at `api.skillsregistry.net` lives in a **separate** repo (working tree: `~/work/cogniumhq/sr/`); this repo is what operators self-host.
 
 > *This project follows the Specifica protocol. Read `specifica-skill.md` in project knowledge before responding. Treat `.specifica/principles.md` as authoritative for cross-cutting rules.*
 
@@ -23,7 +23,7 @@ This monorepo produces two deliverables under **one Apache-2.0 license**:
 
 ## Sacred boundaries
 
-- **Work stays inside `~/work/cogniumhq/skillsregistry-local/`.** No edits, writes, or file creation in sibling repos (`skillsregistry/`, `techspec/`, `cognium-ai/`, etc.) from this project's sessions. Cross-repo work (e.g., mothership consuming a new `@skillsregistry/schema` version) is a coordination ask, not a direct edit.
+- **Work stays inside `~/work/cogniumhq/skillsregistry/`.** No edits, writes, or file creation in sibling repos (`sr/` mothership, `techspec/`, `cognium-ai/`, `cognium-skills/`, etc.) from this project's sessions. Cross-repo work (e.g., mothership consuming a new `@skillsregistry/schema` version) is a coordination ask, not a direct edit. Exception: explicit user override for a specific sibling — see the 2026-07-13 `cognium-skills` bundle fix.
 - **The mothership is proprietary.** This repo never publishes anything that assumes access to mothership internals. All mothership interaction is via the public HTTP API defined in `@skillsregistry/contracts`.
 - **One upstream module.** `apps/local/src/upstream-client.ts` is the **only** place code here talks to `api.skillsregistry.net`. Every other module goes through it.
 
@@ -51,7 +51,7 @@ docker compose up            # local run (apps/local)
 
 | Repo | Role |
 |---|---|
-| `cogniumhq/skillsregistry` | Mothership (proprietary). Imports `@skillsregistry/*` from npm. |
+| `cogniumhq/sr` (working tree; GitHub repo name TBD) | Mothership (proprietary). Imports `@skillsregistry/*` from npm. Referenced only via its public HTTP API. |
 | `cogniumhq/techspec` | Platform specs. Read-only reference. |
 | `cogniumhq/cognium-skills` | First-party skill packages published INTO the registry (unrelated concern — do not conflate). |
 | `cogniumhq/cognium-ai` | Circle-IR semantic engine (PolyForm-NC). Runs on mothership; local node delegates via metered API. |
