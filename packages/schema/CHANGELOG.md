@@ -1,5 +1,12 @@
 # @skillsregistry/schema
 
+## 1.1.0
+
+### Minor Changes
+
+- 031265b: Add top-level `sandbox jsonb` column via migration `0034_sandbox_contract.sql` and bump `SCHEMA_VERSION` 33 → 34. Additive, no data migration; pre-v1.3 `agent_profile` column stays in place per append-only. The new column carries the skill-convention v1.3 §9 sandbox contract (`image`, `memory_mb`, `cpu`, `timeout_seconds`, `egress[]`, plus optional `profile` + `budget_caps` for agent skills) — validated at ingest by `SkillSandboxSchema` in `@skillsregistry/contracts`. Applies to every runtime_env with a sandbox surface (vm + agent + api). Unblocks per-skill Lane 0 image pinning.
+- 0fa154b: Expand `chk_visibility` CHECK constraint to the four tenant-scope bands per cortex.md §16.6 (migration `0035_visibility_bands.sql`). Old set {`public`, `private`, `unlisted`} becomes {`public`, `private`, `tenant_private`, `tenant_internal`, `unlisted`}. `private` kept as a legacy alias so pre-v6.3 rows keep parsing; new writes should prefer `tenant_private` for tenant-wide and `tenant_internal` for user-scoped-within-tenant. Drop-then-add is atomic under a brief table-level lock; no data migration since the old set is a strict subset of the new. `SCHEMA_VERSION` 34 → 35.
+
 ## 1.0.0
 
 ### Major Changes
