@@ -1,0 +1,41 @@
+-- 0034_sandbox_contract.sql
+-- Add top-level `sandbox` jsonb column per skill-convention.md v1.3 §9.
+--
+-- Before v1.3 the manifest carried only an agent-only `agent_profile` object
+-- (memory / cpu / wall-clock / budget caps / egress — enforced by
+-- chk_agent_profile_runtime for runtime_env = 'agent'). v1.3 promotes the
+-- sandbox contract to a top-level `sandbox` object that applies to ALL
+-- runtime_env values with a sandbox surface (vm + agent + any api skill
+-- that declares one). The shape:
+--
+--   {
+--     "image":            "ghcr.io/cognium-labs/skill-base:1.0.0",
+--     "memory_mb":        1024,
+--     "cpu":              2,
+--     "timeout_seconds":  600,
+--     "egress":           ["api.github.com", "api.osv.dev"],
+--     "profile":          "agent",        -- optional; present when runtime_env=agent
+--     "budget_caps": {                    -- optional; agent-only
+--       "max_tokens_usd":           5,
+--       "max_internal_tool_calls":  500,
+--       "max_wall_seconds":         7200
+--     }
+--   }
+--
+-- Motivation (from techspec):
+--   - skill-convention.md §9.1 image-family pinning (skill-base, skill-java,
+--     cognium-scan-base, agent-base) — the whole L3 sandbox contract keys off
+--     `sandbox.image`. Without a column, the mothership + local can't store it.
+--   - cortex.md §7.4 Sandbox seam is provider-neutral over exactly these fields.
+--   - Roadmap Lane 0 (§3.6 P1 immediate) needs per-skill image pins to land the
+--     `skill-base:1.0.0` cutover.
+--
+-- The pre-v1.3 `agent_profile` column stays in place (append-only per
+-- principles §Data model). New writes for agent skills should populate BOTH
+-- during the transition; a follow-up migration can drop `agent_profile` once
+-- the mothership + all consumers key off `sandbox`.
+--
+-- No index — no known lookup pattern queries on sandbox fields. Add later
+-- if a workload emerges.
+
+ALTER TABLE skills ADD COLUMN IF NOT EXISTS sandbox jsonb;

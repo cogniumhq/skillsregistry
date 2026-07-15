@@ -34,6 +34,9 @@ import { UpstreamError } from '../upstream-client/errors.js';
  * - `bad_request`             → 400 — schema validation failed.
  * - `upstream_unavailable`    → 503 — 5xx / network / circuit breaker open.
  * - `upstream_timeout`        → 504 — HTTP timeout.
+ * - `sandbox_contract_violated` → 502 — L3 runtime aborted with exit 90
+ *   (skill-convention §9.2 — wrong image / provider default / preflight
+ *   failed). Infrastructure-side, caller can't fix it, so we don't 4xx.
  */
 export const UPSTREAM_ERROR_STATUS: Record<UpstreamErrorCode, number> = {
   upstream_not_configured: 503,
@@ -45,6 +48,7 @@ export const UPSTREAM_ERROR_STATUS: Record<UpstreamErrorCode, number> = {
   bad_request: 400,
   upstream_unavailable: 503,
   upstream_timeout: 504,
+  sandbox_contract_violated: 502,
 };
 
 /**
