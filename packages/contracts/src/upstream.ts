@@ -16,6 +16,78 @@
 import { z } from 'zod';
 
 // ──────────────────────────────────────────────────────────────────────────────
+// Search — POST /v1/search  (per cortex.md §6.2 SkillsRegistry service binding)
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Risk appetite. Domain layer maps to a numeric trust threshold + an
+ * allowVulnerable flag; when the caller sets `min_trust` / `allow_vulnerable`
+ * explicitly, those override the appetite-derived values.
+ */
+export const AppetiteSchema = z.enum([
+  'strict',
+  'cautious',
+  'balanced',
+  'adventurous',
+]);
+export type Appetite = z.infer<typeof AppetiteSchema>;
+
+/**
+ * Visibility bands per cortex.md §16.6. Four-band tenant-scope model
+ * (schema migration 0035). `private` is a legacy alias kept for pre-v6.3
+ * consumers — new writes should prefer `tenant_private`.
+ */
+export const SkillVisibilitySchema = z.enum([
+  'public',
+  'private',
+  'tenant_private',
+  'tenant_internal',
+  'unlisted',
+]);
+export type SkillVisibility = z.infer<typeof SkillVisibilitySchema>;
+
+/**
+ * Search request per cortex.md §6.2:
+ *
+ *   POST /v1/search  { query, appetite, minTrust, allowVulnerable, tenantId, limit }
+ *
+ * Fields beyond the cortex minimum (`tags`, `category`, `runtime_env`,
+ * `visibility`, `portable`) are the local node's search superset — the
+ * mothership treats them as optional filters when set.
+ *
+ * Wire naming is snake_case for parity with the rest of the upstream API
+ * (TrustScoreRequest, BudgetResponse, PublishRequest). Consumers using the
+ * domain `FindSkillRequest` (camelCase) map at the route boundary.
+ */
+export const SearchRequestSchema = z.object({
+  /** Free-text query. Required, non-empty. */
+  query: z.string().min(1),
+  /** Advisory tenant scope. */
+  tenant_id: z.string().optional(),
+  /** Risk appetite → default trust floor + allowVulnerable default. */
+  appetite: AppetiteSchema.optional(),
+  /**
+   * Hard trust-score floor (0..1). Overrides `appetite` when set.
+   * Cortex sends this to gate before the confidence tier is even assessed.
+   */
+  min_trust: z.number().min(0).max(1).optional(),
+  /**
+   * Allow skills tagged vulnerable / contains-vulnerable through the filter.
+   * Overrides the appetite-derived default when set.
+   */
+  allow_vulnerable: z.boolean().optional(),
+  /** Result cap (1..50). Default 10 at the domain layer. */
+  limit: z.number().int().positive().max(50).optional(),
+  /** Local-superset filters — mothership treats as optional. */
+  tags: z.array(z.string()).optional(),
+  category: z.string().optional(),
+  runtime_env: z.array(z.string()).optional(),
+  visibility: SkillVisibilitySchema.optional(),
+  portable: z.boolean().optional(),
+});
+export type SearchRequest = z.infer<typeof SearchRequestSchema>;
+
+// ──────────────────────────────────────────────────────────────────────────────
 // Trust scoring — POST /v1/trust/score
 // ──────────────────────────────────────────────────────────────────────────────
 

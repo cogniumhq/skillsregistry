@@ -50,6 +50,9 @@ import {
   BudgetResponseSchema,
   PublishRequestSchema,
   PublishResponseSchema,
+  SearchRequestSchema,
+  SkillVisibilitySchema,
+  AppetiteSchema,
   TrustScoreDeltaSchema,
   TrustScoreSyncResponseSchema,
   UpstreamErrorSchema,
@@ -741,6 +744,93 @@ describe('BudgetResponseSchema', () => {
 
   it('rejects unknown plan', () => {
     expect(() => BudgetResponseSchema.parse({ ...v, plan: 'gold' })).toThrow();
+  });
+});
+
+describe('SkillVisibilitySchema (v6.3 4-band model)', () => {
+  it.each([
+    'public',
+    'private',
+    'tenant_private',
+    'tenant_internal',
+    'unlisted',
+  ] as const)('accepts %s', (v) => {
+    expect(SkillVisibilitySchema.parse(v)).toBe(v);
+  });
+
+  it('rejects unknown bands', () => {
+    expect(() => SkillVisibilitySchema.parse('worldwide')).toThrow();
+  });
+});
+
+describe('AppetiteSchema', () => {
+  it.each(['strict', 'cautious', 'balanced', 'adventurous'] as const)(
+    'accepts %s',
+    (v) => {
+      expect(AppetiteSchema.parse(v)).toBe(v);
+    },
+  );
+
+  it('rejects unknown appetite', () => {
+    expect(() => AppetiteSchema.parse('reckless')).toThrow();
+  });
+});
+
+describe('SearchRequestSchema (cortex.md §6.2)', () => {
+  it('accepts a minimal request', () => {
+    const v = { query: 'format typescript' };
+    expect(SearchRequestSchema.parse(v)).toEqual(v);
+  });
+
+  it('accepts the full cortex-shape body', () => {
+    const v = {
+      query: 'format typescript',
+      tenant_id: 't-1',
+      appetite: 'cautious' as const,
+      min_trust: 0.7,
+      allow_vulnerable: false,
+      limit: 20,
+    };
+    expect(SearchRequestSchema.parse(v)).toEqual(v);
+  });
+
+  it('accepts local-superset filters', () => {
+    const v = {
+      query: 'lint',
+      tags: ['javascript', 'lint'],
+      category: 'code-quality',
+      runtime_env: ['api', 'vm'],
+      visibility: 'tenant_private' as const,
+      portable: true,
+    };
+    expect(SearchRequestSchema.parse(v)).toEqual(v);
+  });
+
+  it('rejects empty query', () => {
+    expect(() => SearchRequestSchema.parse({ query: '' })).toThrow();
+  });
+
+  it('rejects min_trust outside [0, 1]', () => {
+    expect(() =>
+      SearchRequestSchema.parse({ query: 'x', min_trust: 1.5 }),
+    ).toThrow();
+    expect(() =>
+      SearchRequestSchema.parse({ query: 'x', min_trust: -0.1 }),
+    ).toThrow();
+  });
+
+  it('rejects limit outside (0, 50]', () => {
+    for (const bad of [0, 51, -1, 1.5]) {
+      expect(() =>
+        SearchRequestSchema.parse({ query: 'x', limit: bad }),
+      ).toThrow();
+    }
+  });
+
+  it('rejects unknown visibility band', () => {
+    expect(() =>
+      SearchRequestSchema.parse({ query: 'x', visibility: 'worldwide' }),
+    ).toThrow();
   });
 });
 
