@@ -111,14 +111,16 @@ Critical review 2026-07-11 surfaced 10 gaps between this repo and the techspec c
 
 ### Package version state after this sweep
 
-Landed on npm at various points during MVP; all changesets from S1/S2/S5/S6/S7/S8 are queued (unshipped pending automation restore per T-C.5) so the next release burst will bump:
+Landed via `pnpm run version` on 2026-07-15; the seven queued changesets compose into these bumps (multiple minors against the same package collapse to a single minor per semver — first pass at this section incorrectly claimed they'd stack):
 
-- `@skillsregistry/schema` 1.0.0 → 1.2.0 (S2 minor, S8 minor)
-- `@skillsregistry/contracts` 1.0.1 → 1.3.0 (S2 minor, S1/S8 minor, S6 sibling in mcp, S7 minor)
-- `@skillsregistry/domain` 1.0.1 → 1.1.0 (S1/S8 minor)
-- `@skillsregistry/mcp` 1.0.1 → 1.1.0 (S6 minor)
-- `@skillsregistry/eval` 1.0.1 (no change)
+- `@skillsregistry/schema` 1.0.0 → **1.1.0** (S2 + S8 minors compose)
+- `@skillsregistry/contracts` 1.0.1 → **1.1.0** (S1 + S2 + S7 + S8 minors compose)
+- `@skillsregistry/domain` 1.0.1 → **1.1.0** (S1 + S8 minors compose)
+- `@skillsregistry/mcp` 1.0.1 → **1.1.0** (S6 minor)
+- `@skillsregistry/eval` 1.0.1 → **1.0.2** (transitive patch from domain bump)
 - `@skillsregistry/dag` 1.1.0 (no change)
+
+Publish path: `pnpm release --otp <code>` (per T-C.5 the CI `changesets/action@v1` publish is blocked by the cogniumhq org GitHub Actions billing block; manual local publish is the current path).
 
 ## Deferred to post-MVP
 
