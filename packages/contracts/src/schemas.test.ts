@@ -772,6 +772,125 @@ describe('PublishRequestSchema', () => {
       }),
     ).toThrow();
   });
+
+  it('accepts a manifest with a v1.3 sandbox block', () => {
+    const v = {
+      manifest: {
+        name: '@cognium/secrets-scan',
+        slug: 'cognium-secrets-scan',
+        version: '1.0.0',
+        source: 'first-party',
+        execution_layer: 'container',
+        sandbox: {
+          image: 'ghcr.io/cognium-labs/skill-base:1.0.0',
+          memory_mb: 512,
+          cpu: 2,
+          timeout_seconds: 300,
+          egress: ['api.github.com', 'codeload.github.com'],
+        },
+      },
+    };
+    expect(PublishRequestSchema.parse(v)).toEqual(v);
+  });
+
+  it('accepts an agent sandbox block with budget_caps', () => {
+    const v = {
+      manifest: {
+        name: '@cognium/claude-code',
+        slug: 'cognium-claude-code',
+        version: '0.1.0',
+        source: 'first-party',
+        execution_layer: 'agent',
+        sandbox: {
+          image: 'ghcr.io/cognium-labs/agent-base:1.0',
+          memory_mb: 4096,
+          cpu: 4,
+          timeout_seconds: 7200,
+          egress: ['llmproxy.xus.one', 'api.cognium.net'],
+          profile: 'agent' as const,
+          budget_caps: {
+            max_tokens_usd: 5,
+            max_internal_tool_calls: 500,
+            max_wall_seconds: 7200,
+          },
+        },
+      },
+    };
+    expect(PublishRequestSchema.parse(v)).toEqual(v);
+  });
+
+  it('rejects a sandbox block with empty image', () => {
+    expect(() =>
+      PublishRequestSchema.parse({
+        manifest: {
+          name: 'A',
+          slug: 'a',
+          version: '1.0.0',
+          source: 'manual',
+          execution_layer: 'container',
+          sandbox: {
+            image: '',
+            memory_mb: 512,
+            cpu: 2,
+            timeout_seconds: 300,
+            egress: [],
+          },
+        },
+      }),
+    ).toThrow();
+  });
+
+  it('rejects a sandbox block with non-positive memory_mb / cpu / timeout', () => {
+    for (const bad of [
+      { memory_mb: 0 },
+      { cpu: 0 },
+      { timeout_seconds: 0 },
+      { memory_mb: -1 },
+      { memory_mb: 1.5 },
+    ]) {
+      expect(() =>
+        PublishRequestSchema.parse({
+          manifest: {
+            name: 'A',
+            slug: 'a',
+            version: '1.0.0',
+            source: 'manual',
+            execution_layer: 'container',
+            sandbox: {
+              image: 'ghcr.io/cognium-labs/skill-base:1.0',
+              memory_mb: 512,
+              cpu: 2,
+              timeout_seconds: 300,
+              egress: [],
+              ...bad,
+            },
+          },
+        }),
+      ).toThrow();
+    }
+  });
+
+  it('rejects an unknown profile value', () => {
+    expect(() =>
+      PublishRequestSchema.parse({
+        manifest: {
+          name: 'A',
+          slug: 'a',
+          version: '1.0.0',
+          source: 'manual',
+          execution_layer: 'agent',
+          sandbox: {
+            image: 'ghcr.io/cognium-labs/agent-base:1.0',
+            memory_mb: 2048,
+            cpu: 4,
+            timeout_seconds: 7200,
+            egress: [],
+            profile: 'worker' as unknown as 'agent',
+          },
+        },
+      }),
+    ).toThrow();
+  });
 });
 
 describe('PublishResponseSchema', () => {
@@ -858,6 +977,7 @@ const UPSTREAM_CODES = [
   'bad_request',
   'upstream_unavailable',
   'upstream_timeout',
+  'sandbox_contract_violated',
 ] as const;
 
 describe('UpstreamErrorSchema', () => {

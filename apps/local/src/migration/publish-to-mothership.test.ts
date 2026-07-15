@@ -35,6 +35,7 @@ interface FakeSkillRow {
   mcp_url: string | null;
   publisher_key_id: string | null;
   publisher_signature: string | null;
+  sandbox: Record<string, unknown> | null;
 }
 
 /** Build a minimally-valid row for happy-path tests. */
@@ -58,6 +59,7 @@ function skillRow(overrides: Partial<FakeSkillRow> = {}): FakeSkillRow {
     mcp_url: null,
     publisher_key_id: null,
     publisher_signature: null,
+    sandbox: null,
     ...overrides,
   };
 }
@@ -178,6 +180,23 @@ describe('buildPublishRequest', () => {
     );
     expect(req.publisher_key_id).toBe('key-abc');
     expect(req.signature).toBe('sig-xyz');
+  });
+
+  it('forwards a v1.3 sandbox block into manifest.sandbox', () => {
+    const sandbox = {
+      image: 'ghcr.io/cognium-labs/skill-base:1.0.0',
+      memory_mb: 512,
+      cpu: 2,
+      timeout_seconds: 300,
+      egress: ['api.github.com'],
+    };
+    const req = buildPublishRequest(skillRow({ sandbox }));
+    expect(req.manifest.sandbox).toEqual(sandbox);
+  });
+
+  it('omits manifest.sandbox when the row column is null', () => {
+    const req = buildPublishRequest(skillRow({ sandbox: null }));
+    expect(req.manifest).not.toHaveProperty('sandbox');
   });
 
   it('throws bad_request when a required field is null', () => {

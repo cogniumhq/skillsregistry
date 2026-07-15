@@ -150,6 +150,7 @@ interface SkillRow {
   published_at: Date | null;
   mothership_skill_id: string | null;
   mothership_url: string | null;
+  sandbox: unknown;
 }
 
 const SKILL_ROW_COLUMNS = `
@@ -169,7 +170,8 @@ const SKILL_ROW_COLUMNS = `
   spec_alignment_score, spec_gaps, spec_analyzed_at,
   publisher_key_id, signature_verified_at, signature_failure_reason,
   created_at, updated_at, published_at,
-  mothership_skill_id, mothership_url
+  mothership_skill_id, mothership_url,
+  sandbox
 `;
 
 export class SkillsClient {
@@ -243,12 +245,12 @@ export class SkillsClient {
            name, slug, version, source, description, agent_summary,
            tags, category, schema_json, install_method, execution_layer,
            skill_md, source_url, repository_url, mcp_url,
-           publisher_key_id, publisher_signature, status
+           publisher_key_id, publisher_signature, sandbox, status
          ) VALUES (
            $1, $2, $3, $4, $5, $6,
            $7, $8, $9, $10, $11,
            $12, $13, $14, $15,
-           $16, $17, 'published'
+           $16, $17, $18, 'published'
          )
          RETURNING id, slug, version, status`,
         [
@@ -269,6 +271,7 @@ export class SkillsClient {
           manifest.mcp_url ?? null,
           request.publisher_key_id ?? null,
           request.signature ?? null,
+          manifest.sandbox ?? null,
         ],
       );
       const row = result.rows[0];
@@ -501,6 +504,7 @@ export function formatSkillDetail(row: SkillRow): SkillDetail {
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
     publishedAt: toIso(row.published_at),
+    sandbox: row.sandbox ?? null,
   };
 }
 

@@ -292,6 +292,50 @@ describe('SkillsClient.publishLocal', () => {
     expect(params).toContain('sig-1');
   });
 
+  it('persists manifest.sandbox in the sandbox jsonb column', async () => {
+    const { pool, calls } = makePool([
+      {
+        rowCount: 1,
+        rows: [
+          { id: 'x', slug: 'demo', version: '1.0.0', status: 'published' },
+        ],
+      },
+    ]);
+    const upstream = makeUpstream();
+    const client = new SkillsClient({ upstream, pool, logger: SILENT_LOGGER });
+    const sandbox = {
+      image: 'ghcr.io/cognium-labs/skill-base:1.0.0',
+      memory_mb: 1024,
+      cpu: 2,
+      timeout_seconds: 600,
+      egress: ['api.osv.dev', 'api.github.com'],
+    };
+    await client.publishLocal({
+      manifest: { ...validRequest.manifest, sandbox },
+    });
+    const insertSql = calls[0]?.sql ?? '';
+    expect(insertSql).toMatch(/\bsandbox\b/);
+    const params = calls[0]?.params as unknown[];
+    expect(params).toContainEqual(sandbox);
+  });
+
+  it('persists null in the sandbox column when the manifest omits it', async () => {
+    const { pool, calls } = makePool([
+      {
+        rowCount: 1,
+        rows: [
+          { id: 'x', slug: 'demo', version: '1.0.0', status: 'published' },
+        ],
+      },
+    ]);
+    const upstream = makeUpstream();
+    const client = new SkillsClient({ upstream, pool, logger: SILENT_LOGGER });
+    await client.publishLocal(validRequest);
+    // sandbox is the last positional param — asserting the array ends in null.
+    const params = calls[0]?.params as unknown[];
+    expect(params?.at(-1)).toBeNull();
+  });
+
   it('maps pg unique_violation (23505) → bad_request with slug detail', async () => {
     const uniqueErr = Object.assign(new Error('duplicate key'), {
       code: '23505',

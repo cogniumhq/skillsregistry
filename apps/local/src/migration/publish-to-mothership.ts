@@ -101,6 +101,7 @@ interface SkillRow {
   mcp_url: string | null;
   publisher_key_id: string | null;
   publisher_signature: string | null;
+  sandbox: PublishRequest['manifest']['sandbox'] | null;
 }
 
 export class PublishToMothershipClient {
@@ -164,7 +165,8 @@ export class PublishToMothershipClient {
               repository_url,
               mcp_url,
               publisher_key_id,
-              publisher_signature
+              publisher_signature,
+              sandbox
          FROM skills
         WHERE id = $1`,
       [skillId],
@@ -260,6 +262,11 @@ export function buildPublishRequest(row: SkillRow): PublishRequest {
   if (row.source_url !== null) manifest.source_url = row.source_url;
   if (row.repository_url !== null) manifest.repository_url = row.repository_url;
   if (row.mcp_url !== null) manifest.mcp_url = row.mcp_url;
+  // v1.3 sandbox contract (skill-convention §9) — forwarded verbatim.
+  // Mothership PublishRequestSchema.manifest.sandbox re-validates via
+  // SkillSandboxSchema, so a malformed local row surfaces as a mothership
+  // 400 (structured `detail.issues`) rather than an obscure runtime error.
+  if (row.sandbox !== null) manifest.sandbox = row.sandbox;
 
   const request: PublishRequest = { manifest };
   if (row.publisher_key_id !== null) {

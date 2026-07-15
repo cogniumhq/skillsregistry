@@ -11,4 +11,4 @@
 //
 // ══════════════════════════════════════════════════════════════════════════════
 
-export const SCHEMA_VERSION = 33;
+export const SCHEMA_VERSION = 34;

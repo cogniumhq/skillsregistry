@@ -146,7 +146,16 @@ export const skills = pgTable(
     workflowDefinition: jsonb('workflow_definition'),
     // v6.2: Agentic sandbox profile (memory, CPU, wall-clock, budget caps, egress).
     // Only populated for runtime_env = 'agent'; enforced by chk_agent_profile_runtime.
+    // NOTE: superseded by the top-level `sandbox` column below (migration 0034
+    // + skill-convention v1.3 §9). Kept in place per append-only principle;
+    // new writes for agent skills should populate BOTH during the transition.
     agentProfile: jsonb('agent_profile'),
+    // v6.3 (migration 0034): Top-level sandbox contract per skill-convention v1.3 §9.
+    // Applies to ALL runtime_env values with a sandbox surface (vm + agent + api).
+    // Shape: { image, memory_mb, cpu, timeout_seconds, egress[],
+    //          profile?: 'agent', budget_caps?: { max_tokens_usd, ... } }.
+    // Validated at ingest by SkillSandboxSchema in @skillsregistry/contracts.
+    sandbox: jsonb('sandbox'),
     // v5.4: Circle-IR extended analysis columns
     qualityScore: real('quality_score'),
     qualityTier: text('quality_tier'),
