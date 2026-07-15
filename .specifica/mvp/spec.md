@@ -74,6 +74,13 @@ At the end of MVP:
 - Ollama on `localhost:11434` for embeddings by default; `EMBEDDING_PROVIDER=mothership` opt-in.
 - Docker Compose is the reference deploy. Bare-metal is a stretch goal, not a constraint.
 
+### Embedder posture (deliberate divergence from portfolio-canonical)
+- Local uses **`nomic-embed-text`** (768-d native) truncated + L2-renormalized to **`halfvec(512)`** via MRL, served from Ollama.
+- Portfolio-canonical per `techspec/principles.md` §2 + §12 is **Qwen3-Embedding-4B + Qwen3-Reranker via llmproxy → DeepInfra/Together** (open weights, managed API, off Workers AI post the May-2026 cost incident).
+- The divergence is deliberate: the local node's use case is self-hostable / air-gapped operators, so a small model that runs under Ollama on modest hardware wins over the portfolio's managed-API choice.
+- **Consequence — embeddings are NOT cross-node comparable.** Cosine similarity between a vector produced locally (`nomic-embed-text@ollama-mrl-512`) and one produced upstream (`qwen3-embedding-0.6B` via llmproxy) is meaningless. `skill_embeddings.embed_model` stamps the identity on every row so consumers can gate on identity match before comparing; the local node MUST re-embed on any cross-source ingestion path.
+- Cross-node embedding **sync is out of scope**. Trust scores and skill metadata sync; vectors don't.
+
 ### Tenancy
 - Single tenant per install. `TENANT_ID` and `MOTHERSHIP_API_KEY` are env vars, baked at deploy.
 - Schema retains the `tenant_id` column for migration-compat with mothership, but every local row has the same value.
@@ -125,6 +132,20 @@ If any of the following hold at MVP-cut time, the MVP is **not** complete regard
 - The `apps/local` docker image fails to boot on a machine that has never seen this repo before, using only the documented env vars
 - Eval R@5 drops below 75% on either mothership or local (regression threshold)
 - License text is missing from any published package's `package.json` `license` field or any distributed file that requires it
+
+## 7. Roadmap posture — off-roadmap by design
+
+`techspec/roadmap.md` v1.4 does not name this repo, `@skillsregistry/*` package versions, `apps/local`, or the "local node" / "self-host" concept anywhere. Every SkillsRegistry milestone in the roadmap (30K/50K trust, public beta/launch, ≥100 publishers) refers to the mothership at `api.skillsregistry.net`, not the self-host deliverable.
+
+**This is by design, not an omission.** The local node is:
+- **Community-owned in intent** — `@skillsregistry/*` packages on npm are the public SDK; anyone can build against them.
+- **Ahead of the platform's stated timeline** — `techspec/architecture.md` §7 Goal 2 defers on-prem/BYOC until "the first regulated enterprise demands it," but the local node exists now as a self-host convenience.
+- **Off-critical-path** — no roadmap milestone depends on the local node shipping or updating.
+- **On-thesis for CF-exit** — `techspec/principles.md` §7 mandates portable substrate (Node/Hono/Postgres/Ollama) for new components; the local node's stack matches, making it a happy accident of alignment.
+
+**Consequence — this repo cadences on its own.** SDK versions bump on real code demand (`.changeset/`), the Docker image bumps on operator-facing changes, and there is no external gate we're racing against. `.specifica/mvp/tasks.md` is the authoritative work-plan; roadmap milestones do not appear here.
+
+If this changes — a roadmap item lands that IS gated on us — that gate should be recorded here in a "Roadmap dependencies" subsection.
 
 ---
 
