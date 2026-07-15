@@ -28,6 +28,7 @@ import type { SqlPool } from '../adapters/sql.js';
 import type { SearchProvider } from '../providers/search-provider.js';
 import { CircuitBreaker } from '../resilience/circuit-breaker.js';
 import {
+  appetiteToAllowVulnerable,
   appetiteToTrustThreshold,
   type Appetite,
   type FindSkillResponse,
@@ -35,6 +36,7 @@ import {
   type SearchFilters,
   type SearchResult,
   type SkillResult,
+  type SkillVisibility,
 } from '../types.js';
 import { CompositionDetector } from './composition-detector.js';
 import { DeepSearch } from './deep-search.js';
@@ -51,8 +53,16 @@ export interface FindSkillOptions {
   tags?: string[];
   category?: string;
   runtimeEnv?: string[];
-  visibility?: 'public' | 'private' | 'unlisted';
+  /** 4-band tenant-scope visibility per cortex.md §16.6. */
+  visibility?: SkillVisibility;
   portable?: boolean;
+  /**
+   * Overrides the appetite-derived trust-score floor. Threading in from
+   * `FindSkillRequest.minTrust` (Cortex sends this per §6.2).
+   */
+  minTrust?: number;
+  /** Overrides `appetiteToAllowVulnerable(appetite)` when set. */
+  allowVulnerable?: boolean;
 }
 
 export interface ConfidenceGateOptions {
@@ -184,12 +194,17 @@ export class ConfidenceGate {
     const embedding = await this.embedFn(query);
 
     // ── 3. Build Filters ──
+    // `minTrust` + `allowVulnerable` (Cortex per cortex.md §6.2) override the
+    // appetite-derived defaults when the caller sets them explicitly. Missing
+    // → fall back to the appetite mapping.
     const filters: SearchFilters = {
       tenantId,
       tags: options.tags,
       category: options.category,
-      minTrustScore: appetiteToTrustThreshold(appetite),
+      minTrustScore: options.minTrust ?? appetiteToTrustThreshold(appetite),
       contentSafetyRequired: true,
+      allowVulnerable:
+        options.allowVulnerable ?? appetiteToAllowVulnerable(appetite),
       runtimeEnv: options.runtimeEnv,
       visibility: options.visibility,
       portable: options.portable,

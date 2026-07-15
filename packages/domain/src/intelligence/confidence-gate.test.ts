@@ -17,6 +17,7 @@ import type { RerankerBackend } from './reranker-backend.js';
 import type {
   FindSkillResponse,
   ScoredSkill,
+  SearchFilters,
   SearchResult,
   SearchLogEntry,
 } from '../types.js';
@@ -287,6 +288,73 @@ describe('ConfidenceGate — tier assessment via findSkill', () => {
     const { gate } = makeGate(result, {}, [{ ...SKILL_ROW, id: 'a' }]);
     const out = await gate.findSkill('q', 't', {}, makeAfterResponse());
     expect(out.meta.tier).toBe(3);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Explicit-filter overrides — Cortex-shape minTrust + allowVulnerable
+// (cortex.md §6.2). When the caller sets them, they override the
+// appetite-derived defaults; when absent, appetite drives.
+// ──────────────────────────────────────────────────────────────────────────────
+
+describe('ConfidenceGate — minTrust + allowVulnerable overrides', () => {
+  it('threads explicit minTrust into SearchFilters, overriding appetite', async () => {
+    const { gate, provider } = makeGate(fakeResult([]));
+    await gate.findSkill(
+      'q',
+      't',
+      { appetite: 'strict', minTrust: 0.42 },
+      makeAfterResponse(),
+    );
+    const call = (provider.search as any).mock.calls[0]!;
+    const filters = call[2] as SearchFilters;
+    // Explicit override — should NOT be strict's 0.85.
+    expect(filters.minTrustScore).toBe(0.42);
+  });
+
+  it('falls back to appetiteToTrustThreshold when minTrust is absent', async () => {
+    const { gate, provider } = makeGate(fakeResult([]));
+    await gate.findSkill('q', 't', { appetite: 'strict' }, makeAfterResponse());
+    const filters = (provider.search as any).mock.calls[0]![2] as SearchFilters;
+    expect(filters.minTrustScore).toBe(0.85);
+  });
+
+  it('threads explicit allowVulnerable into SearchFilters', async () => {
+    const { gate, provider } = makeGate(fakeResult([]));
+    await gate.findSkill(
+      'q',
+      't',
+      { appetite: 'strict', allowVulnerable: true },
+      makeAfterResponse(),
+    );
+    const filters = (provider.search as any).mock.calls[0]![2] as SearchFilters;
+    // Explicit override — strict would default to false via
+    // appetiteToAllowVulnerable, but we passed true.
+    expect(filters.allowVulnerable).toBe(true);
+  });
+
+  it('falls back to appetiteToAllowVulnerable when absent (balanced → true)', async () => {
+    const { gate, provider } = makeGate(fakeResult([]));
+    await gate.findSkill(
+      'q',
+      't',
+      { appetite: 'balanced' },
+      makeAfterResponse(),
+    );
+    const filters = (provider.search as any).mock.calls[0]![2] as SearchFilters;
+    expect(filters.allowVulnerable).toBe(true);
+  });
+
+  it('threads a 4-band visibility (tenant_private) into SearchFilters', async () => {
+    const { gate, provider } = makeGate(fakeResult([]));
+    await gate.findSkill(
+      'q',
+      't',
+      { visibility: 'tenant_private' },
+      makeAfterResponse(),
+    );
+    const filters = (provider.search as any).mock.calls[0]![2] as SearchFilters;
+    expect(filters.visibility).toBe('tenant_private');
   });
 });
 

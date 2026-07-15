@@ -94,6 +94,23 @@ export interface EmbeddingSet {
 // Search provider interface — filter/option/result shapes
 // ──────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Visibility bands per cortex.md §16.6. Four-band model (v6.3, migration 0035):
+ *
+ *   public          — everyone (default)
+ *   private         — legacy alias, kept so pre-v6.3 rows / callers still parse;
+ *                     new writes should prefer tenant_private
+ *   tenant_private  — visible to the whole tenant
+ *   tenant_internal — visible only to specific users within the tenant
+ *   unlisted        — reachable by direct id/slug lookup, excluded from search
+ */
+export type SkillVisibility =
+  | 'public'
+  | 'private'
+  | 'tenant_private'
+  | 'tenant_internal'
+  | 'unlisted';
+
 export interface SearchFilters {
   tenantId: string;
   tags?: string[];
@@ -107,7 +124,7 @@ export interface SearchFilters {
   version?: string; // v5.0: pin to specific version
   // v5.2: execution environment + visibility
   runtimeEnv?: string[]; // filter by runtime environment(s)
-  visibility?: 'public' | 'private' | 'unlisted'; // default: respects tenant scope
+  visibility?: SkillVisibility; // v6.3: 4-band model per cortex.md §16.6
   // v5.3: portable filter
   portable?: boolean;
 }
@@ -185,8 +202,21 @@ export interface FindSkillRequest {
   category?: string;
   limit?: number;
   runtimeEnv?: string[];
-  visibility?: 'public' | 'private' | 'unlisted';
+  visibility?: SkillVisibility;
   portable?: boolean;
+  /**
+   * Hard trust-score floor (0..1). Cortex sends this per cortex.md §6.2.
+   * When set, overrides the appetite-derived threshold. Skills below this
+   * score are excluded before the confidence gate even sees them.
+   */
+  minTrust?: number;
+  /**
+   * When false (default when appetite='strict'/'cautious'), skills tagged
+   * vulnerable / contains-vulnerable are excluded. When true, they pass.
+   * Cortex sends this alongside minTrust; explicit setting overrides the
+   * appetite-derived default (`appetiteToAllowVulnerable`).
+   */
+  allowVulnerable?: boolean;
 }
 
 export interface FindSkillResponse {
