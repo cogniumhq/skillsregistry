@@ -30,7 +30,7 @@ describe('buildDiscoveryDescriptor', () => {
 
   it('prefers canonicalOrigin over the request URL', () => {
     const d = buildDiscoveryDescriptor({
-      requestUrl: new URL('https://runics.workers.dev/mcp.json'),
+      requestUrl: new URL('https://skillsregistry.workers.dev/mcp.json'),
       config: resolveConfig({ canonicalOrigin: 'https://api.skillsregistry.net' }),
     });
     expect(d.transport).toMatchObject({

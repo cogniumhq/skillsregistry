@@ -271,6 +271,86 @@ describe('handleMcpRequest — tools/call', () => {
   });
 });
 
+// ──────────────────────────────────────────────────────────────────────────────
+// Policy hook — cortex.md §16.4 two enforcement points
+// ──────────────────────────────────────────────────────────────────────────────
+
+describe('handleMcpRequest — McpPolicyPort', () => {
+  it('tools/list: filters out tools the policy disallows', async () => {
+    const isToolAllowed = vi.fn(
+      async (name: string, _tenantId: string) =>
+        name !== 'get_trust_breakdown' && name !== 'resolve_composition',
+    );
+    const out = await handleMcpRequest(
+      { jsonrpc: '2.0', id: 100, method: 'tools/list' },
+      makeCtx({ policy: { isToolAllowed } }),
+    );
+    if (out.kind !== 'json') throw new Error('expected json');
+    const body = out.body as {
+      result: { tools: Array<{ name: string }> };
+    };
+    const names = body.result.tools.map((t) => t.name);
+    expect(names).not.toContain('get_trust_breakdown');
+    expect(names).not.toContain('resolve_composition');
+    expect(names).toContain('search_skills');
+    // Called once per candidate tool with the ctx tenantId.
+    expect(isToolAllowed).toHaveBeenCalledWith(
+      'search_skills',
+      'default',
+    );
+  });
+
+  it('tools/list: omitted policy = allow-all (v1 posture)', async () => {
+    const out = await handleMcpRequest(
+      { jsonrpc: '2.0', id: 101, method: 'tools/list' },
+      makeCtx(), // no policy
+    );
+    if (out.kind !== 'json') throw new Error('expected json');
+    const body = out.body as {
+      result: { tools: Array<{ name: string }> };
+    };
+    expect(body.result.tools).toHaveLength(5);
+  });
+
+  it('tools/call: rejects disallowed tool with method-not-found', async () => {
+    const isToolAllowed = vi.fn(async (name: string) => name !== 'search_skills');
+    const out = await handleMcpRequest(
+      {
+        jsonrpc: '2.0',
+        id: 102,
+        method: 'tools/call',
+        params: { name: 'search_skills', arguments: { query: 'x' } },
+      },
+      makeCtx({ policy: { isToolAllowed } }),
+    );
+    if (out.kind !== 'json') throw new Error('expected json');
+    const body = out.body as { error: { code: number; message: string } };
+    // Same shape as unknown-tool — caller can't distinguish "doesn't exist"
+    // from "not for you". Matches mothership posture.
+    expect(body.error.code).toBe(JSONRPC_METHOD_NOT_FOUND);
+    expect(isToolAllowed).toHaveBeenCalledWith('search_skills', 'default');
+  });
+
+  it('tools/call: allowed tool dispatches normally', async () => {
+    const isToolAllowed = vi.fn(async () => true);
+    const out = await handleMcpRequest(
+      {
+        jsonrpc: '2.0',
+        id: 103,
+        method: 'tools/call',
+        params: { name: 'get_skill', arguments: { slug: 'hello' } },
+      },
+      makeCtx({ policy: { isToolAllowed } }),
+    );
+    if (out.kind !== 'json') throw new Error('expected json');
+    const body = out.body as {
+      result: { content: Array<{ text: string }>; isError: boolean };
+    };
+    expect(body.result.isError).toBe(false);
+    expect(isToolAllowed).toHaveBeenCalledWith('get_skill', 'default');
+  });
+});
+
 describe('handleMcpRequest — batches + notifications', () => {
   it('collapses notification-only batches to 202 accepted', async () => {
     const out = await handleMcpRequest(

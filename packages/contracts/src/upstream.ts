@@ -265,6 +265,82 @@ export const TrustScoreSyncResponseSchema = z.object({
    */
   next_cursor: z.string().datetime().optional(),
 });
+// ──────────────────────────────────────────────────────────────────────────────
+// Skill revocation — per cortex.md §12
+// ──────────────────────────────────────────────────────────────────────────────
+//
+// When SkillsRegistry revokes or deprecates a skill it emits an event that
+// consumers (Cortex, local nodes, third-party agents) subscribe to via
+// webhook or a pull cursor at GET /v1/sync/revocations?since=<ISO>. Cortex
+// receives the event, matches affected running workflow instances, and
+// propagates notifications; local nodes should sync `skills.revoked_at` /
+// `revoked_reason` / `remediation_*` / `replacement_skill_id` columns.
+//
+// Wire naming is snake_case for parity with the rest of the upstream API.
+
+export const SkillRevocationReasonSchema = z.enum([
+  'security',      // CVE / RCE / secret exfil — highest severity
+  'compliance',    // license / regulatory
+  'policy',        // Cognium-side content-safety violation
+  'quality',       // repeated tool-call failures, malformed I/O
+  'author_request', // publisher asked for takedown
+  'superseded',    // replaced by a newer skill; migration path in remediation_*
+  'unknown',       // fallback — should never appear in fresh events
+]);
+export type SkillRevocationReason = z.infer<typeof SkillRevocationReasonSchema>;
+
+export const SkillRevocationEventTypeSchema = z.enum([
+  'skill.revoked',    // hard: mothership blocks new invocations
+  'skill.deprecated', // soft: still callable, superseded — surface in UI
+]);
+export type SkillRevocationEventType = z.infer<
+  typeof SkillRevocationEventTypeSchema
+>;
+
+/**
+ * Single revocation / deprecation event. `event_id` is the idempotency key —
+ * consumers store the last-seen id per source to dedupe replays.
+ */
+export const SkillRevocationEventSchema = z.object({
+  /** Idempotency key. Consumer dedupes on (source, event_id). */
+  event_id: z.string().min(1),
+  event_type: SkillRevocationEventTypeSchema,
+  emitted_at: z.string().datetime(),
+  /** Mothership skill UUID. */
+  skill_id: z.string().min(1),
+  /** Human-readable identifier — helpful in webhook logs. */
+  slug: z.string().min(1),
+  /** Pinned version at the time of revocation (if the whole line was pulled). */
+  version: z.string().optional(),
+  reason: SkillRevocationReasonSchema,
+  /** Free-form operator-visible detail — never rendered to end users unsanitized. */
+  reason_detail: z.string().optional(),
+  /** Actionable message consumers can show in remediation UI. */
+  remediation_message: z.string().optional(),
+  remediation_url: z.string().url().optional(),
+  /** Mothership UUID of the replacement skill, if any. */
+  replacement_skill_id: z.string().optional(),
+  /** Slug of the replacement skill (redundant with id — safer for humans). */
+  replacement_slug: z.string().optional(),
+});
+export type SkillRevocationEvent = z.infer<typeof SkillRevocationEventSchema>;
+
+/**
+ * Response for `GET /v1/sync/revocations?since=<ISO>`. Mirrors the shape of
+ * `TrustScoreSyncResponse` so consumers can share a delta-pull scaffold.
+ */
+export const SkillRevocationSyncResponseSchema = z.object({
+  since: z.string().datetime(),
+  until: z.string().datetime(),
+  count: z.number().int().nonnegative(),
+  events: z.array(SkillRevocationEventSchema),
+  /** Cursor for pagination. When present, re-request with `since=<next_cursor>`. */
+  next_cursor: z.string().datetime().optional(),
+});
+export type SkillRevocationSyncResponse = z.infer<
+  typeof SkillRevocationSyncResponseSchema
+>;
+
 export type TrustScoreSyncResponse = z.infer<
   typeof TrustScoreSyncResponseSchema
 >;
