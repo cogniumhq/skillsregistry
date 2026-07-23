@@ -120,6 +120,8 @@ Landed via `pnpm run version` on 2026-07-15; the seven queued changesets compose
 - `@skillsregistry/eval` 1.0.1 → **1.0.2** (transitive patch from domain bump)
 - `@skillsregistry/dag` 1.1.0 (no change)
 
+`apps/local` bumped independently 1.0.0 → **1.1.0** in commit `d34ef86` (Docker tag `v1.1.0`) — `workspace:*` resolution at Docker build time picks up all the SDK 1.1.0 line concretely (schema migrations 0034 sandbox + 0035 visibility, contracts `SkillSandboxSchema` + `SearchRequestSchema` + `SkillRevocationEventSchema`, domain `minTrust`/`allowVulnerable` overrides + 4-band `SkillVisibility`, mcp `McpPolicyPort` allow-all v1). 391/391 apps/local tests green post-bump. Docker publish via `docker buildx build --push` amd64+arm64 (CI `publish-app.yml` blocked by cogniumhq org billing per T-C.5). Local app version cadences independently of the SDK line per `principles.md` § Release discipline.
+
 Publish path: `pnpm release --otp <code>` (per T-C.5 the CI `changesets/action@v1` publish is blocked by the cogniumhq org GitHub Actions billing block; manual local publish is the current path).
 
 ## Deferred to post-MVP
