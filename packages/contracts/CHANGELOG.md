@@ -1,5 +1,24 @@
 # @skillsregistry/contracts
 
+## 2.0.0
+
+### Major Changes
+
+- `SearchRequestSchema` field names flipped snake_case → camelCase to resolve X6 (mothership CLAUDE.md sibling-spec drift log, 2026-07-15). Field renames — all breaking for any consumer that spelled the snake form:
+
+  - `tenant_id` → `tenantId`
+  - `min_trust` → `minTrust`
+  - `allow_vulnerable` → `allowVulnerable`
+  - `runtime_env` → `runtimeEnv`
+
+  Rationale: every current caller (mothership inline schema at `src/routes/search.ts`, Cortex `SkillsRegistryClient.findSkill()`, local-node route surface) was already sending camelCase. The v1.x snake_case contract was inert — it caught no real consumers and created a silent-drop risk (Zod strip mode would have dropped `tenantId` under the snake schema, making every Cortex search public-scope). Aligning the contract to observed reality closes the drift.
+
+  No other schemas changed: `TrustScoreRequest`, `BudgetResponse`, `PublishRequest`, `SkillRevocationEvent`, etc. remain snake_case (their consumers already speak snake_case and the contract there is load-bearing).
+
+  Enum *values* on `SkillVisibilitySchema` also stay snake_case — they mirror the Postgres `chk_visibility` CHECK constraint values (`@skillsregistry/schema`) and cannot be flipped without a DB migration. Only the field-name flip is in scope for this bump.
+
+  Consumers: bump the pin, rename the four field spellings at every call site, ship.
+
 ## 1.1.0
 
 ### Minor Changes

@@ -125,6 +125,30 @@ Landed via `pnpm run version` on 2026-07-15; the seven queued changesets compose
 
 Publish path: `pnpm release --otp <code>` (per T-C.5 the CI `changesets/action@v1` publish is blocked by the cogniumhq org GitHub Actions billing block; manual local publish is the current path).
 
+## X6 close (2026-07-27) — @skillsregistry/contracts 2.0.0
+
+- ☑ **X6** `SearchRequestSchema` wire-format resolution. The X6 drift entry originated in the mothership's `~/work/cogniumhq/sr/CLAUDE.md` sibling-spec drift log (2026-07-15): `@skillsregistry/contracts@1.1.0` shipped `SearchRequestSchema` with snake_case field names (`tenant_id`, `min_trust`, `allow_vulnerable`, `runtime_env`) but every current caller (mothership inline schema at `src/routes/search.ts`, Cortex `SkillsRegistryClient.findSkill()`, local-node route surface) was already sending camelCase. Naively adopting the shared contract would silently drop `tenantId` under Zod strip mode → every Cortex search becomes public-scope.
+
+  Resolution (this sweep): **contracts adopts camelCase.** Field renames on `SearchRequestSchema` (breaking; MAJOR bump):
+
+  - `tenant_id` → `tenantId`
+  - `min_trust` → `minTrust`
+  - `allow_vulnerable` → `allowVulnerable`
+  - `runtime_env` → `runtimeEnv`
+
+  Other schemas untouched. Enum *values* on `SkillVisibilitySchema` stay snake_case (they mirror the Postgres `chk_visibility` CHECK constraint values — can't flip without a DB migration).
+
+  Discovery step confirmed no transitive re-exporters: `SearchRequestSchema` is only imported by `packages/contracts/src/schemas.test.ts` within this workspace. `packages/{domain,mcp,eval,schema}/` do not re-export or consume the schema. `apps/local` imports from `@skillsregistry/contracts` but never the search schema (uses per-route inline schemas). Zero-radius change beyond contracts itself.
+
+  Contract-side tests: 128/128 green post-flip (`packages/contracts` vitest). Typecheck clean.
+
+### Package version state after this sweep (2026-07-27)
+
+- `@skillsregistry/contracts` 1.1.0 → **2.0.0** (X6 MAJOR — field renames on `SearchRequestSchema`)
+- No other package versions change (SDK-line 1.1.0 packages still current; no dependents on the flipped fields to cascade to).
+
+Mothership consumes on next pin bump — tracked in `~/work/cogniumhq/sr/.specifica/6.7/tasks.md` (X6 line under Ordering). npm publish gated on user confirmation (per plan; not part of this sweep).
+
 ## Cross-repo reviews
 
 Sacred-boundary: this repo does not edit sibling repos, but does record the outcome of cross-repo spec reviews so future planners see what was considered and rejected. Each entry is note-and-defer — no MVP task lands from a review here unless a follow-up `T-*` item is filed above.

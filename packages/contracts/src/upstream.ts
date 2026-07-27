@@ -21,7 +21,7 @@ import { z } from 'zod';
 
 /**
  * Risk appetite. Domain layer maps to a numeric trust threshold + an
- * allowVulnerable flag; when the caller sets `min_trust` / `allow_vulnerable`
+ * allowVulnerable flag; when the caller sets `minTrust` / `allowVulnerable`
  * explicitly, those override the appetite-derived values.
  */
 export const AppetiteSchema = z.enum([
@@ -36,6 +36,11 @@ export type Appetite = z.infer<typeof AppetiteSchema>;
  * Visibility bands per cortex.md §16.6. Four-band tenant-scope model
  * (schema migration 0035). `private` is a legacy alias kept for pre-v6.3
  * consumers — new writes should prefer `tenant_private`.
+ *
+ * Enum *values* stay snake_case: they are stored as-is in the Postgres
+ * `chk_visibility` CHECK constraint (`@skillsregistry/schema`), so the wire
+ * value must match the column value. Only *field names* were flipped to
+ * camelCase in v2.0.0.
  */
 export const SkillVisibilitySchema = z.enum([
   'public',
@@ -51,37 +56,43 @@ export type SkillVisibility = z.infer<typeof SkillVisibilitySchema>;
  *
  *   POST /v1/search  { query, appetite, minTrust, allowVulnerable, tenantId, limit }
  *
- * Fields beyond the cortex minimum (`tags`, `category`, `runtime_env`,
+ * Fields beyond the cortex minimum (`tags`, `category`, `runtimeEnv`,
  * `visibility`, `portable`) are the local node's search superset — the
  * mothership treats them as optional filters when set.
  *
- * Wire naming is snake_case for parity with the rest of the upstream API
- * (TrustScoreRequest, BudgetResponse, PublishRequest). Consumers using the
- * domain `FindSkillRequest` (camelCase) map at the route boundary.
+ * **v2.0.0 (MAJOR).** Field names flipped snake_case → camelCase to match
+ * every current caller (mothership inline schema at `src/routes/search.ts`,
+ * Cortex `SkillsRegistryClient.findSkill()`, local-node route surface). The
+ * v1.x snake_case shape caught no real consumers — 100% of live wire traffic
+ * was already camelCase, so the shared contract was inert. Aligning the
+ * contract to observed reality eliminates the silent-drop risk documented as
+ * X6 in the mothership repo's CLAUDE.md sibling-spec drift log (2026-07-15).
+ * Consumers that spelled the snake form must switch to camelCase in the same
+ * bump.
  */
 export const SearchRequestSchema = z.object({
   /** Free-text query. Required, non-empty. */
   query: z.string().min(1),
   /** Advisory tenant scope. */
-  tenant_id: z.string().optional(),
+  tenantId: z.string().optional(),
   /** Risk appetite → default trust floor + allowVulnerable default. */
   appetite: AppetiteSchema.optional(),
   /**
    * Hard trust-score floor (0..1). Overrides `appetite` when set.
    * Cortex sends this to gate before the confidence tier is even assessed.
    */
-  min_trust: z.number().min(0).max(1).optional(),
+  minTrust: z.number().min(0).max(1).optional(),
   /**
    * Allow skills tagged vulnerable / contains-vulnerable through the filter.
    * Overrides the appetite-derived default when set.
    */
-  allow_vulnerable: z.boolean().optional(),
+  allowVulnerable: z.boolean().optional(),
   /** Result cap (1..50). Default 10 at the domain layer. */
   limit: z.number().int().positive().max(50).optional(),
   /** Local-superset filters — mothership treats as optional. */
   tags: z.array(z.string()).optional(),
   category: z.string().optional(),
-  runtime_env: z.array(z.string()).optional(),
+  runtimeEnv: z.array(z.string()).optional(),
   visibility: SkillVisibilitySchema.optional(),
   portable: z.boolean().optional(),
 });
