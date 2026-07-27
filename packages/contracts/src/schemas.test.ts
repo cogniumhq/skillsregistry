@@ -789,10 +789,10 @@ describe('SearchRequestSchema (cortex.md §6.2)', () => {
   it('accepts the full cortex-shape body', () => {
     const v = {
       query: 'format typescript',
-      tenant_id: 't-1',
+      tenantId: 't-1',
       appetite: 'cautious' as const,
-      min_trust: 0.7,
-      allow_vulnerable: false,
+      minTrust: 0.7,
+      allowVulnerable: false,
       limit: 20,
     };
     expect(SearchRequestSchema.parse(v)).toEqual(v);
@@ -803,7 +803,7 @@ describe('SearchRequestSchema (cortex.md §6.2)', () => {
       query: 'lint',
       tags: ['javascript', 'lint'],
       category: 'code-quality',
-      runtime_env: ['api', 'vm'],
+      runtimeEnv: ['api', 'vm'],
       visibility: 'tenant_private' as const,
       portable: true,
     };
@@ -814,12 +814,12 @@ describe('SearchRequestSchema (cortex.md §6.2)', () => {
     expect(() => SearchRequestSchema.parse({ query: '' })).toThrow();
   });
 
-  it('rejects min_trust outside [0, 1]', () => {
+  it('rejects minTrust outside [0, 1]', () => {
     expect(() =>
-      SearchRequestSchema.parse({ query: 'x', min_trust: 1.5 }),
+      SearchRequestSchema.parse({ query: 'x', minTrust: 1.5 }),
     ).toThrow();
     expect(() =>
-      SearchRequestSchema.parse({ query: 'x', min_trust: -0.1 }),
+      SearchRequestSchema.parse({ query: 'x', minTrust: -0.1 }),
     ).toThrow();
   });
 
