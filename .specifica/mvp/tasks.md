@@ -125,6 +125,24 @@ Landed via `pnpm run version` on 2026-07-15; the seven queued changesets compose
 
 Publish path: `pnpm release --otp <code>` (per T-C.5 the CI `changesets/action@v1` publish is blocked by the cogniumhq org GitHub Actions billing block; manual local publish is the current path).
 
+## Cross-repo reviews
+
+Sacred-boundary: this repo does not edit sibling repos, but does record the outcome of cross-repo spec reviews so future planners see what was considered and rejected. Each entry is note-and-defer — no MVP task lands from a review here unless a follow-up `T-*` item is filed above.
+
+### 2026-07-26 — techspec v6.7 / cortex v2.11 / guardrails v1.8
+
+Reviewed the 2026-07-11 → 2026-07-25 techspec update pass (parallel-session commit `cf9790a` in `~/work/cogniumhq/techspec`, propagated into `~/work/cogniumhq/sr` as `.specifica/6.7/`). Verdict for **this repo (open-source local node + SDK)**: **no MVP task changes required.**
+
+Reasoning per updated file:
+
+- **`skillsregistry.md` v6.7 (July 2026)** — new sections: §4.3 facet system (U7), §4.4 applicability predicates, §6.4 tenant overlay P2/P3 sequencing (F13), §10.5 Skills Browser filter contract, §11.11 publishing scopes + statuses.
+  - **Facets, applicability, publish-scope, Skills Browser filter contract** — these are surface additions on the mothership registry (`api.skillsregistry.net`) that the local node consumes only through the public HTTP API defined in `@skillsregistry/contracts`. When mothership ships them and cuts `@skillsregistry/contracts` `1.2.0`, the local node picks them up on the next SDK bump (same pattern as the `1.1.0` bump on 2026-07-15). No local-node-specific work; not a phase-1/2/3 concern.
+  - **Tenant overlay P2/P3 sequencing (F13)** — the local node is single-tenant by design (see "Deferred to post-MVP: Multi-tenant local install"). This rule governs mothership's mixed public/tenant query plan and is a no-op here.
+- **`cortex.md` v2.11** — orchestration + gateway concerns (§7.4b engine-client, §7.7 three-path engine access, §7.8 repo/branch state service, §7.9 Release Gate, §7.10 review routing, §9.5 memory-engine position, §16.11 routing tiers, §17.5 Svix). All Cortex-owned; local node doesn't run Cortex. No changes.
+- **`guardrails.md` v1.8** — policy enforcement at the Cortex gateway (§6.7 ResponseGuard restored, §19 release-gate policy namespace + review routing + AI template pack). All Guardrails-owned; local node consumes SkillsRegistry directly without a Guardrails hop. No changes.
+
+Follow-on: when mothership ships the mothership-side v6.7 workstreams (tracked in `~/work/cogniumhq/sr/.specifica/6.7/tasks.md` V1–V5), the `@skillsregistry/*` SDK will get a `1.2.0` line bumping `contracts` (facet/applicability/scope schemas), `schema` (columns + migrations, if any land in the SDK-published set), and `domain` (filter helpers). File a follow-up `T-C.6`-style item at that point; do not front-run the mothership.
+
 ## Deferred to post-MVP
 
 Not tracked as tasks — recorded so future planners see the boundary:
