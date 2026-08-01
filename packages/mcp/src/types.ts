@@ -149,6 +149,25 @@ export interface SkillDetail {
   trustScoreV2: number | null;
   trustTier: string | null;
   trustResults: unknown;
+  /**
+   * Circle-IR's analyzer passes grouped into the six canonical dimensions
+   * (security / supply / quality / reliability / compliance / provenance),
+   * each 0-100, plus the overall score and the Circle-IR tier enum.
+   *
+   * Derived by the adapter from `trustResults`, so it is present only where the
+   * skill carries pass-level results — null otherwise, which is most of the
+   * catalog today. Optional here because older adapter implementations predate
+   * the field; treat `undefined` and `null` alike as "no breakdown available".
+   *
+   * `tier` is the Circle-IR enum (VERIFIED / PASSING / ADVISORY / FAILING /
+   * BLOCKED). There is no A/B/C/D/F letter grade in this system.
+   */
+  trustBreakdown?: {
+    overall: number | null;
+    tier: string | null;
+    dims: Record<string, number>;
+    passCount: number;
+  } | null;
   trustAnalyzedAt: string | null;
   understandResults: unknown;
   understandAnalyzedAt: string | null;

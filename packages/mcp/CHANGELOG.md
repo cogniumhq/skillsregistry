@@ -1,5 +1,22 @@
 # @skillsregistry/mcp
 
+## 1.2.0
+
+### Minor Changes
+
+- `get_trust_breakdown`: return the derived per-dimension breakdown, and describe what the tool actually returns.
+
+  The tool's description advertised "7-dimension scores, A/B/C/D/F tier" to agent clients while the handler returned neither — only the raw `trustResults` blob. An LLM reading that description had no way to reconcile what it got back.
+
+  Both halves are corrected:
+
+  - **Handler** — passes through `trustBreakdown` (`{overall, tier, dims, passCount}`) from the skill-lookup adapter, normalizing a missing value to `null` so callers branch on one value rather than `undefined`-vs-`null`. The raw `trustResults` blob is retained alongside; the breakdown is additive, and a caller auditing a specific finding still needs the detail.
+  - **Description** — states the real contract: Circle-IR analyzer passes grouped into **six** 0-100 dimensions (security, supply, quality, reliability, compliance, provenance) with an overall score and the Circle-IR tier enum (`VERIFIED` / `PASSING` / `ADVISORY` / `FAILING` / `BLOCKED`). There is no A/B/C/D/F letter grade anywhere in this system.
+
+  `SkillDetail.trustBreakdown` is added as an **optional** field, so adapter implementations that predate it keep type-checking and simply yield `null` through the tool.
+
+  Minor rather than patch: the tool's output shape gains a field and its advertised contract changes, which is additive but consumer-visible.
+
 ## 1.1.1
 
 ### Patch Changes
