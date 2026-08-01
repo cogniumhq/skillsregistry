@@ -1,5 +1,15 @@
 # @skillsregistry/mcp
 
+## 1.2.1
+
+### Patch Changes
+
+- Republish 1.2.0 with the `workspace:*` dependency protocol correctly resolved.
+
+  `1.2.0` was published with plain `npm publish`, which does not understand pnpm's `workspace:` protocol and shipped `"@skillsregistry/domain": "workspace:*"` verbatim in the package manifest. Any consumer installing it fails with `EUNSUPPORTEDPROTOCOL`. `pnpm publish` — which `changeset publish` delegates to — rewrites the protocol to the concrete version at pack time, which is why every prior release (`1.1.1` and earlier) shipped a resolvable `"@skillsregistry/domain": "1.1.1"`.
+
+  No source change: `1.2.1` is `1.2.0`'s code with a correct manifest. `1.2.0` is deprecated on npm pointing here.
+
 ## 1.2.0
 
 ### Minor Changes

@@ -160,7 +160,13 @@ Minor rather than patch: additive to the output shape, but consumer-visible.
 
 **Surfaced from the mothership side.** The stale wording was found while implementing sr's D3 (`~/work/cogniumhq/sr/.specifica/6.2/tasks.md`), which derives the six-dimension breakdown and exposes it on `GET /v1/skills/:slug`. The mothership's `getSkillBySlug` adapter populates `trustBreakdown` as of that change, so this tool passthrough lights up the moment sr bumps its pin. Sacred-boundary note: the sr-side work is recorded there, not here; this entry covers only the package change.
 
-Publish path unchanged — `pnpm release --otp <code>` (npm account carries `two-factor auth: auth-and-writes`; CI publish still blocked by the cogniumhq org Actions billing block per T-C.5). **Not yet published as of this entry**; npm still serves 1.1.1. Mothership pin bump (1.1.1 → 1.2.0) is gated on that publish and is tracked as D3a in the sr tracker.
+Publish path — `pnpm release --otp <code>` (npm account carries `two-factor auth: auth-and-writes`; CI publish still blocked by the cogniumhq org Actions billing block per T-C.5).
+
+**Publish incident 2026-08-01 — `1.2.0` is broken on npm; superseded by `1.2.1`.** `1.2.0` was published with plain `npm publish` from the package directory instead of the workspace `pnpm release` path. npm does not understand pnpm's `workspace:` protocol, so the published manifest carried `"@skillsregistry/domain": "workspace:*"` verbatim; any consumer installing it fails with `EUNSUPPORTEDPROTOCOL` (caught immediately when the mothership tried the pin bump). `pnpm publish` — which `changeset publish` delegates to — rewrites the protocol to the concrete version at pack time, which is why every prior release shipped a resolvable `"@skillsregistry/domain": "1.1.1"`.
+
+npm versions are immutable, so the fix is a patch republish rather than a re-upload: `1.2.1` is `1.2.0`'s code with a correct manifest, and `1.2.0` is deprecated on npm pointing at it. **Standing rule this establishes: never publish a package from this workspace with bare `npm publish`.** Verify before every publish with `pnpm pack --pack-destination <tmp>` and assert the extracted `package/package.json` contains no `workspace:` string — that one check would have caught this pre-publish.
+
+Mothership pin bump (1.1.1 → **1.2.1**, skipping the broken 1.2.0) is gated on the republish and tracked as D3a in the sr tracker.
 
 ## Cross-repo reviews
 
