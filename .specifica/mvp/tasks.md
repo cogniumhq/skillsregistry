@@ -164,7 +164,21 @@ Publish path — `pnpm release --otp <code>` (npm account carries `two-factor au
 
 **Publish incident 2026-08-01 — `1.2.0` is broken on npm; superseded by `1.2.1`.** `1.2.0` was published with plain `npm publish` from the package directory instead of the workspace `pnpm release` path. npm does not understand pnpm's `workspace:` protocol, so the published manifest carried `"@skillsregistry/domain": "workspace:*"` verbatim; any consumer installing it fails with `EUNSUPPORTEDPROTOCOL` (caught immediately when the mothership tried the pin bump). `pnpm publish` — which `changeset publish` delegates to — rewrites the protocol to the concrete version at pack time, which is why every prior release shipped a resolvable `"@skillsregistry/domain": "1.1.1"`.
 
-npm versions are immutable, so the fix is a patch republish rather than a re-upload: `1.2.1` is `1.2.0`'s code with a correct manifest, and `1.2.0` is deprecated on npm pointing at it. **Standing rule this establishes: never publish a package from this workspace with bare `npm publish`.** Verify before every publish with `pnpm pack --pack-destination <tmp>` and assert the extracted `package/package.json` contains no `workspace:` string — that one check would have caught this pre-publish.
+npm versions are immutable, so the fix is a patch republish rather than a re-upload: `1.2.1` is `1.2.0`'s code with a correct manifest, and `1.2.0` is deprecated on npm pointing at it. **Standing rule this establishes: never publish a package from this workspace with bare `npm publish`.** Verify before every publish with the check below — it would have caught this pre-publish.
+
+```bash
+cd packages/<name>
+T=$(mktemp -d); pnpm pack --pack-destination "$T" >/dev/null 2>&1
+if tar xzOf "$T"/*.tgz package/package.json | grep -q 'workspace:'; then
+  echo "FAIL — workspace: protocol in published manifest, do NOT publish"
+else
+  echo "PASS — manifest resolvable"
+fi
+tar xzOf "$T"/*.tgz package/package.json | python3 -c 'import json,sys;d=json.load(sys.stdin);print("inspected:",d["name"],d["version"])'
+rm -rf "$T"
+```
+
+Use `mktemp -d`, **not** a shared `/tmp`: a first draft of this check globbed `/tmp/*.tgz`, and with a stale `skillsregistry-local-0.0.0.tgz` sitting there the glob expanded to two paths, `tar` took the first as the archive, and the check silently inspected the wrong package while still printing a confident verdict. Echoing the inspected name+version is what makes that visible. Validated in both directions: PASS on `1.2.1`, FAIL on the published-broken `1.2.0`.
 
 Mothership pin bump (1.1.1 → **1.2.1**, skipping the broken 1.2.0) is gated on the republish and tracked as D3a in the sr tracker.
 
