@@ -149,6 +149,19 @@ Publish path: `pnpm release --otp <code>` (per T-C.5 the CI `changesets/action@v
 
 Mothership consumes on next pin bump — tracked in `~/work/cogniumhq/sr/.specifica/6.7/tasks.md` (X6 line under Ordering). npm publish gated on user confirmation (per plan; not part of this sweep).
 
+### Package version state after the D3a fix (2026-07-31)
+
+- `@skillsregistry/mcp` 1.1.1 → **1.2.0** (D3a MINOR — `get_trust_breakdown` output shape gains `trustBreakdown`)
+- No other package versions change. `SkillDetail.trustBreakdown` is declared OPTIONAL, so `apps/local`'s adapter (which does not derive the field) keeps type-checking and simply yields `null` through the tool — no cascade, no `apps/local` bump required.
+
+**What changed and why.** The `get_trust_breakdown` tool description advertised *"7-dimension scores, A/B/C/D/F tier"* to agent clients while its handler returned neither — only the raw `trustResults` blob. An LLM reading that description had no way to reconcile what came back. Neither a seven-dimension score nor a letter grade exists anywhere in the platform: the real model is **six** dimensions (security / supply / quality / reliability / compliance / provenance, grouped from Circle-IR's 27 analyzer passes) and `tier` as the Circle-IR enum (`VERIFIED` / `PASSING` / `ADVISORY` / `FAILING` / `BLOCKED`). Both halves are now corrected — the handler passes the derived breakdown through (normalizing `undefined` → `null` so callers branch on one value), and the description states the contract it actually honours. A test asserts the strings `7-dimension` and `A/B/C/D/F` are absent, so the mismatch cannot silently return.
+
+Minor rather than patch: additive to the output shape, but consumer-visible.
+
+**Surfaced from the mothership side.** The stale wording was found while implementing sr's D3 (`~/work/cogniumhq/sr/.specifica/6.2/tasks.md`), which derives the six-dimension breakdown and exposes it on `GET /v1/skills/:slug`. The mothership's `getSkillBySlug` adapter populates `trustBreakdown` as of that change, so this tool passthrough lights up the moment sr bumps its pin. Sacred-boundary note: the sr-side work is recorded there, not here; this entry covers only the package change.
+
+Publish path unchanged — `pnpm release --otp <code>` (npm account carries `two-factor auth: auth-and-writes`; CI publish still blocked by the cogniumhq org Actions billing block per T-C.5). **Not yet published as of this entry**; npm still serves 1.1.1. Mothership pin bump (1.1.1 → 1.2.0) is gated on that publish and is tracked as D3a in the sr tracker.
+
 ## Cross-repo reviews
 
 Sacred-boundary: this repo does not edit sibling repos, but does record the outcome of cross-repo spec reviews so future planners see what was considered and rejected. Each entry is note-and-defer — no MVP task lands from a review here unless a follow-up `T-*` item is filed above.
