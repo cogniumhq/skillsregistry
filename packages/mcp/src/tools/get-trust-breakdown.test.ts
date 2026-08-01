@@ -109,6 +109,12 @@ const FULL_SKILL = {
   trustScoreV2: 0.88,
   trustTier: 'A',
   trustResults: { findings: [] },
+  trustBreakdown: {
+    overall: 84,
+    tier: 'BLOCKED',
+    dims: { security: 63, supply: 96, quality: 95, reliability: 74, compliance: 87, provenance: 100 },
+    passCount: 27,
+  },
   trustAnalyzedAt: '2026-01-03T00:00:00Z',
   understandResults: 'ignored',
   understandAnalyzedAt: 'ignored',
@@ -243,5 +249,62 @@ describe('get_trust_breakdown — metadata', () => {
     expect(getTrustBreakdownTool.name).toBe('get_trust_breakdown');
     const schema = getTrustBreakdownTool.inputSchema as { required: string[] };
     expect(schema.required).toEqual(['slug']);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// D3a — the tool's description used to promise "7-dimension scores, A/B/C/D/F
+// tier" while the handler returned neither. These pin the corrected contract:
+// the derived breakdown is passed through, and the description describes it.
+// ──────────────────────────────────────────────────────────────────────────────
+
+describe('get_trust_breakdown — derived breakdown (D3a)', () => {
+  it('passes trustBreakdown through from the adapter', async () => {
+    const { skills } = stubLookup({ found: true, data: FULL_SKILL });
+    const out = await getTrustBreakdownTool.handler(
+      { slug: 'trust-skill' },
+      makeCtx(skills),
+    );
+    const v = out.value as Record<string, unknown>;
+    expect(v.trustBreakdown).toEqual({
+      overall: 84,
+      tier: 'BLOCKED',
+      dims: {
+        security: 63,
+        supply: 96,
+        quality: 95,
+        reliability: 74,
+        compliance: 87,
+        provenance: 100,
+      },
+      passCount: 27,
+    });
+    // Additive — the raw blob a caller needs to audit a specific finding stays.
+    expect(v.trustResults).toEqual({ findings: [] });
+  });
+
+  it('normalizes a missing breakdown to null for pre-D3 adapters', async () => {
+    // Older adapter implementations predate the field entirely. An agent
+    // should branch on one value, not on undefined-vs-null.
+    const { trustBreakdown: _omitted, ...legacy } = FULL_SKILL;
+    const { skills } = stubLookup({ found: true, data: legacy as typeof FULL_SKILL });
+    const out = await getTrustBreakdownTool.handler(
+      { slug: 'trust-skill' },
+      makeCtx(skills),
+    );
+    const v = out.value as Record<string, unknown>;
+    expect(v.trustBreakdown).toBeNull();
+  });
+
+  it('describes what it actually returns — six dims, no letter grade', async () => {
+    const d = getTrustBreakdownTool.description;
+    expect(d).toContain('six');
+    expect(d).toContain('trustBreakdown');
+    // The regression this whole task exists for.
+    expect(d).not.toContain('7-dimension');
+    expect(d).not.toContain('A/B/C/D/F');
+    for (const dim of ['security', 'supply', 'quality', 'reliability', 'compliance', 'provenance']) {
+      expect(d).toContain(dim);
+    }
   });
 });
