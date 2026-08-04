@@ -148,6 +148,43 @@ breaker + typed `UpstreamError` taxonomy. If the mothership is down, the
 local node stays up and gracefully returns `503 upstream_not_configured` or
 the local-only view.
 
+## Mothership compatibility
+
+The local node and the hosted mothership (`api.skillsregistry.net`) share the
+same schema, handlers, and MCP tool surface, but a few HTTP-shape differences
+exist on the public REST surface. Know these before copy-pasting ops between the
+two (the migrate/upstream client already adapts internally — this matters for
+humans following one README).
+
+| Concern | Local (`apps/local`) | Mothership (`api.skillsregistry.net`) |
+|---|---|---|
+| Health | `GET /health` **and** `GET /v1/health` | `GET /health` (its `/v1/health` is 404) |
+| Search verb | `GET /v1/search?q=…` | `POST /v1/search` (JSON body) |
+| Search query field | `q` (query param) | `query` (**required**, body) |
+| Search tenant | `X-Tenant-Id` header (optional) | `tenantId` (**required**, body) |
+| Hits array | `.skills[]` | `.results[]` |
+
+Health is aligned as of #45 — both nodes answer `GET /health`, so a liveness
+probe is portable. The **search** surface is intentionally different: the local
+node ships a simple `GET` for quick single-operator use; the mothership takes a
+richer `POST` (confidence tiers, filters, tenant scoping). Concrete examples:
+
+```bash
+# Local — GET, `q`, `.skills[]`
+curl -s 'http://localhost:3000/v1/search?q=kubernetes%20mcp&limit=2' | jq '.skills'
+
+# Mothership — POST, `query`+`tenantId`, `.results[]`
+curl -s -X POST https://api.skillsregistry.net/v1/search \
+  -H 'content-type: application/json' \
+  -d '{"query":"kubernetes mcp","tenantId":"public","limit":2}' | jq '.results'
+```
+
+Aligning the search request/response shapes (a `POST /v1/search` alias on the
+local node, or a mothership `q`/`.skills[]` compat layer) is a larger contract
+decision tracked separately; the matrix above is the source of truth until then.
+The mothership adding a `GET /v1/health` alias for full path symmetry is a
+mothership-side follow-up (cross-linked from #45).
+
 ## Auth model
 
 Two-tier by design:

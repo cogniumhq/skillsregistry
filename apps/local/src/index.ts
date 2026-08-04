@@ -24,7 +24,7 @@
 
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import type { Pool } from 'pg';
 import { bootSchema } from './boot/schema.js';
 import { loadConfig, ConfigError, type AppConfig } from './config.js';
@@ -79,7 +79,11 @@ export function createApp(
     }),
   );
 
-  app.get('/v1/health', async (c) => {
+  // Liveness. Served at both `/v1/health` (this node's canonical path) and
+  // `/health` — mothership parity: api.skillsregistry.net answers `/health`
+  // (its `/v1/health` is 404), so operators following one README can hit the
+  // same path on either node (#45). Identical payload on both.
+  const healthHandler = async (c: Context) => {
     const dbReachable = await pingDb(pool);
     const payload: HealthPayload = {
       status: dbReachable ? 'ok' : 'degraded',
@@ -90,7 +94,9 @@ export function createApp(
       dbReachable,
     };
     return c.json(payload, dbReachable ? 200 : 503);
-  });
+  };
+  app.get('/v1/health', healthHandler);
+  app.get('/health', healthHandler);
 
   // Public + admin share the /v1 prefix. Admin mounts first so its more
   // specific paths (/v1/admin/*, /v1/migrate/*) win over any collisions.
