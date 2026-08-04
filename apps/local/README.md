@@ -12,8 +12,9 @@ and buildable from source (Node 22 + Postgres 16 + Ollama).
 - `POST /mcp` — MCP server exposing five read-only tools (`search_skills`,
   `get_skill`, `list_leaderboard`, `get_trust_breakdown`,
   `resolve_composition`) plus discovery at `/mcp.json`
-- `http://localhost:3000/admin/` — loopback-only web dashboard for health,
-  budget, indexed skills, mothership migration, MCP wiring
+- `http://localhost:3000/admin/` — web dashboard for health, budget, indexed
+  skills, mothership migration, MCP wiring (no token on localhost; sign in with
+  `ADMIN_TOKEN` over the network)
 - Optional connected-mode passthrough to `api.skillsregistry.net` for trust
   scoring + leaderboards + publish-to-mothership
 
@@ -80,7 +81,8 @@ curl -s -X POST http://localhost:3000/mcp \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | jq
 # → { "jsonrpc":"2.0","id":1,"result": { "tools": [ 5 tools ] } }
 
-# 5. Open the admin UI (loopback-only — no login needed from localhost).
+# 5. Open the admin UI (no login from localhost; over the network sign in
+#    with your ADMIN_TOKEN).
 open http://localhost:3000/admin/  # macOS
 # xdg-open http://localhost:3000/admin/  # Linux
 ```
@@ -150,17 +152,19 @@ the local-only view.
 
 Two-tier by design:
 
-- **Loopback (127.0.0.1 / ::1)** — the admin UI (`/admin/*`), admin API
-  (`/v1/admin/*`), and migration door (`/v1/migrate/*`) are all reachable
-  without any credentials from localhost. This is intentional: on a
-  single-operator local node, requiring a login on `curl 127.0.0.1:…` is
-  ceremony. Loopback middleware fails **closed** — unknown / missing socket
-  address is rejected.
-- **Over-network** — the same paths require `Authorization: Bearer
-  $ADMIN_TOKEN`. Non-loopback traffic to `/admin/*` gets 403 regardless of
-  bearer (the UI stays loopback-only even if you accidentally publish port
-  3000 to the LAN). For CI/automation, expose the API but keep the UI shut
-  by binding Docker to `-p 127.0.0.1:3000:3000` instead of `-p 3000:3000`.
+- **Loopback (127.0.0.1 / ::1)** — the admin API (`/v1/admin/*`) and migration
+  door (`/v1/migrate/*`) skip the bearer entirely from localhost, so the admin
+  UI at `http://127.0.0.1:3000/admin/` needs no token. This is intentional: on
+  a single-operator local node, requiring a login on `curl 127.0.0.1:…` is
+  ceremony. The bypass keys on the socket's remote address and fails **closed**
+  — unknown / missing addresses require the token.
+- **Over-network** (Docker bridge, LAN) — the admin/migrate **APIs** require
+  `Authorization: Bearer $ADMIN_TOKEN`; the static UI shell (no secrets) loads
+  for anyone and prompts for the `ADMIN_TOKEN` on its first API call, sending it
+  as a bearer thereafter. This is what makes the dashboard usable under the
+  default Docker bridge publish, where the container only ever sees the bridge
+  gateway IP and can never observe a loopback source (#44). For a pure-API
+  deployment with no dashboard, bind Docker to `-p 127.0.0.1:3000:3000`.
 
 Public routes (`/v1/health`, `/v1/search`, `/v1/skills`, `/v1/skills/:id`,
 `/v1/trust/score`, `/v1/leaderboards/:kind`, `/mcp`, `/mcp.json`,

@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  clearAdminToken,
   escapeHtml,
   fetchJson,
+  getAdminToken,
+  setAdminToken,
   formatDate,
   formatNumber,
   pillMarkup,
@@ -81,9 +84,69 @@ describe('pillMarkup', () => {
   });
 });
 
+describe('admin token helpers', () => {
+  afterEach(() => clearAdminToken());
+
+  it('round-trips a token through sessionStorage', () => {
+    expect(getAdminToken()).toBeNull();
+    setAdminToken('secret-token');
+    expect(getAdminToken()).toBe('secret-token');
+    clearAdminToken();
+    expect(getAdminToken()).toBeNull();
+  });
+});
+
 describe('fetchJson', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    clearAdminToken();
+  });
+
+  it('omits Authorization when no token is stored', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({}),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await fetchJson('/v1/admin/health');
+    const headers = (fetchMock.mock.calls[0]?.[1] as RequestInit).headers as Record<string, string>;
+    expect(headers.authorization).toBeUndefined();
+  });
+
+  it('attaches the stored token as a bearer', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({}),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    setAdminToken('t0ken');
+
+    await fetchJson('/v1/admin/health');
+    const headers = (fetchMock.mock.calls[0]?.[1] as RequestInit).headers as Record<string, string>;
+    expect(headers.authorization).toBe('Bearer t0ken');
+  });
+
+  it('on 401 clears the token and dispatches admin-auth-required', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        json: async () => ({ error: { code: 'unauthenticated' } }),
+      }),
+    );
+    setAdminToken('stale');
+    const onAuth = vi.fn();
+    window.addEventListener('admin-auth-required', onAuth);
+
+    const result = await fetchJson('/v1/admin/health');
+    expect(result.status).toBe(401);
+    expect(getAdminToken()).toBeNull();
+    expect(onAuth).toHaveBeenCalledTimes(1);
+    window.removeEventListener('admin-auth-required', onAuth);
   });
 
   it('returns parsed JSON with ok flag', async () => {

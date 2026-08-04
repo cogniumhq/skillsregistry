@@ -35,7 +35,7 @@ import {
   createSilentLogger,
   type PinoLogger,
 } from './logging/index.js';
-import { loopbackOnly, requestLogger } from './middleware/index.js';
+import { requestLogger } from './middleware/index.js';
 import {
   createAdminRoutes,
   createMcpRoutes,
@@ -104,18 +104,18 @@ export function createApp(
   // Admin web UI (T-3.x). Static Astro bundle at `apps/local/web/dist/`
   // built with `base: '/admin'`. Two-stage mount:
   //
-  //   1. loopbackOnly() — hard-reject non-loopback callers with 403 so a
-  //      misconfigured `-p 0.0.0.0:3000:3000` Docker publish can't leak
-  //      the UI onto the LAN.
-  //   2. serveStatic()  — resolve `/admin/foo` against `./web/dist/foo`.
-  //      `path` rewrite strips the `/admin` prefix; empty result (i.e.
-  //      `/admin/` or `/admin`) falls through to `index.html`.
+  //   The static UI shell (skeletons + client JS, no secrets) is served to any
+  //   caller; every data path goes through the token-gated admin APIs
+  //   (`/v1/admin/*` + `/v1/migrate/*`, `adminAuth`) — a loopback caller is
+  //   bypassed for local-dev convenience, an over-network caller (Docker
+  //   bridge, LAN) must present `Authorization: Bearer <ADMIN_TOKEN>`, which
+  //   the UI supplies via its login prompt. Fixes #44: the old loopback-only
+  //   UI gate 403'd under Docker bridge networking (the container sees the
+  //   bridge gateway IP, never loopback, so `-p 127.0.0.1:...` couldn't
+  //   unlock it).
   //
-  // The UI's client scripts call `/v1/admin/*` + `/v1/migrate/*` from the
-  // same origin; admin-auth's loopback exception lets those succeed
-  // without a bearer.
-  app.use('/admin', loopbackOnly());
-  app.use('/admin/*', loopbackOnly());
+  //   serveStatic() resolves `/admin/foo` against `./web/dist/foo`; the path
+  //   rewrite strips the `/admin` prefix, falling through to `index.html`.
   app.use(
     '/admin/*',
     serveStatic({
@@ -128,7 +128,7 @@ export function createApp(
   );
   // Bare `/admin` (no trailing slash) → 302 to `/admin/` so relative
   // asset URLs (base '/admin/') resolve correctly.
-  app.get('/admin', loopbackOnly(), (c) => c.redirect('/admin/'));
+  app.get('/admin', (c) => c.redirect('/admin/'));
 
   return app;
 }
