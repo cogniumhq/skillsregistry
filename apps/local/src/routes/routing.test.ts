@@ -149,6 +149,23 @@ describe('createApp route surface', () => {
       const body = (await res.json()) as { upstreamConfigured: boolean };
       expect(body.upstreamConfigured).toBe(true);
     });
+
+    // #45: mothership parity — /health is the path api.skillsregistry.net
+    // answers; the local node serves it as an alias of /v1/health.
+    it('serves GET /health as an alias with the same payload', async () => {
+      const app = createApp(buildConfig(), fakePool(true), NULL_SERVICES);
+      const res = await app.request('/health');
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { status: string; dbReachable: boolean };
+      expect(body.status).toBe('ok');
+      expect(body.dbReachable).toBe(true);
+    });
+
+    it('serves GET /health with 503 when the DB is unreachable', async () => {
+      const app = createApp(buildConfig(), fakePool(false), NULL_SERVICES);
+      const res = await app.request('/health');
+      expect(res.status).toBe(503);
+    });
   });
 
   describe('public routes (T-2.11)', () => {
