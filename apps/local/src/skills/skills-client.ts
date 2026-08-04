@@ -375,15 +375,17 @@ export class SkillsClient {
     }
 
     try {
-      // Idempotent: existing row (by slug) → refresh mothership tracking +
-      // trust columns. New row → mint with sensible defaults.
+      // Idempotent: existing row (by slug+version) → refresh mothership
+      // tracking + trust columns. New row → mint with sensible defaults.
+      // Conflict target is (slug, version) since migration 0036 replaced the
+      // bare slug-unique constraint; `version` is guaranteed non-null above.
       await this.pool.query(
         `INSERT INTO skills (
            name, slug, version, source, description, execution_layer,
            mothership_skill_id, mothership_url, trust_score_v2, trust_tier,
            status
          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'published')
-         ON CONFLICT (slug) DO UPDATE SET
+         ON CONFLICT (slug, version) DO UPDATE SET
            mothership_skill_id = EXCLUDED.mothership_skill_id,
            mothership_url      = EXCLUDED.mothership_url,
            trust_score_v2      = EXCLUDED.trust_score_v2,

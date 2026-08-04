@@ -182,6 +182,16 @@ Use `mktemp -d`, **not** a shared `/tmp`: a first draft of this check globbed `/
 
 Mothership pin bump (1.1.1 → **1.2.1**, skipping the broken 1.2.0) is gated on the republish and tracked as D3a in the sr tracker.
 
+## Issue fixes — #42 / #43 (2026-08-04)
+
+- ☑ **#42** Local node `UNIQUE(slug)` blocked publishing a new version. Migration `0036_slug_version_unique.sql` drops `skills_slug_unique`, adds `skills_slug_version_key UNIQUE (slug, version)` (parity with mothership 0041), drops the redundant `idx_skills_slug_version`. `SCHEMA_VERSION` 35→36. The one `ON CONFLICT (slug)` write path (upstream write-through cache in `apps/local/src/skills/skills-client.ts`) moved to `ON CONFLICT (slug, version)` — the INSERT already carries a guaranteed-non-null `version`; test updated. Mothership runs its own migration lineage (0041), so shipping 0036 in `@skillsregistry/schema` affects only the local node. 1115/1115 tests + typecheck green. Changeset `.changeset/schema-slug-version-unique.md`.
+- ☑ **#43** `apps/local/README.md` publish example omitted the required `manifest.execution_layer`, so copy-paste 400'd. Added `"execution_layer": "node"` to match `scripts/smoke-airgap.sh`.
+
+### Package version state after #42/#43 (2026-08-04)
+
+- `@skillsregistry/schema` 1.1.0 → **1.2.0** (0036 migration + SCHEMA_VERSION 36 minor)
+- No other package versions change. `apps/local` (Docker, versioned independently) picks up the migration at build time via `workspace:*`.
+
 ## Cross-repo reviews
 
 Sacred-boundary: this repo does not edit sibling repos, but does record the outcome of cross-repo spec reviews so future planners see what was considered and rejected. Each entry is note-and-defer — no MVP task lands from a review here unless a follow-up `T-*` item is filed above.

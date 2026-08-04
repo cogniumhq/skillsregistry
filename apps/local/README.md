@@ -62,6 +62,7 @@ curl -s -X POST http://localhost:3000/v1/skills \
       "slug": "example-skill",
       "version": "1.0.0",
       "source": "local",
+      "execution_layer": "node",
       "description": "A trivial skill for smoke-testing the search path."
     }
   }' | jq

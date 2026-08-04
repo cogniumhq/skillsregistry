@@ -118,7 +118,7 @@ describe('SkillsClient.getSkill', () => {
     expect(getSkill).toHaveBeenCalledWith('demo');
     // Second call is the write-through INSERT ... ON CONFLICT.
     expect(calls[1]?.sql).toMatch(/INSERT INTO skills/);
-    expect(calls[1]?.sql).toMatch(/ON CONFLICT \(slug\) DO UPDATE/);
+    expect(calls[1]?.sql).toMatch(/ON CONFLICT \(slug, version\) DO UPDATE/);
   });
 
   it('collapses upstream_not_configured to not_found (air-gap mode)', async () => {
