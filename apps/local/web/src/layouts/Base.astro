@@ -26,7 +26,7 @@ const { title, description = 'SkillsRegistry local admin' } = Astro.props;
     </main>
     <footer class="max-w-6xl mx-auto px-4 md:px-6 py-6 mt-8 border-t text-xs" style="border-color: var(--color-border-subtle); color: var(--color-text-muted);">
       <div class="flex flex-wrap items-center justify-between gap-2">
-        <span>SkillsRegistry local · admin UI · loopback-only</span>
+        <span>SkillsRegistry local · admin UI</span>
         <span class="font-mono">
           <a href="/mcp.json" style="color: var(--color-text-secondary);">/mcp.json</a>
           <span class="mx-2">·</span>
@@ -34,5 +34,84 @@ const { title, description = 'SkillsRegistry local admin' } = Astro.props;
         </span>
       </div>
     </footer>
+
+    <!-- Admin sign-in overlay (#44). Hidden until a same-origin /v1/admin/* call
+         returns 401 (i.e. the caller is off-loopback and unauthenticated —
+         Docker bridge / LAN). Local-loopback callers are bypassed by admin-auth
+         and never see this. -->
+    <div
+      id="admin-login-overlay"
+      hidden
+      style="position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);"
+    >
+      <form
+        id="admin-login-form"
+        style="background:var(--color-bg-card);border:1px solid var(--color-border);border-radius:12px;padding:1.5rem;width:min(92vw,26rem);"
+      >
+        <h2 style="font-size:1.1rem;font-weight:600;margin:0 0 0.25rem;color:var(--color-text-primary);">Admin sign-in</h2>
+        <p style="font-size:0.8rem;color:var(--color-text-muted);margin:0 0 1rem;">
+          This node requires the admin token over the network. Paste your
+          <code style="font-family:var(--font-mono,monospace);color:var(--color-text-secondary);">ADMIN_TOKEN</code>
+          to continue. Local-loopback access needs no token.
+        </p>
+        <input
+          id="admin-login-token"
+          type="password"
+          autocomplete="off"
+          placeholder="ADMIN_TOKEN"
+          required
+          style="width:100%;padding:0.5rem 0.75rem;border-radius:8px;border:1px solid var(--color-border);background:var(--color-bg);color:var(--color-text-primary);font-family:var(--font-mono,monospace);font-size:0.85rem;box-sizing:border-box;"
+        />
+        <p id="admin-login-error" hidden style="color:var(--color-status-err,#f87171);font-size:0.75rem;margin:0.5rem 0 0;">
+          Invalid token — please try again.
+        </p>
+        <button
+          type="submit"
+          style="margin-top:1rem;width:100%;padding:0.5rem;border-radius:8px;border:1px solid var(--color-accent);background:var(--color-accent-glow);color:var(--color-accent);font-weight:600;cursor:pointer;"
+        >
+          Continue
+        </button>
+      </form>
+    </div>
+
+    <script>
+      import { setAdminToken } from '~/scripts/dashboard-client';
+
+      const overlay = document.getElementById('admin-login-overlay');
+      const form = document.getElementById('admin-login-form') as HTMLFormElement | null;
+      const input = document.getElementById('admin-login-token') as HTMLInputElement | null;
+      const errEl = document.getElementById('admin-login-error');
+      const ATTEMPT_FLAG = 'sr_admin_login_attempted';
+
+      // A 401 from any fetchJson call surfaces this. If the previous action was
+      // a token submit, the stored token was wrong — show the error.
+      window.addEventListener('admin-auth-required', () => {
+        if (!overlay) return;
+        let attempted = false;
+        try {
+          attempted = sessionStorage.getItem(ATTEMPT_FLAG) === '1';
+          sessionStorage.removeItem(ATTEMPT_FLAG);
+        } catch {
+          /* no-op */
+        }
+        if (errEl) errEl.hidden = !attempted;
+        overlay.hidden = false;
+        input?.focus();
+      });
+
+      form?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const value = input?.value?.trim();
+        if (!value) return;
+        setAdminToken(value);
+        try {
+          sessionStorage.setItem(ATTEMPT_FLAG, '1');
+        } catch {
+          /* no-op */
+        }
+        // Reload so every on-load fetch re-runs with the bearer attached.
+        window.location.reload();
+      });
+    </script>
   </body>
 </html>

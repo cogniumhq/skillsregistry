@@ -4,8 +4,10 @@
 //
 // Astro output is static; every page renders skeletons at build time and hits
 // the same-origin /v1/admin/* endpoints on DOMContentLoaded to populate them.
-// The loopback middleware on the API side means no bearer token is needed
-// from the browser (see apps/local/src/middleware/loopback.ts).
+// A loopback caller (local dev) is bypassed by admin-auth so no token is
+// needed; an over-network caller (Docker bridge, LAN) must present the admin
+// token. `fetchJson` attaches it as a bearer from sessionStorage, and on a 401
+// dispatches `admin-auth-required` so the Base layout can prompt for it (#44).
 //
 // Kept dependency-free on purpose — no framework, no fetcher lib. `<script>`
 // blocks in .astro pages import from this module.
@@ -102,19 +104,59 @@ const STATUS_CONFIG: Record<CheckStatus, { fg: string; bg: string; border: strin
   unknown:  { fg: '#8b8b93', bg: 'rgba(139, 139, 147, 0.12)', border: '#3f3f46' },
 };
 
+// ── Admin token (session-scoped) ────────────────────────────────────────────
+// Stored in sessionStorage (cleared when the tab closes). Loopback callers
+// never need it (admin-auth bypasses the bearer for local sockets); over the
+// network the operator supplies ADMIN_TOKEN via the login prompt.
+const ADMIN_TOKEN_KEY = 'sr_admin_token';
+
+export function getAdminToken(): string | null {
+  try {
+    return sessionStorage.getItem(ADMIN_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setAdminToken(token: string): void {
+  try {
+    sessionStorage.setItem(ADMIN_TOKEN_KEY, token);
+  } catch {
+    /* sessionStorage unavailable — no-op */
+  }
+}
+
+export function clearAdminToken(): void {
+  try {
+    sessionStorage.removeItem(ADMIN_TOKEN_KEY);
+  } catch {
+    /* no-op */
+  }
+}
+
 /**
- * Fetch same-origin JSON. Throws on network error; on non-2xx returns the
- * body payload (so the caller can render error messages from /v1/admin/*
- * error envelopes).
+ * Fetch same-origin JSON, attaching the admin bearer token when one is stored.
+ * Throws on network error; on non-2xx returns the body payload (so the caller
+ * can render error messages from /v1/admin/* error envelopes). On a 401 it
+ * clears the stored token and dispatches `admin-auth-required` on `window` so
+ * the Base layout can surface the login prompt.
  */
 export async function fetchJson<T>(
   url: string,
   init?: RequestInit,
 ): Promise<{ ok: boolean; status: number; body: T }> {
+  const token = getAdminToken();
+  const auth = token ? { authorization: `Bearer ${token}` } : {};
   const res = await fetch(url, {
     ...init,
-    headers: { accept: 'application/json', ...(init?.headers ?? {}) },
+    headers: { accept: 'application/json', ...auth, ...(init?.headers ?? {}) },
   });
+  if (res.status === 401) {
+    clearAdminToken();
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      window.dispatchEvent(new CustomEvent('admin-auth-required'));
+    }
+  }
   const body = (await res.json().catch(() => ({}))) as T;
   return { ok: res.ok, status: res.status, body };
 }
