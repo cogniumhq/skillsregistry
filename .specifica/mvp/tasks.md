@@ -194,6 +194,36 @@ Mothership pin bump (1.1.1 → **1.2.1**, skipping the broken 1.2.0) is gated on
 - `@skillsregistry/schema` 1.1.0 → **1.2.0** (0036 migration + SCHEMA_VERSION 36 minor)
 - No other package versions change. `apps/local` (Docker, versioned independently) picks up the migration at build time via `workspace:*`.
 
+### Dependency hygiene sweep (2026-08-25)
+
+Registry-wide outdated sweep (sr / skillsregistry / cognium-skills). Tier 1
+within-range bumps applied to **`apps/local` + `apps/local/web` only** — no
+`@skillsregistry/*` SDK package touched, so **no changeset** (per "Local app
+version is independent"; SDK packages appear only in the deferred major tier).
+
+- `apps/local`: `hono ^4.6→^4.13.4`, `pg ^8.13→^8.23`, `@types/pg ^8.11→^8.23.1`, `tsx ^4.19→^4.23.12`
+- `apps/local/web`: `tailwindcss` + `@tailwindcss/vite ^4.0→^4.3.3`, `@fontsource-variable/{inter,jetbrains-mono} ^5.1→^5.3`
+- Gate: `pnpm typecheck` clean · `pnpm test` **1121/1121** green.
+
+**Deferred (NOT applied)** — SDK-package majors that WOULD need changesets +
+coordinated mothership pin bumps: `zod 3→4` (breaks `@skillsregistry/contracts`
+wire schemas — cross-repo major with the mothership + `@hono/zod-*` adapters),
+`typescript 5.9→7.0`, `vitest 2→4` + `@vitest/coverage-v8`, `@types/node 22→26`
+(pin to node-22 line, not 26), `@hono/node-server 1→2`, `@changesets/cli 2→3`,
+`astro 5→7`, `jsdom 25→30`, `nanoid 5→6`, `node-cron 3→4`, `pino 9→10` +
+`pino-pretty 11→13`, `drizzle-orm 0.36→0.45`. Each is its own pass.
+
+### zod 4 SDK migration — scoped (2026-08-25)
+
+Phase 1 of the cross-repo zod 3→4 cut (mothership plan: `~/work/cogniumhq/sr/.specifica/6.7/tasks.md` V18). The `@skillsregistry/*` SDK moves first because the mothership value-imports contracts' zod schema consts. Scope per audit:
+
+- `@skillsregistry/contracts` — **MAJOR** (→ 3.0.0). Forced `@hono/zod-openapi ^0.19→^1` emitter swap (`zod-to-openapi@7`→`z.toJSONSchema`); 4 single-arg `z.record`→two-arg (`responses.ts`), 7 `.passthrough`; `.url×5`/`.uuid`/`.datetime×11` validation-tightening review on `upstream.ts` (wire boundary). Gate: package tests + **emitted-OpenAPI snapshot diff**. MAJOR because validation-behavior + emitted-doc change is consumer-visible even without a field rename (downstream pins exact).
+- `@skillsregistry/domain` — minor. 2 single-arg `z.record`→two-arg, `.uuid×6` review (`composition/schema.ts`).
+- `@skillsregistry/dag` — minor. `.datetime`, `.regex({message})` review (`schema.ts`).
+- `schema`/`mcp`/`eval`/`apps/local` — no zod, untouched. **No drizzle-zod** anywhere.
+
+Not started. Cut all three changesets together; publish the SDK zod4 line, then mothership bumps pins (V18.2) — both land before either deploys, per "Public API contract stability". Status: OPEN / scoped.
+
 ## Cross-repo reviews
 
 Sacred-boundary: this repo does not edit sibling repos, but does record the outcome of cross-repo spec reviews so future planners see what was considered and rejected. Each entry is note-and-defer — no MVP task lands from a review here unless a follow-up `T-*` item is filed above.
