@@ -14,6 +14,13 @@ jobs:
   build:
     name: build + typecheck + test
     runs-on: [self-hosted, grace]
+    # Container: the runner is persistent, unlike a GitHub-hosted one, so
+    # without this the jobs share ~/.npm, the pnpm store and leftover
+    # node_modules with every other repo on the box. Must stay a glibc image
+    # (not alpine): actions/checkout runs on the node binary the runner mounts
+    # in, and that binary is glibc-linked.
+    container:
+      image: node:22-bookworm
     timeout-minutes: 15
 
     steps:
@@ -50,6 +57,13 @@ jobs:
   changeset-check:
     name: changeset required on packages/* PRs
     runs-on: [self-hosted, grace]
+    # Container: the runner is persistent, unlike a GitHub-hosted one, so
+    # without this the jobs share ~/.npm, the pnpm store and leftover
+    # node_modules with every other repo on the box. Must stay a glibc image
+    # (not alpine): actions/checkout runs on the node binary the runner mounts
+    # in, and that binary is glibc-linked.
+    container:
+      image: node:22-bookworm
     if: github.event_name == 'pull_request'
     timeout-minutes: 5
 
@@ -70,6 +84,14 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      # The container runs as root while the checkout is owned by the runner
+      # user, so git refuses it as "dubious ownership". actions/checkout
+      # registers safe.directory in a temporary git config of its own, which
+      # its own steps see but `changeset`'s internal git calls do not — leaving
+      # it unable to resolve origin/main. Register it for this step's git too.
+      - name: Trust the workspace
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Verify changeset present for packages/* diffs
         run: pnpm changeset status --since=origin/main
