@@ -13,7 +13,7 @@ concurrency:
 jobs:
   build:
     name: build + typecheck + test
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, grace]
     timeout-minutes: 15
 
     steps:
@@ -49,7 +49,7 @@ jobs:
 
   changeset-check:
     name: changeset required on packages/* PRs
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, grace]
     if: github.event_name == 'pull_request'
     timeout-minutes: 5
 
