@@ -5,6 +5,8 @@ on:
     branches: [main]
   push:
     branches: [main]
+  # Lets the self-hosted runner be re-verified without opening a PR.
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
