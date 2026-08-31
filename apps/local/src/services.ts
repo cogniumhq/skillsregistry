@@ -341,6 +341,7 @@ export async function buildAppServices(
     afterResponse,
     pool,
     invocationArgsMaxChars: config.mcp.invocationArgsMaxChars,
+    writeEnabled: config.mcp.writeEnabled,
   });
   const mcpConfig = resolveMcpConfig({
     serverName: config.mcp.serverName,
@@ -354,6 +355,7 @@ export async function buildAppServices(
     leaderboardDefaultLimit: config.mcp.leaderboardDefaultLimit,
     leaderboardMaxLimit: config.mcp.leaderboardMaxLimit,
     batchMax: config.mcp.batchMax,
+    writeEnabled: config.mcp.writeEnabled,
   });
 
   return {

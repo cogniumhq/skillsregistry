@@ -34,11 +34,13 @@ import { McpCompositionLookup } from './composition-lookup.js';
 import { McpLeaderboardProxy } from './leaderboard-port.js';
 import { McpSearchGateway } from './search-gateway.js';
 import { McpSkillLookup } from './skill-lookup.js';
+import { McpWritePort } from './write-port.js';
 
 export { McpSearchGateway } from './search-gateway.js';
 export { McpSkillLookup } from './skill-lookup.js';
 export { McpCompositionLookup } from './composition-lookup.js';
 export { McpLeaderboardProxy } from './leaderboard-port.js';
+export { McpWritePort } from './write-port.js';
 
 export interface BuildMcpAdaptersOptions {
   gate: ConfidenceGate;
@@ -51,6 +53,12 @@ export interface BuildMcpAdaptersOptions {
    * Env: `MCP_INVOCATION_ARGS_MAX`. Default 4096 inside the writer.
    */
   invocationArgsMaxChars?: number;
+  /**
+   * B0.5 — when true, wire the WritePort so publish_skill/revise_skill/
+   * list_my_skills dispatch. Env: `MCP_WRITE_ENABLED` (default false).
+   * Must be paired with config.writeEnabled on the resolved MCP config.
+   */
+  writeEnabled?: boolean;
 }
 
 /**
@@ -74,5 +82,9 @@ export function buildMcpAdapters(opts: BuildMcpAdaptersOptions): McpAdapters {
     leaderboards: new McpLeaderboardProxy({ upstream: opts.upstream }),
     recorder,
     afterResponse: opts.afterResponse,
+    // B0.5 — WritePort only when writes are enabled; omitted → read-only.
+    ...(opts.writeEnabled
+      ? { writes: new McpWritePort({ skillsClient: opts.skillsClient, pool: opts.pool }) }
+      : {}),
   };
 }

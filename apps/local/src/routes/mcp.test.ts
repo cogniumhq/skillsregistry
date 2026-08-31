@@ -28,7 +28,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 
 import type { Pool } from 'pg';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type {
   CompositionLookupPort,
   InvocationRecorder,
@@ -288,6 +288,48 @@ describe('POST /mcp — dispatch fan-out (T-2.13)', () => {
         'resolve_composition',
         'search_skills',
       ]);
+    });
+  });
+
+  // B0.5 (buzz.md §8.5/§9.1a) — write tools reach the SELF-HOST route only when
+  // MCP_WRITE_ENABLED. Default off (proven by the read-only list test above).
+  describe('write tools (B0.5)', () => {
+    const spyWrites = () => ({
+      publishSkill: vi.fn(async () => ({ ok: true, data: { slug: 'x', status: 'published', version: '1.0.0' } })),
+      reviseSkill: vi.fn(async () => ({ ok: true, data: {} })),
+      listByAuthor: vi.fn(async () => ({ ok: true, data: { count: 0, skills: [] } })),
+    });
+    function servicesWithWrites(writeEnabled: boolean, writes: unknown) {
+      const { services } = buildServices({ mcpConfig: { writeEnabled } as Partial<ResolvedMcpConfig> });
+      (services.mcpAdapters as { writes?: unknown }).writes = writes;
+      return services;
+    }
+
+    it('flag on + writes port: tools/list advertises all eight', async () => {
+      const res = await post(servicesWithWrites(true, spyWrites()), { jsonrpc: '2.0', id: 1, method: 'tools/list' });
+      const body = (await res.json()) as { result: { tools: Array<{ name: string }> } };
+      const names = body.result.tools.map((t) => t.name);
+      expect(names).toHaveLength(8);
+      expect(names).toEqual(expect.arrayContaining(['publish_skill', 'revise_skill', 'list_my_skills']));
+    });
+
+    it('flag off: a publish_skill call is METHOD_NOT_FOUND (existence hidden)', async () => {
+      const res = await post(servicesWithWrites(false, spyWrites()), {
+        jsonrpc: '2.0', id: 2, method: 'tools/call',
+        params: { name: 'publish_skill', arguments: { name: 'x', slug: 'x', description: 'x' } },
+      });
+      const body = (await res.json()) as { error?: { code: number } };
+      expect(body.error?.code).toBe(-32601);
+    });
+
+    it('flag on: publish_skill dispatches to the writes port', async () => {
+      const writes = spyWrites();
+      const res = await post(servicesWithWrites(true, writes), {
+        jsonrpc: '2.0', id: 3, method: 'tools/call',
+        params: { name: 'publish_skill', arguments: { name: 'My', slug: 'my', description: 'does a thing' } },
+      });
+      expect(res.status).toBe(200);
+      expect(writes.publishSkill).toHaveBeenCalledTimes(1);
     });
   });
 

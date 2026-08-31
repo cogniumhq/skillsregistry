@@ -196,6 +196,11 @@ export interface McpConfig {
    * `mcp_invocations.args`. Default 4096.
    */
   invocationArgsMaxChars: number;
+  /**
+   * MCP_WRITE_ENABLED. B0.5 — expose publish_skill/revise_skill/list_my_skills
+   * on `/mcp`. Default false (read-only). Set true on a private instance.
+   */
+  writeEnabled: boolean;
 }
 
 export interface AppConfig {
@@ -256,6 +261,7 @@ const ENV = {
   MCP_LEADERBOARD_MAX_LIMIT: 'MCP_LEADERBOARD_MAX_LIMIT',
   MCP_BATCH_MAX: 'MCP_BATCH_MAX',
   MCP_INVOCATION_ARGS_MAX: 'MCP_INVOCATION_ARGS_MAX',
+  MCP_WRITE_ENABLED: 'MCP_WRITE_ENABLED',
   LOG_LEVEL: 'LOG_LEVEL',
   LOG_FORMAT: 'LOG_FORMAT',
   LOG_REQUEST_ID_HEADER: 'LOG_REQUEST_ID_HEADER',
@@ -570,6 +576,11 @@ function parseMcp(env: EnvSource, issues: Issues): McpConfig {
     issues,
     64,
   );
+  const writeEnabled = parseBool(
+    ENV.MCP_WRITE_ENABLED,
+    optional(env, ENV.MCP_WRITE_ENABLED, 'false'),
+    issues,
+  );
 
   return {
     serverName,
@@ -584,6 +595,7 @@ function parseMcp(env: EnvSource, issues: Issues): McpConfig {
     leaderboardMaxLimit,
     batchMax,
     invocationArgsMaxChars,
+    writeEnabled,
   };
 }
 
