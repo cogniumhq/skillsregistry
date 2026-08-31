@@ -16,13 +16,25 @@ permissions:
 jobs:
   release:
     name: version + publish @skillsregistry/*
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, grace]
+    # Containerised to match ci.yml. Those jobs run as root and leave
+    # root-owned files in the shared runner workspace, so a bare-metal job here
+    # would fail at checkout with "Permission denied" while cleaning.
+    container:
+      image: node:22-bookworm
     timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      # changesets commits and pushes, and the container runs as root over a
+      # runner-owned checkout, so git would reject the repo as dubious
+      # ownership. actions/checkout registers safe.directory only in a
+      # temporary config its own steps see.
+      - name: Trust the workspace
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - uses: pnpm/action-setup@v4
         with:
@@ -41,10 +53,26 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # Publishing needs NPM_TOKEN; opening the version PR does not. Without
+      # this the job would fail on every push to main until the token exists,
+      # and would take the release-PR flow down with it. Empty `publish` makes
+      # changesets do versioning only.
+      - name: Is npm publishing configured?
+        id: npm
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -n "$NPM_TOKEN" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::NPM_TOKEN is not set - versioning only, no publish to registry.npmjs.org."
+          fi
+
       - name: Create Release PR or publish
         uses: changesets/action@v1
         with:
-          publish: pnpm release
+          publish: ${{ steps.npm.outputs.configured == 'true' && 'pnpm release' || '' }}
           version: pnpm version
           title: "chore: version @skillsregistry/* packages"
           commit: "chore: version @skillsregistry/* packages"
