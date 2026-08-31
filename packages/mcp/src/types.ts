@@ -316,6 +316,45 @@ export interface McpPolicyPort {
   isToolAllowed(toolName: string, tenantId: string): Promise<boolean>;
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+// Write port — B0.5 (techspec/buzz.md §8.5 / §9.1a). The publish/hone loop for a
+// private/self-hosted instance. Optional: omit the port (and leave
+// config.writeEnabled false) → the three write tools are absent from tools/list
+// and unreachable on tools/call, so a public/read-only deployment is unchanged.
+//
+// The port keeps `input`/results as plain shapes so this package takes no
+// dependency on @skillsregistry/contracts — each consumer validates against its
+// own PublishRequestSchema and maps the result. `apps/local` delegates to
+// `skillsClient.publishLocal(...)`; the mothership delegates to its publish
+// route. Both back the same three tools.
+// ──────────────────────────────────────────────────────────────────────────────
+
+export interface WriteResult {
+  ok: boolean;
+  /** On ok: the publish/list payload. On !ok: undefined. */
+  data?: unknown;
+  /** On !ok: a caller-safe message. */
+  error?: string;
+}
+
+export interface WritePort {
+  /** publish_skill — validate + create a new skill. `input` is the raw tool args. */
+  publishSkill(input: unknown, tenantId: string): Promise<WriteResult>;
+  /**
+   * revise_skill — new SemVer off the current version of `slug` (§9.3b honing).
+   * The adapter fetches the current version, author-gates against `authorId`
+   * (when provided), bumps ('minor' default / 'major'), applies overrides, and
+   * republishes. Older versions stay live.
+   */
+  reviseSkill(
+    slug: string,
+    opts: { bump?: 'minor' | 'major'; skillMd?: string; description?: string; authorId?: string },
+    tenantId: string,
+  ): Promise<WriteResult>;
+  /** list_my_skills — skills authored by `authorId` (the private scope). */
+  listByAuthor(authorId: string, limit: number, tenantId: string): Promise<WriteResult>;
+}
+
 export interface McpAdapters {
   search: SearchGatewayPort;
   skills: SkillLookupPort;
@@ -328,6 +367,11 @@ export interface McpAdapters {
    * two enforcement points the dispatcher wires it into.
    */
   policy?: McpPolicyPort;
+  /**
+   * Optional. B0.5 write tools. Present only on a private/self-hosted instance
+   * that also sets config.writeEnabled. Omit → read-only surface (default).
+   */
+  writes?: WritePort;
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -362,6 +406,13 @@ export interface McpConfig {
 
   /** MCP_BATCH_MAX (default 20). */
   batchMax?: number;
+
+  /**
+   * MCP_WRITE_ENABLED (default false). B0.5 — when true AND an adapters.writes
+   * port is provided, publish_skill/revise_skill/list_my_skills appear on
+   * tools/list and dispatch. Default false keeps a public/read-only surface.
+   */
+  writeEnabled?: boolean;
 }
 
 export interface ResolvedMcpConfig {
@@ -376,6 +427,7 @@ export interface ResolvedMcpConfig {
   leaderboardDefaultLimit: number;
   leaderboardMaxLimit: number;
   batchMax: number;
+  writeEnabled: boolean;
 }
 
 // ──────────────────────────────────────────────────────────────────────────────

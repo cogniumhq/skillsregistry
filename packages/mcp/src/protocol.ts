@@ -40,5 +40,6 @@ export function resolveConfig(config: McpConfig | undefined): ResolvedMcpConfig 
     leaderboardDefaultLimit: c.leaderboardDefaultLimit ?? DEFAULTS.leaderboardDefaultLimit,
     leaderboardMaxLimit: c.leaderboardMaxLimit ?? DEFAULTS.leaderboardMaxLimit,
     batchMax: c.batchMax ?? DEFAULTS.batchMax,
+    writeEnabled: c.writeEnabled ?? false,
   };
 }

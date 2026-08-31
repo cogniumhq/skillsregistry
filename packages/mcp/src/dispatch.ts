@@ -34,7 +34,7 @@ import {
   MCP_PROTOCOL_VERSION,
   MCP_SUPPORTED_PROTOCOL_VERSIONS,
 } from './protocol.js';
-import { SKILL_RESOLVING_TOOLS, TOOLS, TOOL_BY_NAME } from './tools/index.js';
+import { SKILL_RESOLVING_TOOLS, TOOLS, TOOL_BY_NAME, WRITE_TOOLS, WRITE_TOOL_BY_NAME } from './tools/index.js';
 
 export interface DispatchContext {
   tenantId: string;
@@ -158,12 +158,18 @@ async function dispatch(
 
       case 'tools/list': {
         if (isNotification) return null;
+        // B0.5 — advertise write tools only when the instance enables writes
+        // AND provides the port. Default off → the read-only base surface.
+        const base =
+          ctx.config.writeEnabled && ctx.adapters.writes
+            ? [...TOOLS, ...WRITE_TOOLS]
+            : TOOLS;
         // cortex.md §16.4 enforcement point #1 — filter the advertised
         // tool set through the optional per-tenant policy. Absent policy
         // adapter = allow-all (v1 posture).
         const visibleTools = ctx.adapters.policy
-          ? await filterAllowed(TOOLS, ctx.tenantId, ctx.adapters.policy)
-          : TOOLS;
+          ? await filterAllowed(base, ctx.tenantId, ctx.adapters.policy)
+          : base;
         return ok(id, {
           tools: visibleTools.map(({ name, description, inputSchema }) => ({
             name,
@@ -178,7 +184,14 @@ async function dispatch(
         if (!params.name || typeof params.name !== 'string') {
           throw new McpError(JSONRPC_INVALID_PARAMS, 'tools/call requires `name`');
         }
-        const tool = TOOL_BY_NAME.get(params.name);
+        // Read tools always; write tools only when enabled + port present.
+        // A write-tool name on a read-only instance falls through to the same
+        // METHOD_NOT_FOUND an unknown tool gets — its existence never leaks.
+        const tool =
+          TOOL_BY_NAME.get(params.name) ??
+          (ctx.config.writeEnabled && ctx.adapters.writes
+            ? WRITE_TOOL_BY_NAME.get(params.name)
+            : undefined);
         if (!tool) {
           throw new McpError(
             JSONRPC_METHOD_NOT_FOUND,
