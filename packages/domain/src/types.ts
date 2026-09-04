@@ -127,6 +127,11 @@ export interface SearchFilters {
   visibility?: SkillVisibility; // v6.3: 4-band model per cortex.md §16.6
   // v5.3: portable filter
   portable?: boolean;
+  // Facet filters (sr#30): OR within a dimension, AND across dimensions.
+  // `categories` matches `skills.category` OR any of `skills.categories[]`;
+  // `domains` matches `skills.domain` (schema 0037).
+  categories?: string[];
+  domains?: string[];
 }
 
 export interface SearchOptions {
@@ -172,6 +177,13 @@ export interface SearchMeta {
 // ──────────────────────────────────────────────────────────────────────────────
 
 export type Appetite = 'strict' | 'cautious' | 'balanced' | 'adventurous';
+
+/**
+ * Runtime list of the `Appetite` vocabulary — the single source for input
+ * validation at every edge (REST `?appetite=`, MCP `search_skills`). Keep in
+ * lockstep with the type above and `AppetiteSchema` in `@skillsregistry/contracts`.
+ */
+export const APPETITES: readonly Appetite[] = ['strict', 'cautious', 'balanced', 'adventurous'];
 
 export function appetiteToTrustThreshold(appetite: Appetite): number {
   switch (appetite) {

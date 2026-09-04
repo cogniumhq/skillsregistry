@@ -513,7 +513,9 @@ describe('POST /v1/skills (T-2.11b)', () => {
       version: '1.0.0',
       status: 'published',
     });
-    expect(publishLocal).toHaveBeenCalledWith(validRequest);
+    // #86: the route threads the caller's tenant (default 'local') so the
+    // embedding row is scoped the same way search queries it.
+    expect(publishLocal).toHaveBeenCalledWith(validRequest, { tenantId: 'local' });
   });
 
   it('rejects invalid body with 400 bad_request + issues detail', async () => {
@@ -726,12 +728,15 @@ describe('GET /v1/search (T-2.11c)', () => {
     });
   });
 
-  it('parses ?visibility=public|private|unlisted', async () => {
-    const search = vi.fn().mockResolvedValue(makeWireResponse());
-    const services = { searchService: { search } } as unknown as AppServices;
-    const app = createApp(buildConfig(), fakePool(), services);
-    await app.request('/v1/search?q=hi&visibility=private');
-    expect(search.mock.calls[0]![1]).toMatchObject({ visibility: 'private' });
+  it('parses every 4-band ?visibility value (#95)', async () => {
+    for (const v of ['public', 'private', 'tenant_private', 'tenant_internal', 'unlisted']) {
+      const search = vi.fn().mockResolvedValue(makeWireResponse());
+      const services = { searchService: { search } } as unknown as AppServices;
+      const app = createApp(buildConfig(), fakePool(), services);
+      const res = await app.request(`/v1/search?q=hi&visibility=${v}`);
+      expect(res.status, v).toBe(200);
+      expect(search.mock.calls[0]![1]).toMatchObject({ visibility: v });
+    }
   });
 
   it('parses ?portable as boolean (true|false|1|0)', async () => {

@@ -635,3 +635,27 @@ describe('ConfidenceGate — cross-source dedup by name', () => {
     expect(out.results.find((r) => r.id === 'sk_a')).toBeUndefined();
   });
 });
+
+describe('ConfidenceGate — facet filters (sr#30)', () => {
+  it('threads categories + domains from FindSkillOptions into SearchFilters unchanged', async () => {
+    const { gate, provider } = makeGate(fakeResult([]));
+    await gate.findSkill(
+      'q',
+      't',
+      { categories: ['dev-tools', 'data'], domains: ['iot-hardware'] },
+      makeAfterResponse(),
+    );
+    const filters = (provider.search as any).mock.calls[0]![2] as SearchFilters;
+    expect(filters.categories).toEqual(['dev-tools', 'data']);
+    expect(filters.domains).toEqual(['iot-hardware']);
+  });
+
+  it('leaves facets undefined when not requested', async () => {
+    const { gate, provider } = makeGate(fakeResult([]));
+    await gate.findSkill('q', 't', {}, makeAfterResponse());
+    const filters = (provider.search as any).mock.calls[0]![2] as SearchFilters;
+    expect(filters.categories).toBeUndefined();
+    expect(filters.domains).toBeUndefined();
+  });
+});
+

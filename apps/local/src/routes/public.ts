@@ -24,6 +24,7 @@ import { Hono } from 'hono';
 import {
   PublishRequestSchema,
   TrustScoreRequestSchema,
+  SkillVisibilitySchema
 } from '@skillsregistry/contracts';
 import { upstreamErrorToResponse } from '../http/upstream-response.js';
 import { getTenantId, tenantContext } from '../middleware/index.js';
@@ -38,7 +39,9 @@ const APPETITE_VALUES: readonly AppetiteQuery[] = [
   'balanced',
   'adventurous',
 ];
-const VISIBILITY_VALUES = ['public', 'private', 'unlisted'] as const;
+// #95: the 4-band model (migration 0035) — imported from the shared contract
+// so this list can never drift from what `POST /v1/skills` accepts.
+const VISIBILITY_VALUES = SkillVisibilitySchema.options;
 
 /**
  * Build the public sub-app. `services` is captured in handler closures.
@@ -222,7 +225,9 @@ export function createPublicRoutes(services: AppServices): Hono {
       );
     }
     try {
-      const result = await services.skillsClient.publishLocal(parsed.data);
+      const result = await services.skillsClient.publishLocal(parsed.data, {
+        tenantId: getTenantId(c) ?? 'local',
+      });
       return c.json(result, 201);
     } catch (err) {
       if (err instanceof UpstreamError) {
