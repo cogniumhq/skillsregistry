@@ -66,7 +66,13 @@ jobs:
     # in, and that binary is glibc-linked.
     container:
       image: node:22-bookworm
-    if: github.event_name == 'pull_request'
+    # A version PR (changesets/action's `changeset-release/*` branch, or the
+    # hand-opened equivalent titled "chore: version …") consumes the changesets
+    # by definition, so `changeset status` must not gate it.
+    if: >-
+      github.event_name == 'pull_request' &&
+      !startsWith(github.head_ref, 'changeset-release/') &&
+      !startsWith(github.event.pull_request.title, 'chore: version')
     timeout-minutes: 5
 
     steps:
