@@ -201,7 +201,15 @@ Two-tier by design:
   as a bearer thereafter. This is what makes the dashboard usable under the
   default Docker bridge publish, where the container only ever sees the bridge
   gateway IP and can never observe a loopback source (#44). For a pure-API
-  deployment with no dashboard, bind Docker to `-p 127.0.0.1:3000:3000`.
+  deployment with no dashboard, keep the default loopback bind.
+
+**Host binds.** The Compose file publishes the app, Postgres and Ollama on
+`127.0.0.1` only (#99): Postgres ships with a well-known password and
+`POST /v1/skills` is unauthenticated on a single-tenant node, so nothing is
+reachable from the LAN until you opt in. Set `APP_BIND=0.0.0.0` in `.env` to
+serve the node over the network; set `POSTGRES_PASSWORD` before you ever
+widen `POSTGRES_BIND`. All documented `.env` knobs (`SEARCH_*`, `BUDGET_*`,
+`ARTIFACT_BASE_DIR`, `MCP_*`, …) reach the container via `env_file` (#98).
 
 Public routes (`/v1/health`, `/v1/search`, `/v1/skills`, `/v1/skills/:id`,
 `/v1/trust/score`, `/v1/leaderboards/:kind`, `/mcp`, `/mcp.json`,
