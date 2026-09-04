@@ -1,6 +1,6 @@
 {
   "name": "@skillsregistry/eval",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "SkillsRegistry search eval suite — fixtures, Recall@1 / Recall@5 / MRR metrics, and a CLI runner for measuring search quality against any /v1/search endpoint.",
   "license": "Apache-2.0",
   "author": "Cognium Labs",

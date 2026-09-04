@@ -1,5 +1,12 @@
 # @skillsregistry/schema
 
+## 1.2.0
+
+### Minor Changes
+
+- ece1aa7: Migration 0037: add `skills.domain TEXT` (+ `idx_skills_domain`) so the shared schema carries the mothership's derived application-domain facet and `@skillsregistry/domain` can express a `domains` search filter without referencing a one-sided column. `SCHEMA_VERSION` 36 → 37. Drizzle `skills` now models the live constraints: `slug` is no longer `.unique()`; `skills_slug_version_key` is a `uniqueIndex` on `(slug, version)` (migration 0036 / #94) and the redundant `idx_skills_slug_version` entry is gone.
+- 2310e0d: Migration 0036: replace `UNIQUE(slug)` with `UNIQUE(slug, version)` so the local node can publish multiple versions of the same skill (parity with mothership migration 0041 / specifika V6.1). Under the old bare slug-unique constraint there was no supported path to publish a new version — `POST /v1/skills` returned 400 `unique_violation`. Drops the now-redundant `idx_skills_slug_version` (the new constraint's backing index covers it). `SCHEMA_VERSION` 35 → 36. Fixes #42.
+
 ## 1.1.0
 
 ### Minor Changes
