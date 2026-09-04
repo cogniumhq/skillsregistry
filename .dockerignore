@@ -1,0 +1,17 @@
+# Repo-root .dockerignore (#97). `apps/local/docker-compose.yml` builds with
+# `context: ../..`, and Docker only honours the ignore file at the context
+# root — an `apps/local/.dockerignore` is silently unused. Keep this file at
+# the root; do not re-add one under apps/local.
+.git
+.github
+**/node_modules
+**/dist
+**/.tsbuildinfo
+**/coverage
+**/*.log
+# Never ship a local env file into the image (Dockerfile `COPY apps/local`).
+**/.env
+**/.env.*
+!**/.env.example
+# Local data / artifacts a developer may have next to the app.
+apps/local/data

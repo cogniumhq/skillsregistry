@@ -20,6 +20,22 @@
 # file). Every `${VAR:-default}` below reads from your `.env`, falling back to
 # the value after `:-`. `.env` is git-ignored; `.env.example` is the template.
 #
+# Container env (#98): interpolation alone does NOT put a `.env` key inside the
+# `app` container. `app` therefore also declares `env_file: .env`, so every knob
+# `src/config.ts` reads (SEARCH_*, BUDGET_*, ARTIFACT_BASE_DIR, MCP_*, …) reaches
+# the process without being listed here. Explicit `environment:` entries below
+# take precedence over `env_file` — that is how the in-network DATABASE_URL /
+# OLLAMA_URL / HOST win over the localhost values in `.env.example`.
+#
+# Network exposure (#99): every published port binds to 127.0.0.1 by default.
+# Postgres ships with a well-known password and `POST /v1/skills` is
+# unauthenticated by design (single-tenant node), so a 0.0.0.0 bind on a
+# non-loopback host would expose both. To serve the node on a LAN set
+# `APP_BIND=0.0.0.0` in `.env` (the admin/migrate APIs still require the
+# bearer over-network — README "Auth model"). Postgres / Ollama host ports are
+# only for operator tooling (psql, `ollama pull`); leave them on loopback. The
+# `env_file` long syntax below needs Docker Compose v2.24+.
+#
 # Volumes: postgres data + ollama model cache both persist across `docker
 # compose down`. Use `docker compose down -v` to wipe them.
 #
@@ -31,10 +47,11 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: skillsregistry
-      POSTGRES_PASSWORD: skillsregistry
+      # Override in .env for anything reachable beyond loopback (#99).
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-skillsregistry}
       POSTGRES_DB: skillsregistry
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_BIND:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -47,7 +64,7 @@ services:
     image: ollama/ollama:latest
     restart: unless-stopped
     ports:
-      - "${OLLAMA_PORT:-11434}:11434"
+      - "${OLLAMA_BIND:-127.0.0.1}:${OLLAMA_PORT:-11434}:11434"
     volumes:
       - ollama-models:/root/.ollama
     healthcheck:
@@ -95,12 +112,17 @@ services:
         condition: service_started
       ollama-init:
         condition: service_completed_successfully
+    # Pass every documented knob through to the process (#98). Optional so a
+    # bare `docker compose up` with values exported in the shell still works.
+    env_file:
+      - path: .env
+        required: false
     environment:
       # ─── Core ──────────────────────────────────────────────────────────────
       NODE_ENV: ${NODE_ENV:-production}
       HOST: 0.0.0.0
       PORT: ${PORT:-3000}
-      DATABASE_URL: postgres://skillsregistry:skillsregistry@postgres:5432/skillsregistry
+      DATABASE_URL: postgres://skillsregistry:${POSTGRES_PASSWORD:-skillsregistry}@postgres:5432/skillsregistry
       ADMIN_TOKEN: ${ADMIN_TOKEN:?ADMIN_TOKEN is required — set it in .env}
       # ─── Postgres pool ─────────────────────────────────────────────────────
       POSTGRES_POOL_MAX: ${POSTGRES_POOL_MAX:-10}
@@ -123,7 +145,8 @@ services:
       MCP_DOCUMENTATION_URL: ${MCP_DOCUMENTATION_URL:-}
       MCP_OPENAPI_URL: ${MCP_OPENAPI_URL:-}
     ports:
-      - "${PORT:-3000}:3000"
+      # Loopback by default (#99). APP_BIND=0.0.0.0 in .env to serve a LAN.
+      - "${APP_BIND:-127.0.0.1}:${PORT:-3000}:3000"
 
 volumes:
   postgres-data:
