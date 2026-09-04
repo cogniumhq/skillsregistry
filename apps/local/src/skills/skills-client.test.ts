@@ -241,6 +241,8 @@ describe('SkillsClient.publishLocal', () => {
       slug: 'demo',
       version: '1.0.0',
       status: 'published',
+      // No indexer configured → not indexed, and no error either.
+      searchIndexed: false,
     });
     // Ensure it's an INSERT with RETURNING.
     expect(calls[0]?.sql).toMatch(/INSERT INTO skills/);
@@ -529,3 +531,164 @@ function mkRow(overrides: Record<string, unknown> = {}): never {
   };
   return { ...base, ...overrides } as never;
 }
+
+// ── #86: embed-on-publish ────────────────────────────────────────────────
+
+describe('SkillsClient.publishLocal — search indexing (#86)', () => {
+  const insertedRow = { id: 'local-uuid', slug: 'demo', version: '1.0.0', status: 'published' };
+  const request = {
+    manifest: {
+      name: 'Demo',
+      slug: 'demo',
+      version: '1.0.0',
+      source: 'publish',
+      execution_layer: 'api',
+      description: 'Debug Cognium scan failures',
+      agent_summary: 'Explains failed Cognium scans and suggests fixes',
+      tags: ['cognium', 'debugging'],
+      category: 'dev-tools',
+    },
+  };
+
+  function makeIndexer(opts: { embedFails?: boolean; indexFails?: boolean } = {}) {
+    const embed = vi.fn(async () => {
+      if (opts.embedFails) throw new Error('ollama unreachable');
+      return Float32Array.from({ length: 768 }, (_, i) => i / 768);
+    });
+    const index = vi.fn(async () => {
+      if (opts.indexFails) throw new Error('pgvector down');
+    });
+    return {
+      embedder: { identity: { id: 'nomic-embed-text@768' }, embed } as never,
+      provider: { index } as never,
+      embed,
+      index,
+    };
+  }
+
+  it('embeds agent_summary and indexes under the caller tenant; result says searchIndexed', async () => {
+    const { pool } = makePool([{ rowCount: 1, rows: [insertedRow] }]);
+    const ix = makeIndexer();
+    const client = new SkillsClient({
+      upstream: makeUpstream(),
+      pool,
+      logger: SILENT_LOGGER,
+      searchIndex: { embedder: ix.embedder, provider: ix.provider },
+    });
+    const result = await client.publishLocal(request, { tenantId: 'acme' });
+    expect(result).toMatchObject({ id: 'local-uuid', searchIndexed: true });
+    expect(result.searchIndexError).toBeUndefined();
+    // agent_summary wins over description as the embedded text.
+    expect(ix.embed).toHaveBeenCalledWith('Explains failed Cognium scans and suggests fixes');
+    const [skill, embeddings] = ix.index.mock.calls[0] as unknown as [
+      Record<string, unknown>,
+      { agentSummary: { text: string; embedding: number[] }; embedderIdentity: string; storedDims: number },
+    ];
+    expect(skill).toMatchObject({
+      id: 'local-uuid',
+      slug: 'demo',
+      version: '1.0.0',
+      tags: ['cognium', 'debugging'],
+      category: 'dev-tools',
+      executionLayer: 'api',
+      tenantId: 'acme',
+    });
+    // 768-d Ollama vector is truncated to the stored 512 width.
+    expect(embeddings.agentSummary.embedding).toHaveLength(512);
+    expect(embeddings.storedDims).toBe(512);
+    expect(embeddings.embedderIdentity).toBe('nomic-embed-text@768');
+  });
+
+  it('falls back to description, then name, when agent_summary is absent', async () => {
+    const { pool } = makePool([
+      { rowCount: 1, rows: [insertedRow] },
+      { rowCount: 1, rows: [insertedRow] },
+    ]);
+    const ix = makeIndexer();
+    const client = new SkillsClient({
+      upstream: makeUpstream(),
+      pool,
+      logger: SILENT_LOGGER,
+      searchIndex: { embedder: ix.embedder, provider: ix.provider },
+    });
+    await client.publishLocal({ manifest: { ...request.manifest, agent_summary: undefined } });
+    expect(ix.embed).toHaveBeenLastCalledWith('Debug Cognium scan failures');
+    await client.publishLocal({
+      manifest: { ...request.manifest, agent_summary: undefined, description: undefined },
+    });
+    expect(ix.embed).toHaveBeenLastCalledWith('Demo');
+  });
+
+  it('defaults the embedding tenant to "local" (what search queries by default)', async () => {
+    const { pool } = makePool([{ rowCount: 1, rows: [insertedRow] }]);
+    const ix = makeIndexer();
+    const client = new SkillsClient({
+      upstream: makeUpstream(),
+      pool,
+      logger: SILENT_LOGGER,
+      searchIndex: { embedder: ix.embedder, provider: ix.provider },
+    });
+    await client.publishLocal(request);
+    expect((ix.index.mock.calls[0] as unknown as [{ tenantId: string }])[0].tenantId).toBe('local');
+  });
+
+  it('embedder outage: publish still succeeds, searchIndexed=false with the error, warning logged', async () => {
+    const { pool } = makePool([{ rowCount: 1, rows: [insertedRow] }]);
+    const ix = makeIndexer({ embedFails: true });
+    const warn = vi.fn();
+    const client = new SkillsClient({
+      upstream: makeUpstream(),
+      pool,
+      logger: { ...SILENT_LOGGER, warn },
+      searchIndex: { embedder: ix.embedder, provider: ix.provider },
+    });
+    const result = await client.publishLocal(request);
+    expect(result).toMatchObject({
+      id: 'local-uuid',
+      status: 'published',
+      searchIndexed: false,
+      searchIndexError: 'ollama unreachable',
+    });
+    expect(ix.index).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it('index write failure is likewise non-fatal', async () => {
+    const { pool } = makePool([{ rowCount: 1, rows: [insertedRow] }]);
+    const ix = makeIndexer({ indexFails: true });
+    const client = new SkillsClient({
+      upstream: makeUpstream(),
+      pool,
+      logger: SILENT_LOGGER,
+      searchIndex: { embedder: ix.embedder, provider: ix.provider },
+    });
+    const result = await client.publishLocal(request);
+    expect(result).toMatchObject({ searchIndexed: false, searchIndexError: 'pgvector down' });
+  });
+
+  it('a slug conflict still surfaces as bad_request and never touches the indexer', async () => {
+    const { pool } = makePool([{ throw: Object.assign(new Error('dup'), { code: '23505' }) }]);
+    const ix = makeIndexer();
+    const client = new SkillsClient({
+      upstream: makeUpstream(),
+      pool,
+      logger: SILENT_LOGGER,
+      searchIndex: { embedder: ix.embedder, provider: ix.provider },
+    });
+    await expect(client.publishLocal(request)).rejects.toMatchObject({ code: 'bad_request' });
+    expect(ix.embed).not.toHaveBeenCalled();
+  });
+});
+
+// ── #94: deterministic get-by-slug after UNIQUE(slug, version) ───────────
+
+describe('SkillsClient.getSkill — version determinism (#94)', () => {
+  it('orders the local lookup newest-first so a multi-version slug is deterministic', async () => {
+    const { pool, calls } = makePool([{ rowCount: 0, rows: [] }]);
+    const upstream = makeUpstream();
+    const client = new SkillsClient({ upstream, pool, logger: SILENT_LOGGER });
+    await client.getSkill('demo').catch(() => undefined);
+    expect(calls[0]?.sql).toMatch(/ORDER BY created_at DESC, version DESC\s+LIMIT 1/);
+  });
+});
+

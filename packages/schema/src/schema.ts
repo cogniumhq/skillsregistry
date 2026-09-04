@@ -35,7 +35,9 @@ export const skills = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     name: text('name').notNull(),
-    slug: text('slug').notNull().unique(),
+    // Uniqueness is (slug, version) since migration 0036 — see `slugVersionKey`
+    // below. A bare `.unique()` here drifted from the live constraint (#94).
+    slug: text('slug').notNull(),
     version: text('version').notNull().default('1.0.0'),
     source: text('source').notNull(),
     description: text('description'),
@@ -50,6 +52,9 @@ export const skills = pgTable(
     contentSafetyPassed: boolean('content_safety_passed').default(true),
     tags: text('tags').array(),
     category: text('category'),
+    // 0037: derived application domain (mothership classifier; NULL on local
+    // until classified). Feeds the `domains` search filter.
+    domain: text('domain'),
     // Phase 5: Sync pipeline columns
     sourceUrl: text('source_url'),
     sourceHash: text('source_hash'),
@@ -205,7 +210,10 @@ export const skills = pgTable(
     // v5.2 indexes
     runtimeEnvIdx: index('idx_skills_runtime_env').on(table.runtimeEnv),
     visibilityIdx: index('idx_skills_visibility').on(table.visibility),
-    slugVersionIdx: index('idx_skills_slug_version').on(table.slug, table.version),
+    // 0036: UNIQUE (slug, version) replaces the old UNIQUE (slug) + the
+    // redundant idx_skills_slug_version (its backing index covers both).
+    slugVersionKey: uniqueIndex('skills_slug_version_key').on(table.slug, table.version),
+    domainIdx: index('idx_skills_domain').on(table.domain),
     weeklyAgentIdx: index('idx_skills_weekly_agent').on(table.weeklyAgentInvocationCount),
     humanStarsIdx: index('idx_skills_human_stars').on(table.humanStarCount),
   })

@@ -189,23 +189,48 @@ describe('PgVectorProvider — vectorSearch WHERE clause', () => {
     expect(params).toContainEqual(['worker', 'node']);
   });
 
-  it('defaults visibility clause to public OR (own private/unlisted)', async () => {
+  it('defaults visibility clause to public OR own private/tenant_* — never unlisted', async () => {
     const { pool, log } = scriptedPool([ok([])]);
     const p = new PgVectorProvider({ pool });
     await callVector(p, filters());
 
     expect(log[0]!.sql).toContain("s.visibility = 'public'");
-    expect(log[0]!.sql).toContain("s.visibility IN ('private', 'unlisted')");
+    expect(log[0]!.sql).toContain("s.visibility IN ('private', 'tenant_private', 'tenant_internal')");
+    // migration 0035: unlisted is direct-lookup-only, excluded from every search
+    expect(log[0]!.sql).toContain("s.visibility <> 'unlisted'");
+    expect(log[0]!.sql).not.toContain("'unlisted') AND s.tenant_id");
   });
 
-  it('applies explicit visibility filter when provided', async () => {
+  it('applies explicit visibility filter, tenant-scoped, and still excludes unlisted', async () => {
     const { pool, log } = scriptedPool([ok([])]);
     const p = new PgVectorProvider({ pool });
-    await callVector(p, filters({ visibility: 'private' }));
+    await callVector(p, filters({ visibility: 'tenant_private' }));
 
     const params = log[0]!.params as unknown[];
-    expect(log[0]!.sql).toContain('s.visibility =');
-    expect(params).toContain('private');
+    expect(log[0]!.sql).toMatch(/s\.visibility = \$\d+ AND \(s\.visibility = 'public' OR s\.tenant_id = \$1\)/);
+    expect(log[0]!.sql).toContain("s.visibility <> 'unlisted'");
+    expect(params).toContain('tenant_private');
+  });
+
+  it('applies categories (category OR categories[] overlap) and domains facets (sr#30)', async () => {
+    const { pool, log } = scriptedPool([ok([])]);
+    const p = new PgVectorProvider({ pool });
+    await callVector(p, filters({ categories: ['dev-tools', 'data'], domains: ['iot-hardware'] }));
+
+    const sql = log[0]!.sql;
+    const params = log[0]!.params as unknown[];
+    expect(sql).toMatch(/\(s\.category = ANY\(\$(\d+)::text\[\]\) OR s\.categories && \$\1::text\[\]\)/);
+    expect(sql).toMatch(/s\.domain = ANY\(\$\d+::text\[\]\)/);
+    expect(params).toContainEqual(['dev-tools', 'data']);
+    expect(params).toContainEqual(['iot-hardware']);
+  });
+
+  it('omits facet clauses when categories/domains are empty or absent', async () => {
+    const { pool, log } = scriptedPool([ok([])]);
+    const p = new PgVectorProvider({ pool });
+    await callVector(p, filters({ categories: [], domains: undefined }));
+    expect(log[0]!.sql).not.toContain('s.categories &&');
+    expect(log[0]!.sql).not.toContain('s.domain = ANY');
   });
 
   it('applies slug + version pin', async () => {
@@ -305,6 +330,7 @@ describe('PgVectorProvider — fullTextSearch', () => {
     await callFT(p, 'q', filters());
     expect(log[0]!.sql).toContain('s.status NOT IN');
     expect(log[0]!.sql).toContain("s.visibility = 'public'");
+    expect(log[0]!.sql).toContain("s.visibility <> 'unlisted'");
   });
 });
 

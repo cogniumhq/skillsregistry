@@ -306,12 +306,33 @@ export class PgVectorProvider implements SearchProvider {
       params.push(filters.tags);
     }
 
-    // v5.2: visibility filter — public by default, tenant can see own private/unlisted
+    // v6.3 4-band visibility (migration 0035). Search is an ENUMERATION, so
+    // `unlisted` is never returned — it is direct-lookup-only, even for the
+    // owning tenant (consumers used to post-filter it; the provider now owns
+    // the rule). Default: public OR the caller's own private / tenant_* rows.
+    // An explicit non-public band is still scoped to the caller's tenant so a
+    // `visibility=tenant_private` request cannot enumerate another tenant.
     if (filters.visibility) {
-      conditions.push(`s.visibility = $${++paramCount.value}`);
+      conditions.push(
+        `(s.visibility = $${++paramCount.value} AND (s.visibility = 'public' OR s.tenant_id = $1))`
+      );
       params.push(filters.visibility);
     } else {
-      conditions.push(`(s.visibility = 'public' OR (s.visibility IN ('private', 'unlisted') AND s.tenant_id = $1))`);
+      conditions.push(
+        `(s.visibility = 'public' OR (s.visibility IN ('private', 'tenant_private', 'tenant_internal') AND s.tenant_id = $1))`
+      );
+    }
+    conditions.push(`s.visibility <> 'unlisted'`);
+
+    // Facet filters (sr#30): OR within a dimension (ANY / overlap), AND across.
+    if (filters.categories && filters.categories.length > 0) {
+      const n = ++paramCount.value;
+      conditions.push(`(s.category = ANY($${n}::text[]) OR s.categories && $${n}::text[])`);
+      params.push(filters.categories);
+    }
+    if (filters.domains && filters.domains.length > 0) {
+      conditions.push(`s.domain = ANY($${++paramCount.value}::text[])`);
+      params.push(filters.domains);
     }
 
     // v5.2: runtime environment filter
@@ -423,12 +444,33 @@ export class PgVectorProvider implements SearchProvider {
       params.push(filters.tags);
     }
 
-    // v5.2: visibility filter — public by default, tenant can see own private/unlisted
+    // v6.3 4-band visibility (migration 0035). Search is an ENUMERATION, so
+    // `unlisted` is never returned — it is direct-lookup-only, even for the
+    // owning tenant (consumers used to post-filter it; the provider now owns
+    // the rule). Default: public OR the caller's own private / tenant_* rows.
+    // An explicit non-public band is still scoped to the caller's tenant so a
+    // `visibility=tenant_private` request cannot enumerate another tenant.
     if (filters.visibility) {
-      conditions.push(`s.visibility = $${++paramCount.value}`);
+      conditions.push(
+        `(s.visibility = $${++paramCount.value} AND (s.visibility = 'public' OR s.tenant_id = $1))`
+      );
       params.push(filters.visibility);
     } else {
-      conditions.push(`(s.visibility = 'public' OR (s.visibility IN ('private', 'unlisted') AND s.tenant_id = $1))`);
+      conditions.push(
+        `(s.visibility = 'public' OR (s.visibility IN ('private', 'tenant_private', 'tenant_internal') AND s.tenant_id = $1))`
+      );
+    }
+    conditions.push(`s.visibility <> 'unlisted'`);
+
+    // Facet filters (sr#30): OR within a dimension (ANY / overlap), AND across.
+    if (filters.categories && filters.categories.length > 0) {
+      const n = ++paramCount.value;
+      conditions.push(`(s.category = ANY($${n}::text[]) OR s.categories && $${n}::text[])`);
+      params.push(filters.categories);
+    }
+    if (filters.domains && filters.domains.length > 0) {
+      conditions.push(`s.domain = ANY($${++paramCount.value}::text[])`);
+      params.push(filters.domains);
     }
 
     // v5.2: runtime environment filter

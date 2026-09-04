@@ -22,7 +22,10 @@
 // ══════════════════════════════════════════════════════════════════════════════
 
 import type { PublishRequest } from '@skillsregistry/contracts';
+import type { EmbedderAdapter } from '@skillsregistry/domain/adapters';
+import type { SearchProvider } from '@skillsregistry/domain/providers';
 import type { Pool } from 'pg';
+import { STORED_EMBEDDING_DIMS, truncateEmbedding } from '../embedding/truncate.js';
 import { UpstreamError } from '../upstream-client/errors.js';
 import type { UpstreamClient } from '../upstream-client/index.js';
 
@@ -54,6 +57,25 @@ export interface SkillsClientOptions {
   upstream: UpstreamClient;
   pool: Pool;
   logger?: SkillsClientLogger;
+  /**
+   * #86: search indexing for local publishes. When present, `publishLocal`
+   * embeds the new row (agent_summary → description → name) and writes it
+   * to `skill_embeddings` via `SearchProvider.index`, so the skill is
+   * discoverable by `search_skills` without manual DB work. Best-effort:
+   * an embedder / index failure is logged and reported on the result
+   * (`searchIndexed: false`), never turned into a publish failure — the row
+   * stays re-embeddable by the admin backfill.
+   */
+  searchIndex?: {
+    embedder: EmbedderAdapter;
+    provider: SearchProvider;
+  };
+}
+
+/** Per-call options for `publishLocal`. */
+export interface PublishLocalOptions {
+  /** Tenant the embedding row is scoped to. Default `'local'` (matches search). */
+  tenantId?: string;
 }
 
 /**
@@ -72,6 +94,13 @@ export interface LocalPublishResult {
   slug: string;
   version: string;
   status: string;
+  /**
+   * #86: whether the row was embedded into the search index in this call.
+   * `false` when no indexer is configured or embedding failed (see
+   * `searchIndexError`); the skill is still published and readable by slug.
+   */
+  searchIndexed: boolean;
+  searchIndexError?: string;
 }
 
 /**
@@ -183,7 +212,10 @@ export class SkillsClient {
     this.upstream = options.upstream;
     this.pool = options.pool;
     this.logger = options.logger ?? consoleLogger;
+    this.searchIndex = options.searchIndex;
   }
+
+  private readonly searchIndex: SkillsClientOptions['searchIndex'];
 
   /**
    * Local-first skill read. Order of resolution:
@@ -232,8 +264,12 @@ export class SkillsClient {
    * Insert a locally-published single-tenant skill. Returns the local
    * UUID + slug + version + status. Slug collision → `bad_request`.
    */
-  async publishLocal(request: PublishRequest): Promise<LocalPublishResult> {
+  async publishLocal(
+    request: PublishRequest,
+    options: PublishLocalOptions = {},
+  ): Promise<LocalPublishResult> {
     const { manifest } = request;
+    let row: { id: string; slug: string; version: string; status: string };
     try {
       const result = await this.pool.query<{
         id: string;
@@ -274,8 +310,8 @@ export class SkillsClient {
           manifest.sandbox ?? null,
         ],
       );
-      const row = result.rows[0];
-      if (row === undefined) {
+      const inserted = result.rows[0];
+      if (inserted === undefined) {
         // INSERT with no RETURNING is a pg driver contract violation;
         // treat as internal and surface as a bad_request rather than a
         // silent throw.
@@ -284,7 +320,7 @@ export class SkillsClient {
           'local publish returned no row',
         );
       }
-      return row;
+      row = inserted;
     } catch (err) {
       // pg unique_violation (23505) → slug conflict.
       if (isPgUniqueViolation(err)) {
@@ -305,6 +341,65 @@ export class SkillsClient {
       }
       throw err;
     }
+
+    // #86: make the new row searchable. Never fails the publish.
+    const indexed = await this.indexForSearch(row.id, manifest, options.tenantId ?? 'local');
+    return { ...row, ...indexed };
+  }
+
+  /**
+   * Embed + index one freshly published row. Idempotent per skill id —
+   * `SearchProvider.index` replaces the skill's embedding rows — so a
+   * re-publish (new version = new id) indexes on its own and a retry of the
+   * same id overwrites. Returns the `searchIndexed` / `searchIndexError`
+   * fragment for the publish result.
+   */
+  private async indexForSearch(
+    id: string,
+    manifest: PublishRequest['manifest'],
+    tenantId: string,
+  ): Promise<Pick<LocalPublishResult, 'searchIndexed' | 'searchIndexError'>> {
+    if (!this.searchIndex) return { searchIndexed: false };
+    const summaryText =
+      manifest.agent_summary?.trim() || manifest.description?.trim() || manifest.name;
+    try {
+      const raw = await this.searchIndex.embedder.embed(summaryText);
+      const embedding = truncateEmbedding(Array.from(raw));
+      await this.searchIndex.provider.index(
+        {
+          id,
+          name: manifest.name,
+          slug: manifest.slug,
+          version: manifest.version,
+          source: manifest.source,
+          description: manifest.description ?? '',
+          agentSummary: manifest.agent_summary ?? undefined,
+          tags: manifest.tags ?? [],
+          category: manifest.category ?? undefined,
+          // Row already exists (ON CONFLICT (id) DO UPDATE only touches
+          // name/description/agent_summary); trust stays whatever the
+          // publish path set. 0.5 is the column default.
+          trustScore: 0.5,
+          executionLayer: manifest.execution_layer,
+          tenantId,
+        },
+        {
+          agentSummary: { text: summaryText, embedding },
+          embedderIdentity: this.searchIndex.embedder.identity.id,
+          storedDims: STORED_EMBEDDING_DIMS,
+        },
+      );
+      this.logger.info('local publish indexed for search', { id, slug: manifest.slug, tenantId });
+      return { searchIndexed: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.warn('local publish stored but NOT indexed for search — re-embed via admin backfill', {
+        id,
+        slug: manifest.slug,
+        error: message,
+      });
+      return { searchIndexed: false, searchIndexError: message };
+    }
   }
 
   // ── Internals ─────────────────────────────────────────────────────────
@@ -318,6 +413,7 @@ export class SkillsClient {
         WHERE id::text = $1
            OR slug = $1
            OR mothership_skill_id = $1
+        ORDER BY created_at DESC, version DESC
         LIMIT 1`,
       [id],
     );

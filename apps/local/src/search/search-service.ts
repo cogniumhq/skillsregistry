@@ -39,6 +39,7 @@ import type {
   Appetite,
   FindSkillResponse,
   SkillResult,
+  SkillVisibility,
 } from '@skillsregistry/domain/types';
 
 /**
@@ -59,8 +60,8 @@ export interface SearchOptions {
   category?: string;
   /** Runtime env filter (multi-value: 'api', 'vm', 'llm', 'agent', ...). */
   runtimeEnv?: string[];
-  /** Visibility filter — MVP always `'public'` at the route layer. */
-  visibility?: 'public' | 'private' | 'unlisted';
+  /** Visibility filter — 4-band model per `SkillVisibility` (#95). */
+  visibility?: SkillVisibility;
   /** Portable filter (MCP-portable skills only). */
   portable?: boolean;
 }

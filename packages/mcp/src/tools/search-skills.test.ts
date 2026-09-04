@@ -170,7 +170,7 @@ describe('search_skills — options passthrough', () => {
     await searchSkillsTool.handler(
       {
         query: 'lint',
-        appetite: 'quick',
+        appetite: 'cautious',
         tags: ['rust', 'ci'],
         category: 'dev-tools',
         visibility: 'public',
@@ -185,11 +185,26 @@ describe('search_skills — options passthrough', () => {
       visibility?: string;
       portable?: boolean;
     };
-    expect(opts.appetite).toBe('quick');
+    expect(opts.appetite).toBe('cautious');
     expect(opts.tags).toEqual(['rust', 'ci']);
     expect(opts.category).toBe('dev-tools');
     expect(opts.visibility).toBe('public');
     expect(opts.portable).toBe(true);
+  });
+
+  // #96 — the schema used to advertise quick|standard|deep, which the domain
+  // never understood; those values must be rejected, not forwarded.
+  it('rejects an appetite outside strict|cautious|balanced|adventurous', async () => {
+    const { search } = stubSearch();
+    await expect(
+      searchSkillsTool.handler({ query: 'lint', appetite: 'quick' }, makeCtx(search)),
+    ).rejects.toMatchObject({ code: JSONRPC_INVALID_PARAMS });
+    expect(search.findSkill).not.toHaveBeenCalled();
+  });
+
+  it('advertises the domain appetite vocabulary in the tool schema', () => {
+    const props = searchSkillsTool.inputSchema.properties as Record<string, { enum?: string[] }>;
+    expect(props.appetite!.enum).toEqual(['strict', 'cautious', 'balanced', 'adventurous']);
   });
 
   it('passes tenantId + trimmed query to findSkill', async () => {

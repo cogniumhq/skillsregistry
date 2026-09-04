@@ -56,6 +56,9 @@ export interface FindSkillOptions {
   /** 4-band tenant-scope visibility per cortex.md §16.6. */
   visibility?: SkillVisibility;
   portable?: boolean;
+  /** Facet filters (sr#30): OR within a dimension, AND across. */
+  categories?: string[];
+  domains?: string[];
   /**
    * Overrides the appetite-derived trust-score floor. Threading in from
    * `FindSkillRequest.minTrust` (Cortex sends this per §6.2).
@@ -208,6 +211,8 @@ export class ConfidenceGate {
       runtimeEnv: options.runtimeEnv,
       visibility: options.visibility,
       portable: options.portable,
+      categories: options.categories,
+      domains: options.domains,
     };
 
     // ── 4. Provider Search ──

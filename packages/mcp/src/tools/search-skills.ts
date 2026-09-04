@@ -10,6 +10,7 @@ import type {
   ToolResult,
 } from '../types.js';
 import { JSONRPC_INVALID_PARAMS, McpError } from '../errors.js';
+import { APPETITES } from '@skillsregistry/domain/types';
 import {
   asRecord,
   clampLimit,
@@ -34,9 +35,20 @@ async function handler(args: unknown, ctx: ToolContext): Promise<ToolResult> {
 
   const runtimeEnv = optString(rec, 'runtimeEnv');
 
+  // #96: the appetite vocabulary is the domain's (strict|cautious|balanced|
+  // adventurous). Anything else used to be forwarded verbatim and fell
+  // through `appetiteToTrustThreshold`'s exhaustive switch — no trust floor.
+  const appetiteRaw = optString(rec, 'appetite');
+  if (appetiteRaw !== undefined && !(APPETITES as readonly string[]).includes(appetiteRaw)) {
+    throw new McpError(
+      JSONRPC_INVALID_PARAMS,
+      `Unknown appetite: '${appetiteRaw}'. Expected one of: ${APPETITES.join(', ')}.`,
+    );
+  }
+
   const findOptions: FindSkillOptions = {
     limit,
-    appetite: optString(rec, 'appetite') as Appetite | undefined,
+    appetite: appetiteRaw as Appetite | undefined,
     tags: optStringArray(rec, 'tags'),
     category: optString(rec, 'category'),
     runtimeEnv: runtimeEnv ? [runtimeEnv] : undefined,
@@ -65,7 +77,9 @@ export const searchSkillsTool: ToolDefinition = {
       },
       appetite: {
         type: 'string',
-        description: 'Optional appetite filter (e.g. "quick", "standard", "deep").',
+        enum: [...APPETITES],
+        description:
+          'Risk appetite — trust-score floor applied to results: "strict" (≥0.85) | "cautious" (≥0.7) | "balanced" (≥0.5, default) | "adventurous" (≥0.2).',
       },
       tags: { type: 'array', items: { type: 'string' } },
       category: { type: 'string' },

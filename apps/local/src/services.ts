@@ -238,11 +238,7 @@ export async function buildAppServices(
   //      cache) + single-tenant publish. Air-gap-aware: on local miss
   //      mints `not_found` instead of propagating
   //      `upstream_not_configured`.
-  const skillsClient = new SkillsClient({
-    upstream,
-    pool,
-    logger: adaptToPortLogger(logger.child({ module: 'skills-client' })),
-  });
+  // (constructed below, after the search provider — #86 needs both.)
 
   // 3m — search service. Wires PgVectorProvider + ConfidenceGate +
   //      PgSearchCache + NoopSearchLogger + stub LLM/reranker backends.
@@ -257,6 +253,18 @@ export async function buildAppServices(
     fusionMode: config.search.fusionMode,
     tier1Threshold: config.search.tier1Threshold,
     tier2Threshold: config.search.tier2Threshold,
+  });
+  // 3l — skills client. Local-first read (with upstream write-through
+  //      cache) + single-tenant publish. Air-gap-aware: on local miss
+  //      mints `not_found` instead of propagating
+  //      `upstream_not_configured`. #86: publishes are embedded through
+  //      the same provider search reads from, so a local publish is
+  //      searchable without manual DB work.
+  const skillsClient = new SkillsClient({
+    upstream,
+    pool,
+    logger: adaptToPortLogger(logger.child({ module: 'skills-client' })),
+    searchIndex: { embedder, provider },
   });
   const searchCache = new PgSearchCache({
     kv,
