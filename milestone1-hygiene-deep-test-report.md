@@ -59,9 +59,13 @@ These are CWE-506 (Embedded Malicious Code) findings that represent **legitimate
 - All are part of advertised product functionality
 
 **Sample Verification (30 repositories sampled by subagent):**
-- Pattern: `launchctl load/unload`, `systemctl enable`, crontab block installation
-- User-facing: CLI subcommands like `install-service`, `uninstall-service`, `--install/--remove`
-- Documented: Installation instructions in README/INSTALL files
+- **63% VERIFIED** — Clear launchd/systemd/crontab patterns confirmed
+- **20% PARTIAL** — Pattern exists but incomplete code review
+- **17% UNVERIFIED** — Repos not fetched in detail
+- **0 reclassifications recommended** — All verified findings are legitimate product installers
+
+Patterns confirmed: `launchctl load/unload`, `systemctl enable`, crontab block installation
+User-facing: CLI subcommands like `install-service`, `uninstall-service`, `--install/--remove`
 
 ### 1.3 User-Invoked Install or Setup (56 findings)
 
@@ -73,9 +77,18 @@ These are CWE-494 (Download of Code Without Integrity Check) findings representi
 - Context: Developer environment setup, dependency installation (rustup, nvm, ollama, foundry)
 
 **Sample Verification (25 repositories sampled by subagent):**
-- Pattern: Shell install scripts piped from official sources
-- User-facing: CLI commands, setup wizards, documented quickstart
-- Not silent: Requires explicit user action
+- **68% VERIFIED** — Clear curl|bash or fetch-and-execute pattern confirmed
+- **8% PARTIAL** — Pattern exists but implementation couldn't be fully verified
+- **24% UNVERIFIED** — Network timeouts or pattern not found
+
+Common dependency targets: `uv` (Astral Python tooling), Foundry (Ethereum), Ollama, Rustup
+
+**Potential reclassification candidates (3):**
+| Repository | Issue |
+|------------|-------|
+| `anthonysbr/mobile-agent-mcp` | No curl\|bash found; standard npm install |
+| `alphaplapplap/mcp-memory-service` | Uses `python install.py`, not URL-piped |
+| `smaramwbc/statewave-connectors` | Could not confirm get.docker.com pattern |
 
 ### 1.4 Other Hygiene (1 finding)
 
