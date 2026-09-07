@@ -91,16 +91,14 @@ These are CWE-494 (Download of Code Without Integrity Check) findings representi
 
 ### Source Identified
 
-The **597 FP-benign** figure (reported as 596 in the source) originates from:
+Two related sources reference the 597 FP-benign figure:
+
+#### Primary Source: cognium-dev#250 SAST Sweep
 
 **GitHub Issue:** [cogniumhq/cognium-dev#250](https://github.com/cogniumhq/cognium-dev/issues/250)  
 **Title:** "[FP] Source misattribution — 61% of tier-2 C+H findings have source.line on an import/comment/const line (fabricated flows)"
 
-### Context
-
 > "On the tier-2 72-repo sweep (cognium-ai 2.35.0 / circle-ir 3.164.0, gpt-4o-mini verify), **61.2% (365 of 596) of Critical/High findings have a `source.line` that points at an `import` / `package` / comment / annotation / constant-declaration line** — a line that cannot be a taint source."
-
-### Key Details
 
 | Attribute | Value |
 |-----------|-------|
@@ -109,6 +107,19 @@ The **597 FP-benign** figure (reported as 596 in the source) originates from:
 | **Engine Version** | cognium-ai 2.35.0 / circle-ir 3.164.0 |
 | **Root Cause** | Source misattribution — taint flows pointing to non-executable lines |
 | **Resolution** | Fixed in circle-ir 3.168.0 via `isNonExecutableSourceLine` gate |
+
+#### Secondary Context: 2,265-Row Adjudication
+
+The gist containing the 192 hygiene findings is titled **"Milestone1 hygiene findings (192) from full 2265 adjudication"**, suggesting:
+
+- A catalog scan produced **2,265 adjudicated finding rows**
+- **192** were classified as milestone-1 hygiene and exported to the gist
+- The remaining **2,073** belong to other buckets — one of which is likely the **597 FP-benign** category
+- Arithmetic: `2265 - 192 = 2073` remaining; 597 could be one bucket within that
+
+The 597 FP-benign bucket was **not published** in any accessible artifact. It likely resides in:
+- Unpublished portion of the 2,265 adjudication spreadsheet
+- Private cogniumhq issue (GraphQL finds 1 `FP-benign` issue but content is inaccessible)
 
 ### Relationship to 192 Hygiene Findings
 
