@@ -496,3 +496,54 @@ export const AdminSkillsListResponseSchema = z
 
 export type AdminSkillsListItem = z.infer<typeof AdminSkillsListItemSchema>;
 export type AdminSkillsListResponse = z.infer<typeof AdminSkillsListResponseSchema>;
+
+// ── Admin skill mutation (#83 / #84) ─────────────────────────────────────────
+//
+// Local-node only. The mothership has no delete surface — an operator there
+// revokes, they do not remove. Here the node *is* the operator's catalogue, so
+// removal is a first-class action.
+//
+// Manifest fields are immutable by design: `POST /v1/skills` is INSERT-only and
+// `UNIQUE (slug, version)` (migration 0036) means a corrected manifest is a new
+// version, not an edit of history. The one mutable field is the lifecycle
+// `status`, which is a transition rather than a rewrite.
+
+/** Lifecycle statuses an operator may set directly on the local node. */
+export const AdminSkillStatusSchema = z.enum([
+  'draft',
+  'published',
+  'deprecated',
+  'archived',
+]);
+
+export const AdminSkillPatchRequestSchema = z
+  .object({
+    status: AdminSkillStatusSchema,
+  })
+  .openapi('AdminSkillPatchRequest');
+
+export const AdminSkillPatchResponseSchema = z
+  .object({
+    id: z.string(),
+    slug: z.string(),
+    version: z.string(),
+    status: z.string(),
+    deprecatedAt: z.string().nullable(),
+  })
+  .openapi('AdminSkillPatchResponse');
+
+export const AdminSkillDeleteResponseSchema = z
+  .object({
+    deleted: z.literal(true),
+    id: z.string(),
+    slug: z.string(),
+    version: z.string(),
+    /** Rows removed from `skill_embeddings` by the ON DELETE CASCADE. */
+    embeddingsRemoved: z.number(),
+  })
+  .openapi('AdminSkillDeleteResponse');
+
+export type AdminSkillStatus = z.infer<typeof AdminSkillStatusSchema>;
+export type AdminSkillPatchRequest = z.infer<typeof AdminSkillPatchRequestSchema>;
+export type AdminSkillPatchResponse = z.infer<typeof AdminSkillPatchResponseSchema>;
+export type AdminSkillDeleteResponse = z.infer<typeof AdminSkillDeleteResponseSchema>;

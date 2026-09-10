@@ -12,6 +12,9 @@
 //   POST /v1/admin/budget/refresh  — force-refresh from mothership
 //   GET  /v1/admin/health          — deep health (DB, Ollama, upstream,
 //                                     migration state)
+//   GET    /v1/admin/skills        — paginated local skill list (T-3.4)
+//   PATCH  /v1/admin/skills/:id    — lifecycle status transition (#83)
+//   DELETE /v1/admin/skills/:id    — remove a local skill (#84)
 //   POST /v1/migrate/publish       — single-skill push-up (T-2.10)
 //
 // `pool` is threaded as a separate arg — mirrors `createApp(config, pool,
@@ -24,9 +27,12 @@
 import { Hono } from 'hono';
 import type { Pool } from 'pg';
 import type {
+  AdminSkillDeleteResponse,
+  AdminSkillPatchResponse,
   AdminSkillsListItem,
   AdminSkillsListResponse,
 } from '@skillsregistry/contracts';
+import { AdminSkillPatchRequestSchema } from '@skillsregistry/contracts';
 import { SCHEMA_VERSION } from '@skillsregistry/schema';
 import { upstreamErrorToResponse } from '../http/upstream-response.js';
 import { adminAuth } from '../middleware/index.js';
@@ -289,6 +295,182 @@ export function createAdminRoutes(
     }
   });
 
+  // ── PATCH /v1/admin/skills/:id (#83) ───────────────────────────────────
+  //
+  // The ONE mutable field on a local skill. Manifest content is immutable by
+  // construction: `POST /v1/skills` is INSERT-only and migration 0036 made
+  // `(slug, version)` unique, so a corrected manifest is a new version, not an
+  // edit of history. #83 asks for that rule to be explicit — this is it.
+  // Everything else the admin UI shows is read-only.
+  //
+  // `archived` is the soft-delete escape hatch for operators who want the row
+  // kept: it drops out of the default admin view without touching the data.
+  app.patch('/admin/skills/:id', async (c) => {
+    const identifier = c.req.param('id');
+    let payload: unknown;
+    try {
+      payload = await c.req.json();
+    } catch {
+      return c.json(
+        {
+          error: {
+            code: 'bad_request' as const,
+            message: 'body must be JSON',
+          },
+        },
+        400,
+      );
+    }
+
+    const parsed = AdminSkillPatchRequestSchema.safeParse(payload);
+    if (!parsed.success) {
+      return c.json(
+        {
+          error: {
+            code: 'bad_request' as const,
+            message:
+              'status must be one of: draft, published, deprecated, archived. ' +
+              'Manifest fields are immutable — publish a new version instead.',
+            detail: { issues: parsed.error.issues },
+          },
+        },
+        400,
+      );
+    }
+    const { status } = parsed.data;
+
+    try {
+      const resolved = await resolveSkill(pool, identifier, c.req.query('version'));
+      if (resolved.kind === 'not_found') return notFound(c, identifier);
+      if (resolved.kind === 'ambiguous') return ambiguous(c, identifier, resolved.versions);
+
+      // `deprecated_at` is set on the transition into `deprecated` and cleared
+      // on the way back out, so the timestamp always describes current state.
+      const { rows } = await pool.query(
+        `UPDATE skills
+            SET status = $2,
+                deprecated_at = CASE WHEN $2 = 'deprecated' THEN NOW() ELSE NULL END,
+                updated_at = NOW()
+          WHERE id = $1
+        RETURNING id, slug, version, status, deprecated_at`,
+        [resolved.row.id, status],
+      );
+      const row = rows[0] as
+        | {
+            id: string;
+            slug: string;
+            version: string;
+            status: string;
+            deprecated_at: Date | string | null;
+          }
+        | undefined;
+      if (row === undefined) return notFound(c, identifier);
+
+      const body: AdminSkillPatchResponse = {
+        id: row.id,
+        slug: row.slug,
+        version: row.version,
+        status: row.status,
+        deprecatedAt: toIso(row.deprecated_at),
+      };
+      return c.json(body, 200);
+    } catch (err) {
+      return internal(c, 'status update failed', err);
+    }
+  });
+
+  // ── DELETE /v1/admin/skills/:id (#84) ──────────────────────────────────
+  //
+  // HARD delete, deliberately. The issue's own use case is resetting a local
+  // node so the same slug+version can be re-published; a soft delete leaves the
+  // `UNIQUE (slug, version)` constraint occupied and the re-publish still
+  // fails. Operators who want the row kept have `PATCH … {status:"archived"}`.
+  //
+  // Only the local row goes. `mothership_skill_id` is a cached pointer, never
+  // a mutation target — the mothership copy is untouched by construction
+  // because this handler talks to the local pool only.
+  //
+  // The audit trail survives the delete by schema design:
+  //   skill_embeddings      ON DELETE CASCADE  → removed with the skill
+  //   composition_steps     ON DELETE CASCADE  (as composition_id)
+  //   user_stars            ON DELETE CASCADE
+  //   mcp_invocations       ON DELETE SET NULL → invocation history retained
+  //   skill_signature_audits ON DELETE SET NULL → audit retained
+  //   quality_feedback      no FK              → retained verbatim
+  //
+  // The references with NO on-delete action are the dependency guard:
+  // `composition_steps.skill_id`, `skill_invocations.skill_id/composition_id`
+  // and the `skills.fork_of / origin_id / replacement_skill_id` self-refs all
+  // RESTRICT. Postgres raises 23503 and we surface 409 rather than cascading
+  // a delete through a composition someone still depends on.
+  app.delete('/admin/skills/:id', async (c) => {
+    const identifier = c.req.param('id');
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const resolved = await resolveSkill(client, identifier, c.req.query('version'), {
+        lock: true,
+      });
+      if (resolved.kind === 'not_found') {
+        await client.query('ROLLBACK');
+        return notFound(c, identifier);
+      }
+      if (resolved.kind === 'ambiguous') {
+        await client.query('ROLLBACK');
+        return ambiguous(c, identifier, resolved.versions);
+      }
+
+      const { row } = resolved;
+      // Counted before the delete so the response can state what went with it.
+      const embeddings = await client.query(
+        'SELECT COUNT(*)::text AS c FROM skill_embeddings WHERE skill_id = $1',
+        [row.id],
+      );
+      const embeddingsRemoved = Number.parseInt(
+        (embeddings.rows[0] as { c?: string } | undefined)?.c ?? '0',
+        10,
+      );
+
+      await client.query('DELETE FROM skills WHERE id = $1', [row.id]);
+      await client.query('COMMIT');
+
+      const body: AdminSkillDeleteResponse = {
+        deleted: true,
+        id: row.id,
+        slug: row.slug,
+        version: row.version,
+        embeddingsRemoved: Number.isFinite(embeddingsRemoved) ? embeddingsRemoved : 0,
+      };
+      return c.json(body, 200);
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {
+        /* connection already broken — nothing to roll back */
+      });
+      if (isForeignKeyViolation(err)) {
+        return c.json(
+          {
+            error: {
+              code: 'conflict' as const,
+              message:
+                `skill ${identifier} is still referenced by another row ` +
+                '(a composition step, an invocation, or a fork lineage) and was not deleted',
+              detail: {
+                pg_code: '23503',
+                constraint: (err as { constraint?: string }).constraint ?? null,
+                table: (err as { table?: string }).table ?? null,
+              },
+            },
+          },
+          409,
+        );
+      }
+      return internal(c, 'delete failed', err);
+    } finally {
+      client.release();
+    }
+  });
+
   // ── POST /v1/migrate/publish (T-2.10) ──────────────────────────────────
   //
   // Migration door. Reads `?skill_id=<uuid>`, delegates to the migration
@@ -381,6 +563,120 @@ function probeMothership(services: AppServices): MothershipCheck {
     mode: 'configured',
     circuitState,
   };
+}
+
+// ── Skill resolution + error helpers (#83 / #84) ─────────────────────────────
+//
+// `resolveSkill` is the guard against the ambiguity the issue calls out: after
+// migration 0036 a slug legitimately carries several versions, so a mutation
+// keyed on slug alone could hit the wrong row. A UUID is always unambiguous; a
+// slug is only accepted when it resolves to exactly one row, or when `?version=`
+// narrows it. Read paths may keep guessing with ORDER BY / LIMIT 1 — a delete
+// may not.
+
+/** The subset of pg's Pool/PoolClient this module needs. */
+interface Queryable {
+  query: Pool['query'];
+}
+
+interface ResolvedRow {
+  id: string;
+  slug: string;
+  version: string;
+}
+
+type SkillResolution =
+  | { kind: 'found'; row: ResolvedRow }
+  | { kind: 'not_found' }
+  | { kind: 'ambiguous'; versions: string[] };
+
+async function resolveSkill(
+  db: Queryable,
+  identifier: string,
+  version: string | undefined,
+  options: { lock?: boolean } = {},
+): Promise<SkillResolution> {
+  const trimmed = identifier?.trim() ?? '';
+  if (trimmed === '') return { kind: 'not_found' };
+
+  // FOR UPDATE only on the delete path — it holds the row against a concurrent
+  // publish/delete for the life of the transaction.
+  const lock = options.lock === true ? ' FOR UPDATE' : '';
+  const versionFilter = version !== undefined && version.trim() !== '';
+
+  const { rows } = await db.query(
+    `SELECT id, slug, version
+       FROM skills
+      WHERE (id::text = $1 OR slug = $1 OR mothership_skill_id = $1)
+        AND ($2::text IS NULL OR version = $2)
+      ORDER BY created_at DESC NULLS LAST, version DESC${lock}`,
+    [trimmed, versionFilter ? version : null],
+  );
+
+  const candidates = rows as ResolvedRow[];
+  if (candidates.length === 0) return { kind: 'not_found' };
+  if (candidates.length === 1) {
+    const only = candidates[0];
+    if (only === undefined) return { kind: 'not_found' };
+    return { kind: 'found', row: only };
+  }
+
+  // Several rows matched. An exact id hit is still unambiguous — a UUID
+  // identifies one row even when its slug has siblings.
+  const exactId = candidates.find((r) => r.id === trimmed);
+  if (exactId !== undefined) return { kind: 'found', row: exactId };
+
+  return { kind: 'ambiguous', versions: candidates.map((r) => r.version) };
+}
+
+type JsonContext = { json: (body: unknown, status?: number) => Response };
+
+function notFound(c: JsonContext, identifier: string): Response {
+  return c.json(
+    {
+      error: {
+        code: 'not_found',
+        message: `no local skill matches ${identifier}`,
+      },
+    },
+    404,
+  );
+}
+
+function ambiguous(
+  c: JsonContext,
+  identifier: string,
+  versions: string[],
+): Response {
+  return c.json(
+    {
+      error: {
+        code: 'conflict',
+        message:
+          `${identifier} matches ${versions.length} versions — ` +
+          'pass ?version= or use the skill id',
+        detail: { versions },
+      },
+    },
+    409,
+  );
+}
+
+function internal(c: JsonContext, what: string, err: unknown): Response {
+  const message = err instanceof Error ? err.message : String(err);
+  return c.json(
+    { error: { code: 'internal_error', message: `${what}: ${message}` } },
+    500,
+  );
+}
+
+/** pg foreign_key_violation — a dependent row still points at this skill. */
+function isForeignKeyViolation(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    (err as { code?: string }).code === '23503'
+  );
 }
 
 // ── Admin skills list helpers ────────────────────────────────────────────────

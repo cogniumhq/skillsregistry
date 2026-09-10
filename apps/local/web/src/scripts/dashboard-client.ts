@@ -70,6 +70,24 @@ export interface AdminSkillsListPayload {
   offset: number;
 }
 
+/**
+ * `GET /v1/skills/:id` payload as the admin detail drawer consumes it (#83).
+ * Deliberately loose — the drawer renders whatever the API returns, grouped by
+ * section, so a new manifest field shows up without a UI change. Only the
+ * fields the drawer references by name are typed.
+ */
+export interface SkillDetailPayload {
+  id: string;
+  slug: string;
+  name: string;
+  version: string;
+  status?: string | null;
+  [key: string]: unknown;
+}
+
+/** Statuses an operator may set from the UI — mirrors AdminSkillStatusSchema. */
+export const EDITABLE_STATUSES = ['draft', 'published', 'deprecated', 'archived'] as const;
+
 export type PublishStatus = 'unpublished' | 'pending' | 'published' | 'failed' | 'unknown';
 
 /**
