@@ -16,8 +16,9 @@
 #   - Non-root: runtime process runs as `app:app` (uid 100+).
 #   - Signal handling: Node is PID 1 (via `exec` in entrypoint.sh); SIGINT +
 #     SIGTERM handled by src/index.ts shutdown hook (drains services + pool).
-#   - Health check: `wget -q --spider http://localhost:3000/v1/health`; the
-#     handler reports `degraded` (503) on Postgres unreachability.
+#   - Health check: `wget -q --spider http://127.0.0.1:${PORT}/v1/health`; the
+#     handler reports `degraded` (503) on Postgres unreachability. The probe is
+#     pinned to the IPv4 loopback on purpose — see the HEALTHCHECK note below.
 #   - Source maps: `--enable-source-maps` in entrypoint.sh keeps prod stack
 #     traces pointing at .ts line numbers.
 #
@@ -76,7 +77,13 @@ ENV HOST=0.0.0.0
 
 EXPOSE 3000
 
+# The probe must use the IPv4 loopback literal, not `localhost` (#103).
+# Alpine's /etc/hosts maps `localhost` to BOTH 127.0.0.1 and ::1, BusyBox wget
+# tries the IPv6 record first, and the app binds IPv4 only (HOST=0.0.0.0) — so
+# `localhost` yields "can't connect to remote host: Connection refused" and the
+# container is reported unhealthy while it is serving fine. `$PORT` is expanded
+# by the shell form so a PORT override (docker-compose.yml, .env) stays probed.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD wget --quiet --tries=1 --spider http://localhost:3000/v1/health || exit 1
+  CMD wget --quiet --tries=1 --spider "http://127.0.0.1:${PORT:-3000}/v1/health" || exit 1
 
 ENTRYPOINT ["/app/entrypoint.sh"]
