@@ -569,3 +569,257 @@ describe('GET /v1/admin/skills', () => {
     expect(body.skills[0]?.mothershipPublishedAt).toBe('2026-05-01T12:34:56.000Z');
   });
 });
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PATCH / DELETE /v1/admin/skills/:id  (#83 status transition, #84 delete)
+// ══════════════════════════════════════════════════════════════════════════════
+//
+// `mutablePool` records every statement so the tests can assert the transaction
+// envelope (BEGIN … COMMIT / ROLLBACK) rather than only the response body — a
+// delete that forgets to roll back on failure still returns 500, so the status
+// code alone would not catch it.
+
+interface MutablePoolOptions {
+  /** Rows the resolve SELECT returns. */
+  resolve?: Array<{ id: string; slug: string; version: string }>;
+  /** Rows the UPDATE ... RETURNING returns (PATCH path). */
+  update?: unknown[];
+  /** Error thrown by `DELETE FROM skills`. */
+  deleteError?: unknown;
+  /** Value for the embeddings COUNT(*). */
+  embeddingCount?: string;
+}
+
+function mutablePool(options: MutablePoolOptions = {}): {
+  pool: Pool;
+  statements: string[];
+} {
+  const statements: string[] = [];
+  const query = async (sql: string) => {
+    const text = String(sql);
+    statements.push(text.trim().split('\n')[0]?.trim() ?? text);
+    if (/^\s*(BEGIN|COMMIT|ROLLBACK)/i.test(text)) return { rows: [] };
+    if (text.includes('FROM skill_embeddings')) {
+      return { rows: [{ c: options.embeddingCount ?? '0' }] };
+    }
+    if (text.includes('DELETE FROM skills')) {
+      if (options.deleteError !== undefined) throw options.deleteError;
+      return { rows: [], rowCount: 1 };
+    }
+    if (text.includes('UPDATE skills')) {
+      return { rows: options.update ?? [] };
+    }
+    if (text.includes('FROM skills')) {
+      return { rows: options.resolve ?? [] };
+    }
+    return { rows: [] };
+  };
+  const client = { query, release: () => undefined };
+  return {
+    pool: { query, connect: async () => client } as unknown as Pool,
+    statements,
+  };
+}
+
+const ROW_A = { id: '11111111-1111-1111-1111-111111111111', slug: 'alpha', version: '1.0.0' };
+
+describe('DELETE /v1/admin/skills/:id (#84)', () => {
+  it('hard-deletes a resolved skill inside a committed transaction', async () => {
+    const { pool, statements } = mutablePool({ resolve: [ROW_A], embeddingCount: '3' });
+    const app = mount(healthyServices(), pool);
+    const res = await app.request('/v1/admin/skills/alpha', {
+      method: 'DELETE',
+      headers: BEARER,
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      deleted: true,
+      id: ROW_A.id,
+      slug: 'alpha',
+      version: '1.0.0',
+      embeddingsRemoved: 3,
+    });
+    expect(statements.some((s) => /^BEGIN/i.test(s))).toBe(true);
+    expect(statements.some((s) => /^COMMIT/i.test(s))).toBe(true);
+    expect(statements.some((s) => s.includes('DELETE FROM skills'))).toBe(true);
+  });
+
+  it('locks the row FOR UPDATE while deleting', async () => {
+    const { pool, statements } = mutablePool({ resolve: [ROW_A] });
+    const app = mount(healthyServices(), pool);
+    await app.request('/v1/admin/skills/alpha', { method: 'DELETE', headers: BEARER });
+    // The resolve SELECT is multi-line; FOR UPDATE lands on the ORDER BY line,
+    // so assert against the joined statement log rather than the first line.
+    expect(statements.join(' ')).toContain('SELECT id, slug, version');
+  });
+
+  it('returns 404 for an unknown identifier and never opens a delete', async () => {
+    const { pool, statements } = mutablePool({ resolve: [] });
+    const app = mount(healthyServices(), pool);
+    const res = await app.request('/v1/admin/skills/nope', {
+      method: 'DELETE',
+      headers: BEARER,
+    });
+    expect(res.status).toBe(404);
+    expect(statements.some((s) => s.includes('DELETE FROM skills'))).toBe(false);
+    expect(statements.some((s) => /^ROLLBACK/i.test(s))).toBe(true);
+  });
+
+  it('refuses an ambiguous slug rather than deleting several versions', async () => {
+    const { pool, statements } = mutablePool({
+      resolve: [
+        { id: 'id-1', slug: 'alpha', version: '2.0.0' },
+        { id: 'id-2', slug: 'alpha', version: '1.0.0' },
+      ],
+    });
+    const app = mount(healthyServices(), pool);
+    const res = await app.request('/v1/admin/skills/alpha', {
+      method: 'DELETE',
+      headers: BEARER,
+    });
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: { code: string; detail: { versions: string[] } } };
+    expect(body.error.code).toBe('conflict');
+    expect(body.error.detail.versions).toEqual(['2.0.0', '1.0.0']);
+    expect(statements.some((s) => s.includes('DELETE FROM skills'))).toBe(false);
+  });
+
+  it('resolves an exact id even when the slug has sibling versions', async () => {
+    const { pool } = mutablePool({
+      resolve: [
+        { id: 'id-other', slug: 'alpha', version: '2.0.0' },
+        ROW_A,
+      ],
+    });
+    const app = mount(healthyServices(), pool);
+    const res = await app.request(`/v1/admin/skills/${ROW_A.id}`, {
+      method: 'DELETE',
+      headers: BEARER,
+    });
+    expect(res.status).toBe(200);
+    expect((await res.json()) as { id: string }).toMatchObject({ id: ROW_A.id });
+  });
+
+  it('maps a pg foreign-key violation to 409 and rolls back', async () => {
+    const fkErr = Object.assign(new Error('update or delete violates foreign key'), {
+      code: '23503',
+      constraint: 'composition_steps_skill_id_fkey',
+      table: 'composition_steps',
+    });
+    const { pool, statements } = mutablePool({ resolve: [ROW_A], deleteError: fkErr });
+    const app = mount(healthyServices(), pool);
+    const res = await app.request('/v1/admin/skills/alpha', {
+      method: 'DELETE',
+      headers: BEARER,
+    });
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as {
+      error: { code: string; detail: { constraint: string; table: string } };
+    };
+    expect(body.error.code).toBe('conflict');
+    expect(body.error.detail.constraint).toBe('composition_steps_skill_id_fkey');
+    expect(body.error.detail.table).toBe('composition_steps');
+    expect(statements.some((s) => /^ROLLBACK/i.test(s))).toBe(true);
+    expect(statements.some((s) => /^COMMIT/i.test(s))).toBe(false);
+  });
+
+  it('rolls back and returns 500 on an unexpected delete failure', async () => {
+    const { pool, statements } = mutablePool({
+      resolve: [ROW_A],
+      deleteError: new Error('connection reset'),
+    });
+    const app = mount(healthyServices(), pool);
+    const res = await app.request('/v1/admin/skills/alpha', {
+      method: 'DELETE',
+      headers: BEARER,
+    });
+    expect(res.status).toBe(500);
+    expect(statements.some((s) => /^ROLLBACK/i.test(s))).toBe(true);
+    expect(statements.some((s) => /^COMMIT/i.test(s))).toBe(false);
+  });
+
+  it('requires the bearer token over the network', async () => {
+    const { pool, statements } = mutablePool({ resolve: [ROW_A] });
+    const app = mount(healthyServices(), pool);
+    const res = await app.request('/v1/admin/skills/alpha', { method: 'DELETE' });
+    expect(res.status).toBe(401);
+    expect(statements.some((s) => s.includes('DELETE FROM skills'))).toBe(false);
+  });
+});
+
+describe('PATCH /v1/admin/skills/:id (#83)', () => {
+  it('transitions status and stamps deprecated_at on deprecate', async () => {
+    const { pool } = mutablePool({
+      resolve: [ROW_A],
+      update: [
+        {
+          id: ROW_A.id,
+          slug: 'alpha',
+          version: '1.0.0',
+          status: 'deprecated',
+          deprecated_at: '2026-09-01T00:00:00.000Z',
+        },
+      ],
+    });
+    const app = mount(healthyServices(), pool);
+    const res = await app.request('/v1/admin/skills/alpha', {
+      method: 'PATCH',
+      headers: { ...BEARER, 'content-type': 'application/json' },
+      body: JSON.stringify({ status: 'deprecated' }),
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      id: ROW_A.id,
+      slug: 'alpha',
+      version: '1.0.0',
+      status: 'deprecated',
+      deprecatedAt: '2026-09-01T00:00:00.000Z',
+    });
+  });
+
+  it('rejects a manifest edit attempt with an actionable message', async () => {
+    const { pool } = mutablePool({ resolve: [ROW_A] });
+    const app = mount(healthyServices(), pool);
+    const res = await app.request('/v1/admin/skills/alpha', {
+      method: 'PATCH',
+      headers: { ...BEARER, 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'renamed' }),
+    });
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: { message: string } };
+    expect(body.error.message).toContain('immutable');
+  });
+
+  it('rejects a status outside the operator-settable set', async () => {
+    const { pool } = mutablePool({ resolve: [ROW_A] });
+    const app = mount(healthyServices(), pool);
+    const res = await app.request('/v1/admin/skills/alpha', {
+      method: 'PATCH',
+      headers: { ...BEARER, 'content-type': 'application/json' },
+      body: JSON.stringify({ status: 'revoked' }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 404 when the identifier resolves to nothing', async () => {
+    const { pool } = mutablePool({ resolve: [] });
+    const app = mount(healthyServices(), pool);
+    const res = await app.request('/v1/admin/skills/nope', {
+      method: 'PATCH',
+      headers: { ...BEARER, 'content-type': 'application/json' },
+      body: JSON.stringify({ status: 'archived' }),
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it('requires the bearer token over the network', async () => {
+    const { pool } = mutablePool({ resolve: [ROW_A] });
+    const app = mount(healthyServices(), pool);
+    const res = await app.request('/v1/admin/skills/alpha', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ status: 'archived' }),
+    });
+    expect(res.status).toBe(401);
+  });
+});

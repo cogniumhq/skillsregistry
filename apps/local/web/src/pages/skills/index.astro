@@ -25,17 +25,287 @@ import SkillsTable from '~/components/SkillsTable.astro';
   <DataCard title="Indexed skills" hint="page: 100">
     <SkillsTable mode="list" tableId="skills-table" />
   </DataCard>
+
+  <!-- Detail drawer (#83) — hidden until a row's Details action is used. -->
+  <div id="detail-panel" class="hidden mt-6">
+    <DataCard title="Skill detail" id="detail-card">
+      <div class="flex items-start justify-between gap-4 flex-wrap mb-4">
+        <div>
+          <h3 id="detail-name" class="text-lg font-semibold" style="color: var(--color-text-primary);">—</h3>
+          <p id="detail-sub" class="text-xs font-mono mt-0.5" style="color: var(--color-text-muted);">—</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button
+            id="detail-raw-btn"
+            type="button"
+            class="text-xs px-2.5 py-1.5 rounded-md border"
+            style="border-color: var(--color-border-subtle); color: var(--color-text-secondary);"
+          >Raw JSON</button>
+          <button
+            id="detail-close-btn"
+            type="button"
+            class="text-xs px-2.5 py-1.5 rounded-md border"
+            style="border-color: var(--color-border-subtle); color: var(--color-text-secondary);"
+          >Close</button>
+        </div>
+      </div>
+
+      <!-- Lifecycle: the only mutable field. Manifest content is immutable —
+           a corrected manifest is a new version, not an edit of history. -->
+      <div
+        class="rounded-md border p-3 mb-4 flex items-end gap-3 flex-wrap"
+        style="border-color: var(--color-border-subtle); background-color: var(--color-bg-elevated);"
+      >
+        <label class="text-xs" style="color: var(--color-text-muted);">
+          Lifecycle status
+          <select
+            id="detail-status"
+            class="mt-1 block text-sm rounded-md border px-2 py-1.5 font-mono"
+            style="background-color: var(--color-bg-card); border-color: var(--color-border-subtle); color: var(--color-text-primary);"
+          ></select>
+        </label>
+        <button
+          id="detail-save-btn"
+          type="button"
+          class="text-sm px-3 py-1.5 rounded-md border transition-colors disabled:opacity-50"
+          style="background-color: var(--color-accent-glow); border-color: var(--color-accent-dim); color: var(--color-accent);"
+        >Save status</button>
+        <button
+          id="detail-delete-btn"
+          type="button"
+          class="text-sm px-3 py-1.5 rounded-md border transition-colors disabled:opacity-50 ml-auto"
+          style="border-color: #ef4444; color: #f87171;"
+        >Delete skill</button>
+        <p class="text-xs w-full mt-1" style="color: var(--color-text-muted);">
+          Manifest fields are immutable — publish a new version to change them.
+          <code class="font-mono">archived</code> keeps the row but hides it from the default view.
+        </p>
+      </div>
+
+      <p id="detail-msg" class="hidden text-xs font-mono mb-3 px-3 py-2 rounded-md"></p>
+
+      <div id="detail-sections"></div>
+      <pre
+        id="detail-raw"
+        class="hidden text-xs font-mono overflow-x-auto rounded-md border p-3 mt-3"
+        style="border-color: var(--color-border-subtle); background-color: var(--color-bg-elevated); color: var(--color-text-secondary);"
+      ></pre>
+    </DataCard>
+  </div>
 </Base>
 
 <script>
   import {
+    EDITABLE_STATUSES,
     escapeHtml,
     fetchJson,
     formatDate,
     type AdminSkillsListPayload,
+    type SkillDetailPayload,
   } from '~/scripts/dashboard-client';
 
   const btn = document.getElementById('reload-btn') as HTMLButtonElement | null;
+  const panel = document.getElementById('detail-panel');
+  const sectionsEl = document.getElementById('detail-sections');
+  const rawEl = document.getElementById('detail-raw');
+  const msgEl = document.getElementById('detail-msg');
+  const statusSel = document.getElementById('detail-status') as HTMLSelectElement | null;
+  const saveBtn = document.getElementById('detail-save-btn') as HTMLButtonElement | null;
+  const deleteBtn = document.getElementById('detail-delete-btn') as HTMLButtonElement | null;
+
+  /** Identifier of the skill currently open in the drawer. Always the UUID —
+   *  a slug can carry several versions and the mutation routes reject that. */
+  let currentId: string | null = null;
+
+  // ── Detail rendering ──────────────────────────────────────────────────────
+  //
+  // Grouped rather than a raw dump (#83 asks for the full record readably).
+  // Anything the API returns that is not claimed by a named group falls into
+  // "Other", so a new manifest field appears without touching this file.
+
+  const GROUPS: Array<{ title: string; keys: string[] }> = [
+    { title: 'Identity', keys: ['id', 'slug', 'name', 'version', 'status', 'description', 'agentSummary'] },
+    { title: 'Runtime', keys: ['executionLayer', 'runtimeEnv', 'skillType', 'installMethod', 'mcpUrl', 'sandbox', 'environmentVariables', 'capabilitiesRequired', 'authRequirements'] },
+    { title: 'Taxonomy', keys: ['category', 'categories', 'tags', 'ecosystem', 'language', 'license'] },
+    { title: 'Provenance', keys: ['source', 'sourceUrl', 'repositoryUrl', 'r2BundleKey', 'authorId', 'authorType', 'tenantId', 'visibility', 'forkedFrom'] },
+    { title: 'Trust & scanning', keys: ['trustScore', 'trustScoreV2', 'trustTier', 'trustBadge', 'verificationTier', 'qualityScore', 'qualityTier', 'scanCoverage', 'cogniumScanned', 'cogniumScannedAt', 'contentSafetyPassed', 'publisherKeyId', 'signatureVerifiedAt', 'signatureFailureReason', 'revokedReason'] },
+    { title: 'Usage', keys: ['runCount', 'lastRunAt', 'humanStarCount', 'humanForkCount', 'agentInvocationCount', 'avgExecutionTimeMs', 'errorRate'] },
+    { title: 'Timestamps', keys: ['createdAt', 'updatedAt', 'publishedAt'] },
+    { title: 'Content', keys: ['skillMd', 'readme', 'schemaJson'] },
+  ];
+
+  const DATE_KEYS = new Set([
+    'createdAt', 'updatedAt', 'publishedAt', 'lastRunAt',
+    'cogniumScannedAt', 'signatureVerifiedAt',
+  ]);
+
+  function renderValue(key: string, v: unknown): string {
+    if (v === null || v === undefined || v === '') {
+      return `<span style="color: var(--color-text-muted);">—</span>`;
+    }
+    if (typeof v === 'boolean') return `<span class="font-mono">${v ? 'true' : 'false'}</span>`;
+    if (Array.isArray(v)) {
+      if (v.length === 0) return `<span style="color: var(--color-text-muted);">—</span>`;
+      return v
+        .map(
+          (x) =>
+            `<span class="inline-block font-mono text-xs px-1.5 py-0.5 mr-1 mb-1 rounded border" style="border-color: var(--color-border-subtle);">${escapeHtml(String(x))}</span>`,
+        )
+        .join('');
+    }
+    if (typeof v === 'object') {
+      return `<pre class="text-xs font-mono overflow-x-auto m-0">${escapeHtml(JSON.stringify(v, null, 2))}</pre>`;
+    }
+    const s = String(v);
+    if (DATE_KEYS.has(key)) return `<span class="font-mono text-xs">${escapeHtml(formatDate(s))}</span>`;
+    if (/^https?:\/\//.test(s)) {
+      return `<a href="${escapeHtml(s)}" target="_blank" rel="noopener" class="font-mono text-xs underline" style="color: var(--color-accent);">${escapeHtml(s)}</a>`;
+    }
+    // Long-form content (skillMd, readme) keeps its whitespace.
+    if (s.length > 200) {
+      return `<pre class="text-xs font-mono whitespace-pre-wrap m-0">${escapeHtml(s)}</pre>`;
+    }
+    return `<span class="font-mono text-xs">${escapeHtml(s)}</span>`;
+  }
+
+  function renderDetail(skill: SkillDetailPayload): void {
+    if (!sectionsEl) return;
+    const claimed = new Set(GROUPS.flatMap((g) => g.keys));
+    const others = Object.keys(skill).filter((k) => !claimed.has(k)).sort();
+    const groups = others.length > 0 ? [...GROUPS, { title: 'Other', keys: others }] : GROUPS;
+
+    sectionsEl.innerHTML = groups
+      .map((g) => {
+        const rows = g.keys
+          .filter((k) => k in skill)
+          .map(
+            (k) =>
+              `<div class="grid grid-cols-[minmax(9rem,14rem)_1fr] gap-3 py-1.5 border-t" style="border-color: var(--color-border-subtle);">` +
+              `<dt class="text-xs font-mono" style="color: var(--color-text-muted);">${escapeHtml(k)}</dt>` +
+              `<dd class="text-sm break-words" style="color: var(--color-text-secondary);">${renderValue(k, skill[k])}</dd>` +
+              `</div>`,
+          )
+          .join('');
+        if (rows === '') return '';
+        return (
+          `<section class="mb-4">` +
+          `<h4 class="text-xs font-mono uppercase tracking-wider mb-1" style="color: var(--color-text-muted);">${escapeHtml(g.title)}</h4>` +
+          `<dl class="m-0">${rows}</dl>` +
+          `</section>`
+        );
+      })
+      .join('');
+
+    if (rawEl) rawEl.textContent = JSON.stringify(skill, null, 2);
+  }
+
+  function showMessage(text: string, kind: 'ok' | 'error'): void {
+    if (!msgEl) return;
+    msgEl.textContent = text;
+    msgEl.style.color = kind === 'ok' ? '#6ee7b7' : '#f87171';
+    msgEl.style.backgroundColor =
+      kind === 'ok' ? 'rgba(110, 231, 183, 0.12)' : 'rgba(248, 113, 113, 0.12)';
+    msgEl.classList.remove('hidden');
+  }
+
+  function clearMessage(): void {
+    msgEl?.classList.add('hidden');
+  }
+
+  async function openDetail(id: string): Promise<void> {
+    clearMessage();
+    currentId = id;
+    panel?.classList.remove('hidden');
+    if (sectionsEl) sectionsEl.innerHTML = `<p class="text-xs" style="color: var(--color-text-muted);">Loading…</p>`;
+
+    const res = await fetchJson<SkillDetailPayload>(`/v1/skills/${encodeURIComponent(id)}`);
+    if (!res.ok) {
+      if (sectionsEl) sectionsEl.innerHTML = '';
+      showMessage(`Failed to load skill (HTTP ${res.status}).`, 'error');
+      return;
+    }
+    const skill = res.body;
+    const nameEl = document.getElementById('detail-name');
+    const subEl = document.getElementById('detail-sub');
+    if (nameEl) nameEl.textContent = skill.name ?? skill.slug;
+    if (subEl) subEl.textContent = `${skill.slug} · v${skill.version} · ${skill.id}`;
+
+    if (statusSel) {
+      const current = typeof skill.status === 'string' ? skill.status : '';
+      // A status outside the operator-settable set (revoked, vulnerable, …) is
+      // shown but disabled — the UI must not offer a transition the API rejects.
+      const settable = (EDITABLE_STATUSES as readonly string[]).includes(current);
+      statusSel.innerHTML = (settable ? EDITABLE_STATUSES : [current, ...EDITABLE_STATUSES])
+        .map(
+          (s) =>
+            `<option value="${escapeHtml(s)}"${s === current ? ' selected' : ''}>${escapeHtml(s || '—')}</option>`,
+        )
+        .join('');
+      statusSel.disabled = !settable;
+      if (saveBtn) saveBtn.disabled = !settable;
+      if (!settable) {
+        showMessage(
+          `Status "${current}" is set by the platform and cannot be changed from here.`,
+          'error',
+        );
+      }
+    }
+
+    renderDetail(skill);
+    panel?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  async function saveStatus(): Promise<void> {
+    if (currentId === null || !statusSel) return;
+    clearMessage();
+    if (saveBtn) saveBtn.disabled = true;
+    try {
+      const res = await fetchJson<{ status?: string; error?: { message?: string } }>(
+        `/v1/admin/skills/${encodeURIComponent(currentId)}`,
+        {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ status: statusSel.value }),
+        },
+      );
+      if (res.ok) {
+        showMessage(`Status set to ${res.body.status ?? statusSel.value}.`, 'ok');
+        await load();
+      } else {
+        showMessage(res.body.error?.message ?? `Update failed (HTTP ${res.status}).`, 'error');
+      }
+    } finally {
+      if (saveBtn) saveBtn.disabled = false;
+    }
+  }
+
+  async function deleteSkill(): Promise<void> {
+    if (currentId === null) return;
+    const label = document.getElementById('detail-sub')?.textContent ?? currentId;
+    // Explicit confirmation — the delete is permanent (see the #84 handler).
+    if (!window.confirm(`Permanently delete this skill?\n\n${label}\n\nThis cannot be undone.`)) {
+      return;
+    }
+    clearMessage();
+    if (deleteBtn) deleteBtn.disabled = true;
+    try {
+      const res = await fetchJson<{ error?: { message?: string } }>(
+        `/v1/admin/skills/${encodeURIComponent(currentId)}`,
+        { method: 'DELETE' },
+      );
+      if (res.ok) {
+        panel?.classList.add('hidden');
+        currentId = null;
+        await load();
+      } else {
+        showMessage(res.body.error?.message ?? `Delete failed (HTTP ${res.status}).`, 'error');
+      }
+    } finally {
+      if (deleteBtn) deleteBtn.disabled = false;
+    }
+  }
+
+  // ── List ──────────────────────────────────────────────────────────────────
 
   function renderRows(payload: AdminSkillsListPayload | undefined, httpStatus: number): void {
     const tbody = document.getElementById('skills-table-tbody');
@@ -44,14 +314,14 @@ import SkillsTable from '~/components/SkillsTable.astro';
 
     if (!payload || !Array.isArray(payload.skills)) {
       tbody.innerHTML =
-        `<tr><td class="px-3 py-4 text-xs font-mono" colspan="5" style="color: #f87171;">Failed to load skills (HTTP ${httpStatus}).</td></tr>`;
+        `<tr><td class="px-3 py-4 text-xs font-mono" colspan="6" style="color: #f87171;">Failed to load skills (HTTP ${httpStatus}).</td></tr>`;
       caption.textContent = '—';
       return;
     }
 
     if (payload.skills.length === 0) {
       tbody.innerHTML =
-        `<tr><td class="px-3 py-4 text-xs" colspan="5" style="color: var(--color-text-muted);">No skills indexed yet. Publish one via POST /v1/skills or run an ingestion.</td></tr>`;
+        `<tr><td class="px-3 py-4 text-xs" colspan="6" style="color: var(--color-text-muted);">No skills indexed yet. Publish one via POST /v1/skills or run an ingestion.</td></tr>`;
       caption.textContent = '0 of 0';
       return;
     }
@@ -66,6 +336,9 @@ import SkillsTable from '~/components/SkillsTable.astro';
           `<td class="px-3 py-2 font-mono text-xs" style="color: var(--color-text-muted);">${escapeHtml(s.source)}</td>` +
           `<td class="px-3 py-2 font-mono text-xs">${escapeHtml(s.version)}</td>` +
           `<td class="px-3 py-2 font-mono text-xs" style="color: var(--color-text-muted);">${escapeHtml(created)}</td>` +
+          `<td class="px-3 py-2">` +
+          `<button type="button" data-detail-id="${escapeHtml(s.id)}" class="text-xs px-2 py-1 rounded-md border" style="border-color: var(--color-border-subtle); color: var(--color-accent);">Details</button>` +
+          `</td>` +
           `</tr>`
         );
       })
@@ -88,5 +361,22 @@ import SkillsTable from '~/components/SkillsTable.astro';
   document.addEventListener('DOMContentLoaded', () => {
     void load();
     btn?.addEventListener('click', () => void load());
+
+    // Delegated — rows are re-rendered on every load.
+    document.getElementById('skills-table')?.addEventListener('click', (ev) => {
+      const target = (ev.target as HTMLElement | null)?.closest('[data-detail-id]');
+      const id = target?.getAttribute('data-detail-id');
+      if (id) void openDetail(id);
+    });
+
+    document.getElementById('detail-close-btn')?.addEventListener('click', () => {
+      panel?.classList.add('hidden');
+      currentId = null;
+    });
+    document.getElementById('detail-raw-btn')?.addEventListener('click', () => {
+      rawEl?.classList.toggle('hidden');
+    });
+    saveBtn?.addEventListener('click', () => void saveStatus());
+    deleteBtn?.addEventListener('click', () => void deleteSkill());
   });
 </script>

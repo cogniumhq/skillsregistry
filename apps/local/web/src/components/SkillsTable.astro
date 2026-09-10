@@ -3,7 +3,7 @@
 // /admin/migration/. Client scripts fill `#skills-tbody` at load time from
 // `/v1/admin/skills`. The `mode` prop toggles the mothership-action column:
 //
-//   list    — read-only, links to skill detail (/v1/skills/:id)
+//   list    — per-row Details action, opening the detail drawer (#83)
 //   migrate — per-row "Publish to mothership" action + status pill
 //
 // Kept dependency-free — no reactive framework, no hydration, just a table
@@ -36,13 +36,16 @@ const { mode, tableId = 'skills-table' } = Astro.props;
           </>
         )}
         {mode === 'list' && (
-          <th class="px-3 py-2 font-mono text-xs uppercase tracking-wider">Created</th>
+          <>
+            <th class="px-3 py-2 font-mono text-xs uppercase tracking-wider">Created</th>
+            <th class="px-3 py-2 font-mono text-xs uppercase tracking-wider">Actions</th>
+          </>
         )}
       </tr>
     </thead>
     <tbody id={`${tableId}-tbody`} style="color: var(--color-text-secondary);">
       <tr>
-        <td class="px-3 py-3" colspan={mode === 'migrate' ? 6 : 5}>
+        <td class="px-3 py-3" colspan={mode === 'migrate' ? 6 : 6}>
           <Skeleton height="1.5rem" />
         </td>
       </tr>
