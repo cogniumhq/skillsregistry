@@ -2,7 +2,7 @@
 
 Self-hostable SkillsRegistry node — a private skill discovery + trust API
 you run inside your own network. Consumer of the six `@skillsregistry/*` SDK
-packages. Ships as a Docker image (`ghcr.io/cogniumhq/skillsregistry-local`)
+packages. Ships as a Docker image (`ghcr.io/cogniumhq/skillsregistry`)
 and buildable from source (Node 22 + Postgres 16 + Ollama).
 
 **What you get on `docker compose up`:**
@@ -27,8 +27,8 @@ Prerequisites: [Docker Desktop](https://docs.docker.com/get-docker/) (or
 Docker Engine + Docker Compose plugin), `curl`, `git`.
 
 ```bash
-git clone https://github.com/cogniumhq/skillsregistry-local.git
-cd skillsregistry-local/apps/local
+git clone https://github.com/cogniumhq/skillsregistry.git
+cd skillsregistry/apps/local
 
 # Copy env template and set a random ADMIN_TOKEN — this bearer token gates
 # the /v1/admin/* + /v1/migrate/* endpoints for over-network callers.

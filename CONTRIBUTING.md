@@ -43,8 +43,8 @@ CLA, we'll switch to one before merging further PRs and give notice.
 ## Development workflow
 
 ```bash
-git clone https://github.com/cogniumhq/skillsregistry-local
-cd skillsregistry-local
+git clone https://github.com/cogniumhq/skillsregistry
+cd skillsregistry
 pnpm install
 pnpm typecheck
 pnpm test
