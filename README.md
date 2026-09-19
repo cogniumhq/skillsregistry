@@ -16,13 +16,17 @@ Run a private SkillsRegistry instance in isolation. You get your own tenant subt
 ```
 ┌─ Your infra ───────────────────────────┐        ┌─ api.skillsregistry.net ─┐
 │  apps/local (this repo)                │        │  Mothership              │
-│  • Postgres + pgvector                 │        │  • 63K skill corpus      │
+│  • Postgres + pgvector                 │        │  • 125K skill corpus     │
 │  • Ollama embeddings (default)         │◄──────►│  • Trust scoring (paid)  │
-│  • Search + MCP + composition (local)  │  API   │  • Global leaderboards   │
+│  • Search + MCP + composition (local)  │  API   │  • Trust leaderboard     │
 │  • Local skill publishing              │        │  • Publisher PKI         │
 │  • Budget meter + migration door       │        │  • Sync workers          │
 └────────────────────────────────────────┘        └──────────────────────────┘
 ```
+
+Mothership corpus as of 2026-09-18: **125,244 skills** indexed from 8 sources,
+62,963 security-scanned, 11,596 verified. Those numbers move; the live figures
+are public at `https://api.skillsregistry.net/v1/analytics/heartbeat`.
 
 ## Status
 
