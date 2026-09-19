@@ -2,8 +2,14 @@
 
 Self-hostable SkillsRegistry node — a private skill discovery + trust API
 you run inside your own network. Consumer of the six `@skillsregistry/*` SDK
-packages. Ships as a Docker image (`ghcr.io/cogniumhq/skillsregistry`)
-and buildable from source (Node 22 + Postgres 16 + Ollama).
+packages. Builds from source (Node 22 + Postgres 16 + Ollama) — which is what
+`docker compose up` does, and the supported path today.
+
+> **On the prebuilt image.** CI publishes
+> `ghcr.io/cogniumhq/skillsregistry-local` (tags `1.0.0`, `1.1.0`, `latest`),
+> but that package is currently **private** — an anonymous `docker pull`
+> returns 403. Until it is made public, build from source as the Quickstart
+> below does; it needs no registry access.
 
 **What you get on `docker compose up`:**
 

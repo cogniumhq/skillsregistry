@@ -90,7 +90,7 @@ Summary per SDK package:
 - `@skillsregistry/mcp` — major on any MCP tool signature change
 - `@skillsregistry/eval` — major on scoring metric rename
 
-The local app (`@skillsregistry/local-app`) is versioned separately
+The local app (`@skillsregistry/local`) is versioned separately
 via Docker tags and does not use changesets.
 
 ## Code of conduct
