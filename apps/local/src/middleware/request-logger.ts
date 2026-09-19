@@ -22,7 +22,7 @@
 //
 // Pino writes are non-blocking (default backpressure = drop-and-buffer), so
 // this middleware does NOT need `AfterResponse.defer(...)`. Reserve that
-// wrapper for DB observability writes per `.specifica/principles.md`.
+// wrapper for DB observability writes per the logging invariant: writes are non-blocking.
 //
 // ══════════════════════════════════════════════════════════════════════════════
 

@@ -13,7 +13,7 @@
 -- discovery query would inflate the rankings.
 --
 -- Design constraints carried in:
---   - `Logging is non-blocking` (.specifica/principles.md): writes are
+--   - `Logging is non-blocking`: writes are
 --     waitUntil()-wrapped, never on the request path.
 --   - `No magic numbers`: error_code is the raw JSON-RPC code; success is a
 --     boolean derived from {response had `error` field, yes/no}.

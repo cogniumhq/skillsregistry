@@ -66,7 +66,7 @@
   - `AfterResponse` — deferred work (`waitUntil` / `setImmediate`)
 
   No domain logic yet. Sub-modules land per subtasks T-1.4b → T-1.4f
-  in the parent monorepo's `.specifica/mvp/tasks.md`; `1.0.0` publishes
+  on the internal roadmap; `1.0.0` publishes
   after all are complete so consumers see one stable surface.
 
 ### Minor Changes

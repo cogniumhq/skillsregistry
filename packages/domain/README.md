@@ -11,7 +11,7 @@ concrete adapters at boot.
 ## Status
 
 **`0.1.0` — adapter interfaces only.** The domain-logic modules land
-incrementally per the parent monorepo's `.specifica/mvp/tasks.md`
+incrementally per the internal roadmap
 subtasks T-1.4a → T-1.4f. `1.0.0` gates on completing all six
 sub-tasks so consumers see one coherent surface, not a moving target.
 

@@ -213,7 +213,7 @@ Post-deploy smoke against `api.skillsregistry.net` should show:
 
 ## Step 7 — post-merge audit
 
-The T-4.4 audit criterion in `.specifica/6.2/tasks.md`:
+The T-4.4 audit criterion in the mothership's own tracker:
 "mothership has zero inlined copies of extracted modules." Verify:
 
 ```bash

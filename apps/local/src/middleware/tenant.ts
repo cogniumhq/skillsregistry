@@ -2,7 +2,7 @@
 // tenantContext — X-Tenant-Id extraction for public + MCP routes.
 // ══════════════════════════════════════════════════════════════════════════════
 //
-// Per the MCP v1 spec + `.specifica/mvp` design notes, `X-Tenant-Id` is an
+// Per the MCP v1 spec and the local node's design, `X-Tenant-Id` is an
 // *advisory* scope hint on read-only surfaces — it is NOT a security boundary
 // in this release. Missing / spoofed tenant IDs default to public visibility
 // inside downstream services.

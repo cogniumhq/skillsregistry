@@ -15,7 +15,7 @@
 //
 // Real LLM wiring for local deployments is deferred pending the mothership
 // LiteLLM proxy contract (see T-1.7 coordination note in
-// `.specifica/mvp/tasks.md`). When it lands, this file gets replaced by
+// the internal roadmap). When it lands, this file gets replaced by
 // a `LiteLLMLlmAdapter` in the same directory.
 //
 // ══════════════════════════════════════════════════════════════════════════════
