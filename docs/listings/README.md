@@ -136,7 +136,7 @@ the next one.
 
 - [ ] `pnpm validate:listings` passes against production.
 - [ ] The endpoint initializes without authentication and returns seven tools.
-- [ ] The repository default branch contains all four plugin files and the logo.
+- [ ] The repository default branch contains `.cursor-plugin/plugin.json`, `.claude-plugin/plugin.json`, `mcp.json`, `.mcp.json`, `server.json`, and `assets/logo.svg`.
 - [ ] The destination's current terms and review requirements have been read.
 - [ ] The submitted description contains no freshness or universal-scan claim.
 - [ ] The submission date, destination, and review URL/status are recorded here.

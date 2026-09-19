@@ -22,7 +22,7 @@ Run a private SkillsRegistry instance in isolation. You get your own tenant subt
 ```
 ┌─ Your infra ───────────────────────────┐        ┌─ api.skillsregistry.net ─┐
 │  apps/local (this repo)                │        │  Mothership              │
-│  • Postgres + pgvector                 │        │  • 125K skill corpus     │
+│  • Postgres + pgvector                 │        │  • live catalog totals   │
 │  • Ollama embeddings (default)         │◄──────►│  • Trust scoring (paid)  │
 │  • Search + MCP + composition (local)  │  API   │  • Trust leaderboard     │
 │  • Local skill publishing              │        │  • Publisher PKI         │
