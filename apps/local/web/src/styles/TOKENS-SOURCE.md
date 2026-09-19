@@ -20,7 +20,7 @@ Re-sync only when the mothership tokens actually change. Verify with:
 
 ```sh
 diff \
-  ~/work/cogniumhq/skillsregistry/web/src/styles/global.css \
+  <mothership-checkout>/web/src/styles/global.css \
   apps/local/web/src/styles/global.css
 ```
 

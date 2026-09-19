@@ -1,9 +1,9 @@
 # Mothership migration: consume `@skillsregistry/*` from npm
 
-> **Audience:** a Claude session (or engineer) working in
-> `~/work/cogniumhq/skillsregistry/` — the proprietary mothership repo.
+> **Audience:** an engineer (or agent session) working in the private
+> mothership repo.
 >
-> **This file lives in `skillsregistry-local`** (open-source repo) and
+> **This file lives in this open-source repo** and
 > is **read-only reference** from the mothership side. Do not copy it
 > in; open it, execute against the mothership, delete when done.
 >
@@ -31,7 +31,7 @@ The mothership currently either inlines these modules or consumes
 them via `file:../skillsregistry-local/packages/*` links. This note
 is the recipe for swapping to the published npm versions.
 
-**Task tracker line:** T-1.7 in `~/work/cogniumhq/skillsregistry/.specifica/6.2/tasks.md`.
+**Task tracker line:** T-1.7 in the mothership's own Specifica tracker.
 
 ---
 
@@ -213,7 +213,7 @@ Post-deploy smoke against `api.skillsregistry.net` should show:
 
 ## Step 7 — post-merge audit
 
-The T-4.4 audit criterion in `.specifica/6.2/tasks.md`:
+The T-4.4 audit criterion in the mothership's own tracker:
 "mothership has zero inlined copies of extracted modules." Verify:
 
 ```bash

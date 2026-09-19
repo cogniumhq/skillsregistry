@@ -900,7 +900,7 @@ describe('PublishRequestSchema', () => {
           memory_mb: 4096,
           cpu: 4,
           timeout_seconds: 7200,
-          egress: ['llmproxy.xus.one', 'api.cognium.net'],
+          egress: ['llmproxy.example.com', 'api.example.com'],
           profile: 'agent' as const,
           budget_caps: {
             max_tokens_usd: 5,

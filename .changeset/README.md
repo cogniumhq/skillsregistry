@@ -34,5 +34,5 @@ No manual `npm publish` — CI has the credentials, humans don't.
 
 ## References
 
-- Semver rules per package: `.specifica/principles.md` §Release discipline
+- Semver rules per package: see CONTRIBUTING.md §Semver and releases
 - Consumer pinning discipline (exact versions in mothership): same section

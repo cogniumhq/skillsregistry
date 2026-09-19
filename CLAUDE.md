@@ -1,10 +1,13 @@
 # SkillsRegistry (local node) — apps/local + @skillsregistry/*
 
-Open-source runtime + SDK for the SkillsRegistry ecosystem. The proprietary mothership at `api.skillsregistry.net` lives in a **separate** repo (working tree: `~/work/cogniumhq/sr/`); this repo is what operators self-host.
+Open-source runtime + SDK for the SkillsRegistry ecosystem. The proprietary mothership at `api.skillsregistry.net` lives in a **separate, private** repo; this repo is what operators self-host.
 
-> *This project follows the Specifica protocol. Read `specifica-skill.md` in project knowledge before responding. Treat `.specifica/principles.md` as authoritative for cross-cutting rules.*
-
-Current Specifica version: **mvp** at `.specifica/mvp/{spec,design,tasks}.md`.
+> *This project follows the Specifica protocol, but its tracker is **not in
+> this repo** — it lives in the private mothership repo under
+> `.specifica/skillsregistry/` (moved 2026-09-19 because cross-repo entries
+> named private repos and paths from a public artifact). A session working
+> here without access to that tracker should say so rather than guess at
+> intent, and should not recreate a `.specifica/` directory here.*
 
 ## What this repo owns
 
@@ -17,13 +20,15 @@ This monorepo produces two deliverables under **one Apache-2.0 license**:
 
 ## Source of truth
 
-- **`.specifica/principles.md`** — cross-cutting rules for this repo
-- **`.specifica/mvp/{spec,design,tasks}.md`** — current version's intent + design + open work
-- **`~/work/cogniumhq/techspec/`** — platform-level specs (skillsregistry.md, skill-convention.md, etc.). Read when the local node's behavior must match the platform contract.
+- **Specifica tracker** — in the private mothership repo at
+  `.specifica/skillsregistry/` (principles + mvp spec/design/tasks)
+- **Package READMEs** — `packages/*/README.md`, `apps/local/README.md`; the
+  adapter interfaces and invariants a change must hold are documented there
+- **Platform specs** (private repo) — `skillsregistry.md`, `skill-convention.md`, etc. Read when the local node's behavior must match the platform contract.
 
 ## Sacred boundaries
 
-- **Work stays inside `~/work/cogniumhq/skillsregistry/`.** No edits, writes, or file creation in sibling repos (`sr/` mothership, `techspec/`, `cognium-ai/`, `cognium-skills/`, etc.) from this project's sessions. Cross-repo work (e.g., mothership consuming a new `@skillsregistry/schema` version) is a coordination ask, not a direct edit. Exception: explicit user override for a specific sibling — see the 2026-07-13 `cognium-skills` bundle fix.
+- **Work stays inside this repository.** No edits, writes, or file creation in sibling private repos (the mothership, the platform specs, and the other Cognium services) from this project's sessions. Cross-repo work (e.g., mothership consuming a new `@skillsregistry/schema` version) is a coordination ask, not a direct edit. Exception: explicit user override for a specific sibling — see the 2026-07-13 `cognium-skills` bundle fix.
 - **The mothership is proprietary.** This repo never publishes anything that assumes access to mothership internals. All mothership interaction is via the public HTTP API defined in `@skillsregistry/contracts`.
 - **One upstream module.** `apps/local/src/upstream-client.ts` is the **only** place code here talks to `api.skillsregistry.net`. Every other module goes through it.
 
@@ -51,10 +56,10 @@ docker compose up            # local run (apps/local)
 
 | Repo | Role |
 |---|---|
-| `cogniumhq/sr` (working tree; GitHub repo name TBD) | Mothership (proprietary). Imports `@skillsregistry/*` from npm. Referenced only via its public HTTP API. |
-| `cogniumhq/techspec` | Platform specs. Read-only reference. |
-| `cogniumhq/cognium-skills` | First-party skill packages published INTO the registry (unrelated concern — do not conflate). |
-| `cogniumhq/cognium-ai` | Circle-IR semantic engine (PolyForm-NC). Runs on mothership; local node delegates via metered API. |
+| Mothership (private) | Proprietary hosted service. Imports `@skillsregistry/*` from npm. Referenced here only via its public HTTP API. |
+| Platform specs (private) | Read-only reference. |
+| First-party skills (private) | Skill packages published INTO the registry (unrelated concern — do not conflate). |
+| Semantic engine (private) | Circle-IR scanning + trust analysis. Runs on the mothership; the local node delegates via a metered API. |
 
 ---
 

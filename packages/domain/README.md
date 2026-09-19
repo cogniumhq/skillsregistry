@@ -11,7 +11,7 @@ concrete adapters at boot.
 ## Status
 
 **`0.1.0` — adapter interfaces only.** The domain-logic modules land
-incrementally per the parent monorepo's `.specifica/mvp/tasks.md`
+incrementally per the internal roadmap
 subtasks T-1.4a → T-1.4f. `1.0.0` gates on completing all six
 sub-tasks so consumers see one coherent surface, not a moving target.
 
@@ -22,7 +22,7 @@ sub-tasks so consumers see one coherent surface, not a moving target.
 | `KvAdapter` | Key-value cache | Cloudflare KV | `kv_store` Postgres table |
 | `QueueAdapter<T>` | Background dispatch | Cloudflare Queues | In-memory (MVP) / Postgres LISTEN-NOTIFY (post-MVP) |
 | `ArtifactAdapter` | Blob storage | R2 | `./data/artifacts/` |
-| `EmbedderAdapter` | Text embeddings | `llm.c0g.io` (qwen3-embedding-0.6B, MRL-512) | Ollama (default) or budgeted upstream |
+| `EmbedderAdapter` | Text embeddings | hosted qwen3-embedding-0.6B (MRL-512) | Ollama (default) or budgeted upstream |
 | `AfterResponse` | Deferred work | `executionCtx.waitUntil()` | `setImmediate()` |
 
 ## Usage

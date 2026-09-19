@@ -24,7 +24,7 @@
 
   Candidate budget defaults to 200 (LIMIT on the CTE) — pgvector's `hnsw.ef_search` (default 40) is the real bound on how many rows the index returns; the LIMIT is a generous ceiling so that raising `ef_search` globally lets the extra candidates flow through automatically. A per-query `SET LOCAL hnsw.ef_search` was tried and dropped — the ~130ms of extra round-trips over Hyperdrive outweighed the recall gain.
 
-  Retires the `patchFastVectorSearch` runtime instance-override that lived in `cogniumhq/sr/src/providers/fast-vector-search.ts` since 2026-07-16 (prod deploy `82e87959`). The sr repo bumps this pin and deletes the override + its two call sites in the same close-out.
+  Retires the equivalent runtime instance-override the mothership had carried since 2026-07-16. The mothership bumps this pin and drops its override in the same close-out.
 
 ## 1.1.0
 
@@ -66,7 +66,7 @@
   - `AfterResponse` — deferred work (`waitUntil` / `setImmediate`)
 
   No domain logic yet. Sub-modules land per subtasks T-1.4b → T-1.4f
-  in the parent monorepo's `.specifica/mvp/tasks.md`; `1.0.0` publishes
+  on the internal roadmap; `1.0.0` publishes
   after all are complete so consumers see one stable surface.
 
 ### Minor Changes

@@ -47,7 +47,8 @@ publishing all work with no account and no network. Connected mode — trust
 scoring, global leaderboards and the migration door — needs a mothership API key,
 and self-serve signup does not exist yet, so treat that half as preview.
 
-Design lives under `.specifica/mvp/` (`spec.md`, `design.md`, `tasks.md`).
+Design and roadmap are tracked internally. For anything non-trivial, open an
+issue first — see [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Quickstart
 
@@ -74,7 +75,6 @@ skillsregistry/
 │   ├── mcp/                 # @skillsregistry/mcp         — MCP tool handlers (delegate to domain)
 │   ├── eval/                # @skillsregistry/eval        — Fixtures + runner + metrics
 │   └── dag/                 # @skillsregistry/dag         — Graph library (moved from mothership vendored copy)
-├── .specifica/              # spec/design/tasks (Specifica protocol)
 └── LICENSE                  # Apache-2.0
 ```
 
@@ -82,11 +82,11 @@ skillsregistry/
 
 Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
-The hosted service at `api.skillsregistry.net` runs a separate proprietary codebase (`cogniumhq/sr`) that consumes these SDK packages via npm. This repository — `cogniumhq/skillsregistry` — is the open-source half.
+The hosted service at `api.skillsregistry.net` runs a separate, private proprietary codebase that consumes these SDK packages via npm. This repository — `cogniumhq/skillsregistry` — is the open-source half.
 
 ## Contributing
 
-CLA-gated. See [`CONTRIBUTING.md`](CONTRIBUTING.md). Design decisions flow through `.specifica/mvp/`.
+CLA-gated. See [`CONTRIBUTING.md`](CONTRIBUTING.md). Open an issue before starting non-trivial work.
 
 ---
 

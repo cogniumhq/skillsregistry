@@ -3,7 +3,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 //
 // Search, ingestion, and index-time fan-out all pull embeddings from an
-// EmbedderAdapter. The mothership binds this to `llm.c0g.io` (qwen3-embedding-
+// EmbedderAdapter. The mothership binds this to its hosted (qwen3-embedding-
 // 0.6B at MRL-512 per skillsregistry §10). The local node binds it to a
 // local Ollama server by default, or budget-metered upstream when the
 // operator opts in.

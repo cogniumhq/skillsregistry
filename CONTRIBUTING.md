@@ -5,13 +5,17 @@ contributions. A few ground rules keep the codebase coherent.
 
 ## Before you start
 
-1. Read `.specifica/principles.md` — the cross-cutting rules for this
-   repo. Anything that violates a principle will be sent back.
-2. Read `.specifica/mvp/{spec,design,tasks}.md` for the current
-   version's intent, design, and open work. Match the design or propose
-   an amendment in the PR.
-3. For non-trivial work, open a discussion issue first. Please don't
-   land a large PR unannounced.
+1. **Open a discussion issue first** for anything non-trivial. Design
+   and roadmap are tracked internally, so an issue is how you find out
+   whether a change fits the direction before you build it — and it is
+   the fastest way to get that answer. Please don't land a large PR
+   unannounced.
+2. Read the package README for whatever you're touching
+   (`packages/*/README.md`, `apps/local/README.md`). Those document the
+   adapter interfaces and the invariants a change has to hold.
+3. Match the surrounding code. Existing structure encodes decisions that
+   aren't always restated in the diff; if something looks arbitrary, ask
+   in the issue rather than changing it in passing.
 
 ## Scope of contributions
 
@@ -75,13 +79,12 @@ supported.
 - Present-tense, imperative mood: "add x", not "added x" or "adds x".
 - First line ≤ 72 chars.
 - Body explains **why**, not **what** (the diff shows the what).
-- Reference tasks: `T-2.4: implement embedder adapter for Ollama`.
+- Reference the issue you opened: `fix(domain): handle empty rerank set (#123)`.
 
 ## Semver and releases
 
-See `.specifica/principles.md` §Release discipline for the full rules.
-
-Summary per SDK package:
+Release discipline is enforced by CI — every PR touching `packages/*`
+needs a changeset. Summary per SDK package:
 
 - `@skillsregistry/schema` — major on any column rename or drop
 - `@skillsregistry/contracts` — major on any request/response field

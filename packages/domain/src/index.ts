@@ -8,7 +8,7 @@
 // concrete adapters at boot; the domain code has no direct dependency on
 // any runtime, driver, or framework.
 //
-// Sub-modules land incrementally per `.specifica/mvp/tasks.md` T-1.4a → T-1.4f.
+// Sub-modules land incrementally per the internal roadmap.
 // Only the adapter interfaces ship in the initial scaffold.
 //
 // ══════════════════════════════════════════════════════════════════════════════

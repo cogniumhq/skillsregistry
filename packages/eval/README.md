@@ -97,7 +97,7 @@ if (result.metrics.recall5 < 0.8) {
 | Recall@5 | ≥ 85% (Phase 1), ≥ 90% (Phase 3) |
 | MRR | ≥ 0.75 (Phase 1) |
 
-`.specifica/mvp/tasks.md` gates the mothership migration PR (T-1.7) on
+The internal roadmap gates the mothership migration PR on
 `Recall@5 ≥ 80%` against the port before merge.
 
 ## License
