@@ -16,7 +16,7 @@ This monorepo produces two deliverables under **one Apache-2.0 license**:
 | Deliverable | Location | Consumers |
 |---|---|---|
 | SDK packages (`@skillsregistry/*`) | `packages/*` — published to npm | Both this repo's `apps/local` **and** the mothership (`cogniumhq/skillsregistry`) |
-| Local node app | `apps/local` — published as Docker image (`ghcr.io/cogniumhq/skillsregistry-local`) | End users self-hosting a private SkillsRegistry |
+| Local node app | `apps/local` — published as Docker image (`ghcr.io/cogniumhq/skillsregistry`) | End users self-hosting a private SkillsRegistry |
 
 ## Source of truth
 

@@ -1,0 +1,15 @@
+# Build-from-source override.
+#
+# The base compose file pulls ghcr.io/cogniumhq/skillsregistry so a first run
+# needs no toolchain and no build wait. Contributors changing app code — or
+# anyone on an architecture we do not publish — layer this on top:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d
+#
+# `build` wins over the inherited `image`, which is then used only as the tag
+# for the locally built result.
+services:
+  app:
+    build:
+      context: ../..
+      dockerfile: apps/local/Dockerfile

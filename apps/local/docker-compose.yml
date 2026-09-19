@@ -101,9 +101,11 @@ services:
     restart: "no"
 
   app:
-    build:
-      context: ../..
-      dockerfile: apps/local/Dockerfile
+    # Pull the published image by default so `docker compose up` needs no
+    # local build and no toolchain. To build from source instead (contributors,
+    # or an arch we do not publish), run:
+    #   docker compose -f docker-compose.yml -f docker-compose.build.yml up
+    image: ghcr.io/cogniumhq/skillsregistry:${SKILLSREGISTRY_TAG:-latest}
     restart: unless-stopped
     depends_on:
       postgres:

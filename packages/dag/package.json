@@ -4,13 +4,13 @@
   "description": "Portable workflow DAG schema, validation, and interpreter for SkillsRegistry",
   "license": "Apache-2.0",
   "author": "Cognium Labs",
-  "homepage": "https://github.com/cogniumhq/skillsregistry-local/tree/main/packages/dag",
+  "homepage": "https://github.com/cogniumhq/skillsregistry/tree/main/packages/dag",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/cogniumhq/skillsregistry-local.git",
+    "url": "git+https://github.com/cogniumhq/skillsregistry.git",
     "directory": "packages/dag"
   },
-  "bugs": "https://github.com/cogniumhq/skillsregistry-local/issues",
+  "bugs": "https://github.com/cogniumhq/skillsregistry/issues",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",

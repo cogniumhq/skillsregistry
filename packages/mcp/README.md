@@ -51,6 +51,6 @@ missing / spoofed header degrades to public-only. Write tools + OAuth
 
 Apache-2.0.
 
-[sdk]: https://github.com/cogniumhq/skillsregistry-local
+[sdk]: https://github.com/cogniumhq/skillsregistry
 [mothership]: https://api.skillsregistry.net
-[local]: https://github.com/cogniumhq/skillsregistry-local/tree/main/apps/local
+[local]: https://github.com/cogniumhq/skillsregistry/tree/main/apps/local

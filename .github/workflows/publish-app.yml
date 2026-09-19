@@ -14,7 +14,7 @@ permissions:
   packages: write
 
 env:
-  IMAGE_NAME: ghcr.io/cogniumhq/skillsregistry-local
+  IMAGE_NAME: ghcr.io/cogniumhq/skillsregistry
 
 jobs:
   # Build one image per architecture on a native runner. QEMU emulation of
@@ -59,7 +59,7 @@ jobs:
           file: apps/local/Dockerfile
           platforms: ${{ matrix.platform }}
           labels: |
-            org.opencontainers.image.source=https://github.com/cogniumhq/skillsregistry-local
+            org.opencontainers.image.source=https://github.com/cogniumhq/skillsregistry
             org.opencontainers.image.licenses=Apache-2.0
           outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
           cache-from: type=gha,scope=${{ matrix.platform_pair }}

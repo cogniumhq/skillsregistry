@@ -4,13 +4,13 @@
   "description": "Zod schemas + TypeScript types for the SkillsRegistry public API and the local-node ↔ mothership contract.",
   "license": "Apache-2.0",
   "author": "Cognium Labs",
-  "homepage": "https://github.com/cogniumhq/skillsregistry-local/tree/main/packages/contracts",
+  "homepage": "https://github.com/cogniumhq/skillsregistry/tree/main/packages/contracts",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/cogniumhq/skillsregistry-local.git",
+    "url": "git+https://github.com/cogniumhq/skillsregistry.git",
     "directory": "packages/contracts"
   },
-  "bugs": "https://github.com/cogniumhq/skillsregistry-local/issues",
+  "bugs": "https://github.com/cogniumhq/skillsregistry/issues",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

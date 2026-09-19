@@ -20,7 +20,7 @@ with it.
 Include, as much as you can:
 
 - Affected package(s) and version(s) — e.g., `@skillsregistry/domain@1.0.3`
-  or `ghcr.io/cogniumhq/skillsregistry-local:1.1.0`
+  or `ghcr.io/cogniumhq/skillsregistry:1.1.0`
 - Reproduction steps or a proof-of-concept
 - Impact assessment (data exposure, RCE, DoS, auth bypass, etc.)
 - Your name / handle if you'd like credit in the advisory
@@ -44,7 +44,7 @@ Advisory tagged with a CVE identifier where appropriate.
 
 - Any package in `packages/*` published as `@skillsregistry/*` on npm
 - The local app in `apps/local` and its Docker image
-  (`ghcr.io/cogniumhq/skillsregistry-local`)
+  (`ghcr.io/cogniumhq/skillsregistry`)
 - Supply-chain issues introduced by our own tooling (release pipeline,
   CI workflows in this repo)
 
