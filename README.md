@@ -16,26 +16,55 @@ Run a private SkillsRegistry instance in isolation. You get your own tenant subt
 ```
 ┌─ Your infra ───────────────────────────┐        ┌─ api.skillsregistry.net ─┐
 │  apps/local (this repo)                │        │  Mothership              │
-│  • Postgres + pgvector                 │        │  • 63K skill corpus      │
+│  • Postgres + pgvector                 │        │  • 125K skill corpus     │
 │  • Ollama embeddings (default)         │◄──────►│  • Trust scoring (paid)  │
-│  • Search + MCP + composition (local)  │  API   │  • Global leaderboards   │
+│  • Search + MCP + composition (local)  │  API   │  • Trust leaderboard     │
 │  • Local skill publishing              │        │  • Publisher PKI         │
 │  • Budget meter + migration door       │        │  • Sync workers          │
 └────────────────────────────────────────┘        └──────────────────────────┘
 ```
 
+Mothership corpus as of 2026-09-18: **125,244 skills** indexed from 8 sources,
+62,963 security-scanned, 11,596 verified. Those numbers move; the live figures
+are public at `https://api.skillsregistry.net/v1/analytics/heartbeat`.
+
 ## Status
 
-**MVP — pre-alpha.** No `1.0.0` publishes yet. Design is captured under `.specifica/mvp/`; see `spec.md`, `design.md`, `tasks.md` there.
+**Shipped and usable.** All six SDK packages are published on npm, and the local
+node runs from a `docker compose up`.
+
+| package | version |
+|---|---|
+| [`@skillsregistry/contracts`](https://www.npmjs.com/package/@skillsregistry/contracts) | 2.0.0 |
+| [`@skillsregistry/mcp`](https://www.npmjs.com/package/@skillsregistry/mcp) | 1.2.1 |
+| [`@skillsregistry/domain`](https://www.npmjs.com/package/@skillsregistry/domain) | 1.1.1 |
+| [`@skillsregistry/schema`](https://www.npmjs.com/package/@skillsregistry/schema) | 1.1.0 |
+| [`@skillsregistry/dag`](https://www.npmjs.com/package/@skillsregistry/dag) | 1.1.0 |
+| [`@skillsregistry/eval`](https://www.npmjs.com/package/@skillsregistry/eval) | 1.0.3 |
+
+**Air-gap mode is the supported path today.** Search, MCP, composition and local
+publishing all work with no account and no network. Connected mode — trust
+scoring, global leaderboards and the migration door — needs a mothership API key,
+and self-serve signup does not exist yet, so treat that half as preview.
+
+Design lives under `.specifica/mvp/` (`spec.md`, `design.md`, `tasks.md`).
 
 ## Quickstart
 
-*Not yet — see `.specifica/mvp/tasks.md` for the ship checklist.*
+```bash
+git clone https://github.com/cogniumhq/skillsregistry.git
+cd skillsregistry/apps/local
+cp .env.example .env          # then set ADMIN_TOKEN — openssl rand -hex 32
+docker compose up -d
+```
+
+Then `curl http://localhost:3000/v1/health`. Full walkthrough, verification
+commands, auth model and troubleshooting: **[`apps/local/README.md`](apps/local/README.md)**.
 
 ## Layout
 
 ```
-skillsregistry-local/
+skillsregistry/
 ├── apps/
 │   └── local/               # Node app (docker + admin UI)
 ├── packages/
@@ -53,11 +82,11 @@ skillsregistry-local/
 
 Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
-The hosted service at `api.skillsregistry.net` runs a separate proprietary codebase (`cogniumhq/skillsregistry`) that consumes these SDK packages via npm.
+The hosted service at `api.skillsregistry.net` runs a separate proprietary codebase (`cogniumhq/sr`) that consumes these SDK packages via npm. This repository — `cogniumhq/skillsregistry` — is the open-source half.
 
 ## Contributing
 
-CLA-gated. See `CONTRIBUTING.md` once published. Design decisions flow through `.specifica/mvp/`.
+CLA-gated. See [`CONTRIBUTING.md`](CONTRIBUTING.md). Design decisions flow through `.specifica/mvp/`.
 
 ---
 

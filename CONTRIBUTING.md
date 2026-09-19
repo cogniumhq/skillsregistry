@@ -43,8 +43,8 @@ CLA, we'll switch to one before merging further PRs and give notice.
 ## Development workflow
 
 ```bash
-git clone https://github.com/cogniumhq/skillsregistry-local
-cd skillsregistry-local
+git clone https://github.com/cogniumhq/skillsregistry
+cd skillsregistry
 pnpm install
 pnpm typecheck
 pnpm test
@@ -90,7 +90,7 @@ Summary per SDK package:
 - `@skillsregistry/mcp` — major on any MCP tool signature change
 - `@skillsregistry/eval` — major on scoring metric rename
 
-The local app (`@skillsregistry/local-app`) is versioned separately
+The local app (`@skillsregistry/local`) is versioned separately
 via Docker tags and does not use changesets.
 
 ## Code of conduct
