@@ -6,10 +6,15 @@ packages. Builds from source (Node 22 + Postgres 16 + Ollama) — which is what
 `docker compose up` does, and the supported path today.
 
 > **On the prebuilt image.** CI publishes
-> `ghcr.io/cogniumhq/skillsregistry-local` (tags `1.0.0`, `1.1.0`, `latest`),
-> but that package is currently **private** — an anonymous `docker pull`
-> returns 403. Until it is made public, build from source as the Quickstart
-> below does; it needs no registry access.
+> `ghcr.io/cogniumhq/skillsregistry-local` — tags `1.0.0`, `1.1.0` and
+> `latest` (`latest` currently resolves to `1.1.0`), multi-arch for
+> linux/amd64 and linux/arm64, public and pullable without a token.
+>
+> It is **not standalone**: it needs Postgres with pgvector and an embedder,
+> which is what the compose file below wires up. `docker run` on the image
+> alone starts and then fails on a missing `DATABASE_URL`. The Quickstart
+> builds from source; to run the published image instead, point your own
+> compose at it.
 
 **What you get on `docker compose up`:**
 
