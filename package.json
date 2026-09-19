@@ -24,6 +24,7 @@
     "test": "vitest run --workspace ./vitest.workspace.ts",
     "test:coverage": "vitest run --workspace ./vitest.workspace.ts --coverage",
     "typecheck": "pnpm -r typecheck",
+    "validate:listings": "node scripts/validate-listings.mjs",
     "changeset": "changeset",
     "version": "changeset version",
     "release": "changeset publish",

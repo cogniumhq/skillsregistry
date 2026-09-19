@@ -1,0 +1,17 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.cogniumhq/skillsregistry",
+  "title": "SkillsRegistry",
+  "description": "Search, resolve, and trust-check MCP servers and agent skills from one public catalog.",
+  "repository": {
+    "url": "https://github.com/cogniumhq/skillsregistry",
+    "source": "github"
+  },
+  "version": "6.7.0",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://api.skillsregistry.net/mcp"
+    }
+  ]
+}

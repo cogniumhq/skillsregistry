@@ -4,6 +4,12 @@
 
 **Open-source runtime + SDK for the [SkillsRegistry](https://skillsregistry.net) ecosystem.**
 
+The hosted catalog also exposes a public, read-only MCP endpoint at
+`https://api.skillsregistry.net/mcp`. It uses Streamable HTTP, requires no key,
+and is packaged in this repository for Cursor and Claude. See
+[`docs/listings/README.md`](docs/listings/README.md) for install configuration,
+verified listing copy, limitations, and submission status.
+
 This monorepo produces two things:
 
 1. **The SDK packages** (`packages/*`) that back both the hosted mothership at `api.skillsregistry.net` and this local node. Published to npm under the `@skillsregistry/*` scope.
@@ -24,9 +30,9 @@ Run a private SkillsRegistry instance in isolation. You get your own tenant subt
 └────────────────────────────────────────┘        └──────────────────────────┘
 ```
 
-Mothership corpus as of 2026-09-18: **125,244 skills** indexed from 8 sources,
-62,963 security-scanned, 11,596 verified. Those numbers move; the live figures
-are public at `https://api.skillsregistry.net/v1/analytics/heartbeat`.
+Hosted catalog totals move independently of this repository. Read the live
+figures at `https://api.skillsregistry.net/v1/analytics/heartbeat` rather than
+copying a snapshot from this README.
 
 ## Status
 
