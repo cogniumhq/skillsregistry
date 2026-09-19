@@ -50,7 +50,7 @@ function fetchFail(status: number, text: string): typeof fetch {
 describe('LiteLLMRerankBackend — identity', () => {
   it('exposes a stable litellm:<model> identity', () => {
     const backend = new LiteLLMRerankBackend({
-      baseUrl: 'https://llm.c0g.io',
+      baseUrl: 'https://llm.example.com',
       apiKey: 'k',
       model: 'qwen3-reranker-0.6b',
       fetchImpl: fetchOk({ results: [] }),
@@ -67,7 +67,7 @@ describe('LiteLLMRerankBackend — request shape', () => {
   it('POSTs to <baseUrl>/v1/rerank with model, query, documents, top_n', async () => {
     const capture: { url?: string; init?: RequestInit } = {};
     const backend = new LiteLLMRerankBackend({
-      baseUrl: 'https://llm.c0g.io',
+      baseUrl: 'https://llm.example.com',
       apiKey: 'sk-x',
       model: 'qwen3-reranker-0.6b',
       fetchImpl: fetchOk(
@@ -83,7 +83,7 @@ describe('LiteLLMRerankBackend — request shape', () => {
 
     await backend.score('q', ['doc a', 'doc b']);
 
-    expect(capture.url).toBe('https://llm.c0g.io/v1/rerank');
+    expect(capture.url).toBe('https://llm.example.com/v1/rerank');
     expect(capture.init?.method).toBe('POST');
     const headers = capture.init?.headers as Record<string, string>;
     expect(headers['content-type']).toBe('application/json');
@@ -101,14 +101,14 @@ describe('LiteLLMRerankBackend — request shape', () => {
   it('strips trailing slashes from baseUrl', async () => {
     const capture: { url?: string } = {};
     const backend = new LiteLLMRerankBackend({
-      baseUrl: 'https://llm.c0g.io///',
+      baseUrl: 'https://llm.example.com///',
       apiKey: 'k',
       model: 'm',
       fetchImpl: fetchOk({ results: [{ index: 0, relevance_score: 0.5 }] }, capture),
     });
 
     await backend.score('q', ['t']);
-    expect(capture.url).toBe('https://llm.c0g.io/v1/rerank');
+    expect(capture.url).toBe('https://llm.example.com/v1/rerank');
   });
 });
 

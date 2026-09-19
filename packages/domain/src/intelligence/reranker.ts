@@ -8,7 +8,7 @@
 //
 // The cross-encoder call itself is injected as a `RerankerBackend` so the
 // math is identical whether the caller wires Workers AI bge-reranker-base
-// or `llm.c0g.io` qwen3-reranker-0.6b. See `reranker-backend.ts`.
+// or a hosted qwen3-reranker-0.6b endpoint. See `reranker-backend.ts`.
 //
 // Integration: runs AFTER provider search and confidence assessment;
 // reorders only — never changes the original `fusedScore`. Wrapped in a

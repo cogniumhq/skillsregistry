@@ -82,7 +82,7 @@ skillsregistry/
 
 Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
-The hosted service at `api.skillsregistry.net` runs a separate proprietary codebase (`cogniumhq/sr`) that consumes these SDK packages via npm. This repository — `cogniumhq/skillsregistry` — is the open-source half.
+The hosted service at `api.skillsregistry.net` runs a separate, private proprietary codebase that consumes these SDK packages via npm. This repository — `cogniumhq/skillsregistry` — is the open-source half.
 
 ## Contributing
 

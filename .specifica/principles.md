@@ -59,8 +59,8 @@ Cross-cutting rules. Not version-bound. Cite directly; do not paraphrase.
 
 ## Cross-repo coordination
 
-- **Sacred boundary.** Work stays inside `~/work/cogniumhq/skillsregistry-local/`. No edits to sibling repos from this project's sessions.
-- **Mothership consumption is a coordination ask, not a direct edit.** A new SDK version → PR here → npm publish → separate PR in `cogniumhq/skillsregistry` bumping the pin.
+- **Sacred boundary.** Work stays inside this repository. No edits to sibling repos from this project's sessions.
+- **Mothership consumption is a coordination ask, not a direct edit.** A new SDK version → PR here → npm publish → separate PR in the mothership repo bumping the pin.
 - **Public API contract stability.** Breaking `@skillsregistry/contracts` means major-bump AND coordinated PR in mothership. Both must land before either is deployed.
 
 ## Release discipline

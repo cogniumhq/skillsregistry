@@ -22,7 +22,7 @@ sub-tasks so consumers see one coherent surface, not a moving target.
 | `KvAdapter` | Key-value cache | Cloudflare KV | `kv_store` Postgres table |
 | `QueueAdapter<T>` | Background dispatch | Cloudflare Queues | In-memory (MVP) / Postgres LISTEN-NOTIFY (post-MVP) |
 | `ArtifactAdapter` | Blob storage | R2 | `./data/artifacts/` |
-| `EmbedderAdapter` | Text embeddings | `llm.c0g.io` (qwen3-embedding-0.6B, MRL-512) | Ollama (default) or budgeted upstream |
+| `EmbedderAdapter` | Text embeddings | hosted qwen3-embedding-0.6B (MRL-512) | Ollama (default) or budgeted upstream |
 | `AfterResponse` | Deferred work | `executionCtx.waitUntil()` | `setImmediate()` |
 
 ## Usage

@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════════════════════════════════════
-// TenantCircuitRegistry — per-tenant CircuitBreaker for llm.c0g.io
+// TenantCircuitRegistry — per-tenant CircuitBreaker for the upstream LLM service
 // ══════════════════════════════════════════════════════════════════════════════
 //
 // Each tenant gets its own CircuitBreaker so a single noisy tenant cannot
