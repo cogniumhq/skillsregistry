@@ -4,13 +4,12 @@
 --
 -- Migrations 0021 + 0022 stood up the shadow column (embedding_h512) +
 -- identity stamp (embed_model_h512) alongside the legacy bge vector(384).
--- A8 ran dual-write. The §10 A6 backfill (scripts/h512-direct-backfill.ts)
--- populated embedding_h512 for every published agent_summary row against the
--- production runics DB on 2026-06-11 (63,296/63,296, zero errors).
+-- A8 ran dual-write. A one-time backfill populated embedding_h512 for
+-- every published agent_summary row before this cutover.
 --
 -- A3 cut /v1/search over to the halfvec column via EMBEDDING_PROVIDER=litellm
--- and proved relevance on the 91-fixture eval (R@5=87.8%, MRR=0.749,
--- T1 accuracy 96.4%). A4 recalibrated the confidence tier thresholds.
+-- after the eval suite cleared the relevance gate. A4 recalibrated the
+-- confidence tier thresholds.
 --
 -- This migration finalizes the cutover by:
 --   1. Dropping the alt_query_* rows — retrieval-only architecture no longer
@@ -32,12 +31,12 @@
 --   - workers-ai (bge-small-en-v1.5) can no longer write or read. The provider
 --     branch on EMBEDDING_PROVIDER becomes dead code and is removed in the
 --     same PR.
---   - Rollback requires restoring from a Neon branch backup and re-running
---     the workers-ai backfill. Take a Neon branch snapshot BEFORE applying.
+--   - Rollback requires restoring the pre-cutover embedding columns and
+--     re-running the workers-ai backfill. Snapshot the database BEFORE applying.
 --
--- Storage impact (production runics, post-backfill):
---   skill_embeddings rows: ~382K → ~64K (alt_query rows dropped)
---   embedding column:      99 MB (vector(384) fp32) → 63 MB (halfvec(512) fp16)
+-- Storage impact (post-backfill, order-of-magnitude):
+--   skill_embeddings rows shrink because alt_query expansion rows are dropped
+--   embedding column shrinks: vector(384) fp32 → halfvec(512) fp16
 --
 -- ════════════════════════════════════════════════════════════════════════════
 

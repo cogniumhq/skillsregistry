@@ -2,7 +2,7 @@
 -- D2: Publisher PKI — Ed25519 keys with CA-style trust chain.
 --
 -- Background: `/v1/skills` currently accepts any POST (modulo the public-guard
--- allowlist). techspec/skillsregistry.md §11 step 3 ("Sign with publisher
+-- allowlist). skillsregistry.md §11 step 3 ("Sign with publisher
 -- certificate") + step 5 ("signature check") call for cryptographic proof
 -- that the bytes in the publish payload came from the claimed author. This
 -- migration creates the key registry that backs that proof.

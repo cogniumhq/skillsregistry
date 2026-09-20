@@ -20,7 +20,7 @@ export const RetryPolicy = z.object({
  *     Non-string leaves are opaque to the registry: `resolveInputs` passes
  *     them through verbatim, and `validateDAG` skips reference checks on them.
  *     Recursive template expansion inside nested structures is a higher-level
- *     resolver's responsibility (see e.g. Cortex's `input-mapping.ts`).
+ *     resolver's responsibility (a consumer-side resolver, not this package).
  *
  * Widened from `Record<string, string>` in 1.1.0 to support composite
  * publishes that carry structured inputs (e.g. `{ headers: { Authorization:

@@ -2,7 +2,7 @@
 -- D2: Six signature columns on the `skills` table.
 --
 -- Background: every published skill needs a verifiable trail back to a
--- publisher key. Per techspec/skillsregistry.md §11 step 5, the registry
+-- publisher key. Per skillsregistry.md §11 step 5, the registry
 -- must record:
 --   - the raw signature bytes (publisher_signature)
 --   - which key signed (publisher_key_id → publisher_keys.key_id)

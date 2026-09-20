@@ -1,7 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="Cognium">
   <!-- Cognium Convergence Mark + COGNIUM wordmark, square listing lockup.
-       Mark geometry and colours are the light-background variant from
-       cogniumhq/web assets/cognium-mark-light.svg. The wordmark is DM Mono
+       Light-background mark geometry and colours. The wordmark is DM Mono
        Medium (SIL OFL 1.1) converted to outlines, so the file renders the same
        where the brand font is not installed. -->
   <rect width="256" height="256" fill="#FFFFFF"/>

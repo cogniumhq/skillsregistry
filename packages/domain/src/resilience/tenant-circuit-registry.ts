@@ -17,7 +17,7 @@
 // eviction.
 //
 // Runtime coupling was removed during the T-1.4b extraction: the mothership
-// constructor previously accepted `Env` to read `LLMPROXY_BREAKER_*` env
+// constructor previously accepted `Env` to read breaker-threshold env
 // vars. The runtime-agnostic version accepts explicit options and lets the
 // caller pull from wherever it likes.
 //

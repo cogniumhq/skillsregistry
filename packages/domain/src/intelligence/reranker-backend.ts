@@ -34,7 +34,7 @@ export interface RerankerBackend {
 
 // ────────────────────────────────────────────────────────────────────────────
 // LiteLLMRerankBackend — Cohere-shape `/v1/rerank` at any OpenAI-compatible
-// proxy (llmproxy / LiteLLM / Cohere itself). Runtime-agnostic.
+// proxy (LiteLLM / Cohere itself). Runtime-agnostic.
 // ────────────────────────────────────────────────────────────────────────────
 //
 // Request:

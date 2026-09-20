@@ -9,7 +9,7 @@
 -- that declares one). The shape:
 --
 --   {
---     "image":            "ghcr.io/cognium-labs/skill-base:1.0.0",
+--     "image":            "ghcr.io/example/skill-base:1.0.0",
 --     "memory_mb":        1024,
 --     "cpu":              2,
 --     "timeout_seconds":  600,

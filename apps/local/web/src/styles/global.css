@@ -3,9 +3,9 @@
 @import "@fontsource-variable/jetbrains-mono";
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   Design tokens — snapshot from mothership web/src/styles/global.css.
-   Source: cogniumhq/skillsregistry @ 4b56a99 (June 2026).
-   Do not diverge; if the mothership palette shifts, mirror the change here.
+   Design tokens — snapshot of the hosted product palette + typography.
+   Do not diverge for local-only taste; keep the admin UI aligned with the
+   public SkillsRegistry visual language.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 @theme {

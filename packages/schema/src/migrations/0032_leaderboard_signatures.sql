@@ -1,7 +1,7 @@
 -- 0032_leaderboard_signatures.sql
 --
 -- K9 — surface D2 publisher-signature fields on `leaderboard_human` and
--- `leaderboard_agent` materialized views so cognium-admin dashboards and
+-- `leaderboard_agent` materialized views so admin dashboards and
 -- the `/v1/leaderboards/*` API can render trust + verified-publisher
 -- status without a join back to `skills` per leaderboard row.
 --
@@ -24,9 +24,9 @@
 -- to 0010 and is a separate followup (mapper already reads `r.skill_type`,
 -- silently undefined on current MVs — pre-existing).
 --
--- After this migration ships, the hourly cron `REFRESH MATERIALIZED VIEW
--- CONCURRENTLY` calls in `src/index.ts` (lines 2723–2724) start populating
--- the new columns automatically. No code change needed there.
+-- After this migration ships, the existing periodic
+-- `REFRESH MATERIALIZED VIEW CONCURRENTLY` jobs start populating the new
+-- columns automatically. No code change needed there.
 
 DROP MATERIALIZED VIEW IF EXISTS leaderboard_human;
 DROP MATERIALIZED VIEW IF EXISTS leaderboard_agent;

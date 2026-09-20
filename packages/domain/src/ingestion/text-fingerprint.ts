@@ -4,7 +4,7 @@
 //
 // Used as one of two stamps on `skill_embeddings` rows. Paired with
 // `embed_model` (model/dims identity), the fingerprint lets the embed
-// consumer skip the llmproxy call when both stamps already match what
+// consumer skip the upstream embeddings call when both stamps already match what
 // would be produced.
 //
 // Normalization is intentionally minimal: lowercase, trim, collapse runs
