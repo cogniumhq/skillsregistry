@@ -37,6 +37,7 @@ import SkillsTable from '~/components/SkillsTable.astro';
 <script>
   import {
     escapeHtml,
+    externalLinkMarkup,
     fetchJson,
     pillMarkup,
     publishStatusToPill,
@@ -66,19 +67,11 @@ import SkillsTable from '~/components/SkillsTable.astro';
 
   function actionCell(s: AdminSkillItem): string {
     const status = toPublishStatus(s.mothershipPublishStatus);
-    const href = s.mothershipUrl ? safeHttpUrl(s.mothershipUrl) : null;
-    if (status === 'published' && href) {
-      // rel=noopener because the target lives on api.skillsregistry.net —
-      // different origin, don't leak window.opener. href is http(s)-only;
-      // escapeHtml alone would still allow javascript:/data: URLs.
-      return (
-        `<a class="text-xs font-mono underline" ` +
-        `style="color: var(--color-accent);" ` +
-        `href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">` +
-        `open on mothership</a>`
-      );
-    }
     if (status === 'published' && s.mothershipUrl) {
+      // http(s) only — javascript:/data: become escaped plain text.
+      if (safeHttpUrl(s.mothershipUrl)) {
+        return externalLinkMarkup(s.mothershipUrl, 'open on mothership');
+      }
       return (
         `<span class="text-xs font-mono" style="color: var(--color-text-muted);">` +
         `${escapeHtml(s.mothershipUrl)}</span>`

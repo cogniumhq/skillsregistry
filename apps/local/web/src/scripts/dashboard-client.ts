@@ -284,6 +284,20 @@ export function safeHttpUrl(url: string): string | null {
   return null;
 }
 
+/**
+ * Render an API-supplied URL as an `<a>` only when `safeHttpUrl` accepts it.
+ * Otherwise return escaped plain text — never `href="javascript:…"` etc.
+ */
+export function externalLinkMarkup(url: string, label: string): string {
+  const href = safeHttpUrl(url);
+  const text = escapeHtml(label);
+  if (href === null) return text;
+  return (
+    `<a class="font-mono text-xs underline" style="color: var(--color-accent);" ` +
+    `href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${text}</a>`
+  );
+}
+
 /** One dashboard health-list row. Every dynamic substring is escaped. */
 export function healthCheckRowMarkup(
   key: string,

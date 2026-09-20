@@ -98,6 +98,7 @@ import SkillsTable from '~/components/SkillsTable.astro';
   import {
     EDITABLE_STATUSES,
     escapeHtml,
+    externalLinkMarkup,
     fetchJson,
     formatDate,
     safeHttpUrl,
@@ -159,9 +160,8 @@ import SkillsTable from '~/components/SkillsTable.astro';
     }
     const s = String(v);
     if (DATE_KEYS.has(key)) return `<span class="font-mono text-xs">${escapeHtml(formatDate(s))}</span>`;
-    const href = safeHttpUrl(s);
-    if (href) {
-      return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" class="font-mono text-xs underline" style="color: var(--color-accent);">${escapeHtml(s)}</a>`;
+    if (safeHttpUrl(s)) {
+      return externalLinkMarkup(s, s);
     }
     // Long-form content (skillMd, readme) keeps its whitespace.
     if (s.length > 200) {
