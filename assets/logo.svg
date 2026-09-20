@@ -1,18 +1,29 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="Cognium">
-  <!-- 1:1 Cognium logotype with an opaque background plate (marketplace listing).
-       Same mark as cogniumhq/cognium-dev plugins/cognium-dev/assets/logo.svg. -->
-  <defs>
-    <linearGradient id="cognium-logo-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#60A5FA"/>
-      <stop offset="100%" stop-color="#06B6D4"/>
-    </linearGradient>
-  </defs>
-  <rect x="0" y="0" width="128" height="128" fill="#0B1220"/>
-  <g transform="translate(64,64)">
-    <path d="M-28,0 C-28,-15 -15,-15 0,0 C15,15 28,15 28,0 C28,-15 15,-15 0,0 C-15,15 -28,15 -28,0 Z"
-          fill="none" stroke="url(#cognium-logo-gradient)" stroke-width="4" stroke-linecap="round"/>
-    <circle cx="-18" cy="0" r="4" fill="#60A5FA"/>
-    <circle cx="18" cy="0" r="4" fill="#06B6D4"/>
-    <circle cx="0" cy="0" r="5" fill="#FFFFFF"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="Cognium">
+  <!-- Cognium Convergence Mark + COGNIUM wordmark, square listing lockup.
+       Mark geometry and colours are the light-background variant from
+       cogniumhq/web assets/cognium-mark-light.svg. The wordmark is DM Mono
+       Medium (SIL OFL 1.1) converted to outlines, so the file renders the same
+       where the brand font is not installed. -->
+  <rect width="256" height="256" fill="#FFFFFF"/>
+  <g transform="translate(128.00,106.69) scale(1.6650) translate(-65.05,-49.75)" fill="none">
+    <!-- Spec path (heavier — intent has authority) -->
+    <path d="M16 24 C40 24, 52 36, 64 46" stroke="#64748B" stroke-width="2.8" stroke-linecap="round"/>
+    <!-- Code path (lighter — implementation follows) -->
+    <path d="M16 76 C40 76, 52 64, 64 54" stroke="#A8B5C2" stroke-width="1.8" stroke-linecap="round"/>
+    <!-- Trust point (the proof) -->
+    <circle cx="66" cy="50" r="5" fill="#C8901A"/>
+    <!-- Verified output (proven, forward) -->
+    <path d="M72 49 C88 47, 100 44, 114 42" stroke="#C8901A" stroke-width="3" stroke-linecap="round"/>
+    <!-- Ghost line (continuous operation) -->
+    <path d="M72 53 C84 55, 93 55, 114 53" stroke="#C8901A" stroke-width="1.2" stroke-linecap="round" opacity=".2"/>
+  </g>
+  <g fill="#0D1B2A">
+    <path d="M51.1 194.52Q48.84 194.52 47.25 193.36Q45.67 192.2 44.84 190.11Q44 188.01 44 185.23Q44 182.43 44.84 180.33Q45.67 178.23 47.27 177.06Q48.86 175.89 51.1 175.89Q54.01 175.89 55.73 177.48Q57.45 179.06 57.74 181.76H54.73Q54.5 180.34 53.58 179.4Q52.67 178.47 51.07 178.47Q49.04 178.47 47.91 180.27Q46.78 182.07 46.78 185.23Q46.78 188.37 47.91 190.16Q49.04 191.94 51.07 191.94Q52.72 191.94 53.59 191.08Q54.47 190.22 54.73 188.81H57.74Q57.32 191.46 55.65 192.99Q53.98 194.52 51.1 194.52Z"/>
+    <path d="M76.77 194.52Q74.59 194.52 72.99 193.39Q71.4 192.25 70.55 190.17Q69.7 188.09 69.7 185.21Q69.7 182.32 70.55 180.24Q71.4 178.16 72.99 177.03Q74.59 175.89 76.77 175.89Q78.98 175.89 80.57 177.03Q82.15 178.16 83 180.24Q83.85 182.32 83.85 185.21Q83.85 188.09 83 190.17Q82.15 192.25 80.57 193.39Q78.98 194.52 76.77 194.52ZM76.77 191.94Q78.7 191.94 79.88 190.21Q81.07 188.47 81.07 185.21Q81.07 181.94 79.88 180.2Q78.7 178.47 76.77 178.47Q74.82 178.47 73.65 180.2Q72.48 181.94 72.48 185.21Q72.48 188.47 73.65 190.21Q74.82 191.94 76.77 191.94Z"/>
+    <path d="M102.26 194.52Q100.26 194.52 98.74 193.37Q97.22 192.23 96.37 190.14Q95.52 188.06 95.52 185.21Q95.52 182.4 96.37 180.32Q97.22 178.23 98.8 177.06Q100.39 175.89 102.6 175.89Q105.27 175.89 106.91 177.36Q108.54 178.83 108.9 181.5H105.94Q105.68 180.11 104.82 179.29Q103.96 178.47 102.6 178.47Q100.51 178.47 99.41 180.27Q98.3 182.07 98.3 185.21Q98.3 188.47 99.47 190.21Q100.64 191.94 102.52 191.94Q103.78 191.94 104.6 191.2Q105.43 190.45 105.86 189.28Q106.3 188.11 106.41 186.8H102.62V184.54H109.16V194.21H106.64L106.46 191.79H106.3Q105.79 192.97 104.86 193.75Q103.94 194.52 102.26 194.52Z"/>
+    <path d="M121.81 194.21V176.2H124.49L132.03 189.4V176.2H134.62V194.21H131.95L124.41 181.01V194.21Z"/>
+    <path d="M148.67 194.21V191.79H152.58V178.62H148.72V176.2H159.16V178.62H155.31V191.79H159.22V194.21Z"/>
+    <path d="M179.61 194.52Q177.79 194.52 176.36 193.77Q174.93 193.03 174.11 191.49Q173.29 189.96 173.29 187.62V176.2H176.01V187.78Q176.01 189.84 176.99 190.95Q177.97 192.07 179.67 192.07Q181.36 192.07 182.34 190.95Q183.32 189.84 183.32 187.78V176.2H186.05V187.62Q186.05 189.96 185.2 191.49Q184.35 193.03 182.89 193.77Q181.44 194.52 179.61 194.52Z"/>
+    <path d="M198.78 194.21V176.2H201.66L205.39 184.33L209.12 176.2H212V194.21H209.4V181.4L206.47 187.83H204.31L201.38 181.42V194.21Z"/>
   </g>
 </svg>
