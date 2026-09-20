@@ -36,7 +36,7 @@ jobs:
       - name: Trust the workspace
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 9.15.0
           run_install: false
@@ -55,8 +55,8 @@ jobs:
 
       # Publishing needs NPM_TOKEN; opening the version PR does not. Without
       # this the job would fail on every push to main until the token exists,
-      # and would take the release-PR flow down with it. Empty `publish` makes
-      # changesets do versioning only.
+      # and would take the release-PR flow down with it. Empty `publish-script`
+      # makes changesets do versioning only.
       - name: Is npm publishing configured?
         id: npm
         env:
@@ -70,13 +70,13 @@ jobs:
           fi
 
       - name: Create Release PR or publish
-        uses: changesets/action@v1
+        uses: changesets/action@v2
         with:
-          publish: ${{ steps.npm.outputs.configured == 'true' && 'pnpm release' || '' }}
-          version: pnpm version
-          title: "chore: version @skillsregistry/* packages"
-          commit: "chore: version @skillsregistry/* packages"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          publish-script: ${{ steps.npm.outputs.configured == 'true' && 'pnpm release' || '' }}
+          version-script: pnpm version
+          pr-title: "chore: version @skillsregistry/* packages"
+          commit-message: "chore: version @skillsregistry/* packages"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
