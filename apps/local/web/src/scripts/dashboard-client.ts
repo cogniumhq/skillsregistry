@@ -264,6 +264,59 @@ export function escapeHtml(s: string): string {
     .replace(/'/g, '&#39;');
 }
 
+/**
+ * Allow only absolute http(s) URLs from API data. `escapeHtml` alone does
+ * not make `javascript:` / `data:` / protocol-relative values safe as hrefs.
+ * Returns the WHATWG-normalised href, or null when the string is not an
+ * http(s) URL after trim.
+ */
+export function safeHttpUrl(url: string): string | null {
+  const trimmed = url.trim();
+  if (trimmed === '') return null;
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      return parsed.href;
+    }
+  } catch {
+    /* not an absolute URL */
+  }
+  return null;
+}
+
+/**
+ * Render an API-supplied URL as an `<a>` only when `safeHttpUrl` accepts it.
+ * Otherwise return escaped plain text — never `href="javascript:…"` etc.
+ */
+export function externalLinkMarkup(url: string, label: string): string {
+  const href = safeHttpUrl(url);
+  const text = escapeHtml(label);
+  if (href === null) return text;
+  return (
+    `<a class="font-mono text-xs underline" style="color: var(--color-accent);" ` +
+    `href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${text}</a>`
+  );
+}
+
+/** One dashboard health-list row. Every dynamic substring is escaped. */
+export function healthCheckRowMarkup(
+  key: string,
+  status: CheckStatus,
+  label: string,
+  sub?: string,
+): string {
+  const subHtml =
+    sub !== undefined && sub !== ''
+      ? ` <span class="text-xs" style="color: var(--color-text-muted);">${escapeHtml(sub)}</span>`
+      : '';
+  return (
+    `<li class="flex items-center justify-between">` +
+    `<span>${escapeHtml(key)}${subHtml}</span>` +
+    pillMarkup(status, label) +
+    `</li>`
+  );
+}
+
 /** Convert a health-check status to a StatusPill status. */
 export function toPillStatus(s: 'ok' | 'degraded' | 'unknown' | undefined): CheckStatus {
   if (s === 'ok') return 'ok';

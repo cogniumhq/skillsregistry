@@ -107,7 +107,7 @@ import Skeleton from '~/components/Skeleton.astro';
     summary.innerHTML =
       pillMarkup(payload.status === 'ok' ? 'ok' : 'degraded', payload.status) +
       `<span class="text-xs font-mono" style="color: var(--color-text-muted);">` +
-      `schema v${payload.schemaVersion.current} required v${payload.schemaVersion.required}` +
+      `schema v${escapeHtml(String(payload.schemaVersion.current))} required v${escapeHtml(String(payload.schemaVersion.required))}` +
       `</span>`;
 
     renderCheck('check-db', payload.checks.db.status, [

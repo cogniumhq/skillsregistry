@@ -18,7 +18,7 @@ const curlSnippet = `curl -X POST ${ORIGIN}/mcp \\
 
 const claudeDesktopSnippet = `{
   "mcpServers": {
-    "skillsregistry-local": {
+    "skillsregistry": {
       "command": "npx",
       "args": [
         "mcp-remote",
@@ -135,7 +135,7 @@ const claudeDesktopSnippet = `{
     statusRow.innerHTML =
       pillMarkup('ok', `${tools.length} tool${tools.length === 1 ? '' : 's'}`) +
       `<span class="text-xs font-mono" style="color: var(--color-text-muted);">` +
-      `${escapeHtml(payload.serverInfo?.name ?? 'skillsregistry-local')} · protocol ${escapeHtml(payload.protocolVersion ?? '—')}` +
+      `${escapeHtml(payload.serverInfo?.name ?? 'skillsregistry')} · protocol ${escapeHtml(payload.protocolVersion ?? '—')}` +
       `</span>`;
 
     if (tools.length === 0) {

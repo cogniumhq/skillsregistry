@@ -53,7 +53,9 @@ import Skeleton from '~/components/Skeleton.astro';
 
 <script>
   import {
+    escapeHtml,
     fetchJson,
+    healthCheckRowMarkup,
     pillMarkup,
     renderBudgetGauge,
     toPillStatus,
@@ -88,25 +90,28 @@ import Skeleton from '~/components/Skeleton.astro';
     summary.innerHTML =
       pillMarkup(payload.status === 'ok' ? 'ok' : 'degraded', payload.status) +
       `<span class="text-xs font-mono" style="color: var(--color-text-muted);">` +
-      `schema v${payload.schemaVersion.current} / required v${payload.schemaVersion.required}` +
+      `schema v${escapeHtml(String(payload.schemaVersion.current))} / required v${escapeHtml(String(payload.schemaVersion.required))}` +
       `</span>`;
 
-    const rows = [
-      { key: 'database',   status: toPillStatus(payload.checks.db.status),         label: payload.checks.db.status },
-      { key: 'embedder',   status: toPillStatus(payload.checks.embedder.status),   label: payload.checks.embedder.status,   sub: payload.checks.embedder.identity },
-      { key: 'mothership', status: toPillStatus(payload.checks.mothership.status), label: payload.checks.mothership.mode === 'air_gapped' ? 'air-gap' : payload.checks.mothership.status },
-      { key: 'migrations', status: toPillStatus(payload.checks.migrations.status), label: `v${payload.checks.migrations.current}` },
-    ];
-
-    list.innerHTML = rows
-      .map(
-        (r) =>
-          `<li class="flex items-center justify-between">` +
-          `<span>${r.key}${r.sub ? ` <span class="text-xs" style="color: var(--color-text-muted);">${r.sub}</span>` : ''}</span>` +
-          pillMarkup(r.status, r.label) +
-          `</li>`,
-      )
-      .join('');
+    list.innerHTML = [
+      healthCheckRowMarkup('database', toPillStatus(payload.checks.db.status), payload.checks.db.status),
+      healthCheckRowMarkup(
+        'embedder',
+        toPillStatus(payload.checks.embedder.status),
+        payload.checks.embedder.status,
+        payload.checks.embedder.identity,
+      ),
+      healthCheckRowMarkup(
+        'mothership',
+        toPillStatus(payload.checks.mothership.status),
+        payload.checks.mothership.mode === 'air_gapped' ? 'air-gap' : payload.checks.mothership.status,
+      ),
+      healthCheckRowMarkup(
+        'migrations',
+        toPillStatus(payload.checks.migrations.status),
+        `v${payload.checks.migrations.current}`,
+      ),
+    ].join('');
   }
 
   function paintBudget(payload: BudgetPayload | undefined, httpStatus: number): void {

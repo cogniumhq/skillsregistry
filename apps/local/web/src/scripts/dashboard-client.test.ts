@@ -2,14 +2,17 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   clearAdminToken,
   escapeHtml,
+  externalLinkMarkup,
   fetchJson,
   getAdminToken,
+  healthCheckRowMarkup,
   setAdminToken,
   formatDate,
   formatNumber,
   pillMarkup,
   publishStatusToPill,
   renderBudgetGauge,
+  safeHttpUrl,
   toPublishStatus,
   toPillStatus,
   type BudgetPayload,
@@ -69,18 +72,117 @@ describe('formatDate', () => {
 });
 
 describe('escapeHtml', () => {
-  it('escapes HTML metacharacters', () => {
+  it('escapes <>&"\'', () => {
     expect(escapeHtml(`<script>"x"&'y'</script>`)).toBe(
       '&lt;script&gt;&quot;x&quot;&amp;&#39;y&#39;&lt;/script&gt;',
     );
+    expect(escapeHtml(`<>&"'`)).toBe('&lt;&gt;&amp;&quot;&#39;');
+  });
+});
+
+describe('safeHttpUrl', () => {
+  it('accepts http:// and https:// after trim', () => {
+    expect(safeHttpUrl('https://api.skillsregistry.net/skills/x')).toBe(
+      'https://api.skillsregistry.net/skills/x',
+    );
+    expect(safeHttpUrl('http://localhost:3000/v1/health')).toBe(
+      'http://localhost:3000/v1/health',
+    );
+    expect(safeHttpUrl('  https://example.com/path  ')).toBe('https://example.com/path');
+    expect(safeHttpUrl('\thttp://127.0.0.1:8080/x\n')).toBe('http://127.0.0.1:8080/x');
+  });
+
+  it('rejects javascript:, data:, vbscript:, and other non-http schemes with null', () => {
+    expect(safeHttpUrl('javascript:alert(1)')).toBeNull();
+    expect(safeHttpUrl('JAVASCRIPT:alert(1)')).toBeNull();
+    expect(safeHttpUrl('data:text/html,<script>alert(1)</script>')).toBeNull();
+    expect(safeHttpUrl('vbscript:msgbox(1)')).toBeNull();
+    expect(safeHttpUrl('ftp://files.example/x')).toBeNull();
+    expect(safeHttpUrl('mailto:ops@example.com')).toBeNull();
+    expect(safeHttpUrl('file:///etc/passwd')).toBeNull();
+  });
+
+  it('rejects protocol-relative, relative, empty, and garbage with null', () => {
+    expect(safeHttpUrl('//evil.example/path')).toBeNull();
+    expect(safeHttpUrl('/admin/skills')).toBeNull();
+    expect(safeHttpUrl('example.com')).toBeNull();
+    expect(safeHttpUrl('not a url')).toBeNull();
+    expect(safeHttpUrl('')).toBeNull();
+    expect(safeHttpUrl('   ')).toBeNull();
+  });
+});
+
+describe('healthCheckRowMarkup', () => {
+  it('escapes a malicious embedder identity so it is not a raw tag', () => {
+    const payload = `<img src=x onerror=alert(1)>`;
+    const html = healthCheckRowMarkup('embedder', 'ok', 'ok', payload);
+    expect(html).not.toContain('<img');
+    expect(html).not.toContain(payload);
+    expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
+    expect(html).toContain('embedder');
+    expect(html).toContain('data-status="ok"');
+  });
+
+  it('escapes a malicious key and pill label', () => {
+    const html = healthCheckRowMarkup('<b>db</b>', 'error', '<script>x</script>');
+    expect(html).not.toContain('<b>db</b>');
+    expect(html).not.toContain('<script>x</script>');
+    expect(html).toContain('&lt;b&gt;db&lt;/b&gt;');
+    expect(html).toContain('&lt;script&gt;x&lt;/script&gt;');
+  });
+
+  it('omits the sub span when identity is absent', () => {
+    const html = healthCheckRowMarkup('database', 'ok', 'ok');
+    expect(html).not.toContain('color: var(--color-text-muted)');
+    expect(html).toContain('>database</span>');
   });
 });
 
 describe('pillMarkup', () => {
-  it('includes status and escaped label', () => {
-    const html = pillMarkup('ok', '<safe>');
+  it('keeps a malicious label escaped', () => {
+    const html = pillMarkup('ok', `<img src=x onerror=alert(1)>`);
     expect(html).toContain('data-status="ok"');
-    expect(html).toContain('&lt;safe&gt;');
+    expect(html).not.toContain('<img');
+    expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
+  });
+
+  it('escapes quotes in the label', () => {
+    const html = pillMarkup('degraded', `x" onclick="alert(1)"`);
+    expect(html).not.toContain('onclick="alert(1)"');
+    expect(html).toContain('x&quot; onclick=&quot;alert(1)&quot;');
+  });
+});
+
+describe('externalLinkMarkup', () => {
+  it('renders a safe https URL as an anchor', () => {
+    const html = externalLinkMarkup(
+      'https://api.skillsregistry.net/skills/abc',
+      'open on mothership',
+    );
+    expect(html).toContain('href="https://api.skillsregistry.net/skills/abc"');
+    expect(html).toContain('>open on mothership</a>');
+    expect(html).toContain('rel="noopener noreferrer"');
+    expect(html).toContain('target="_blank"');
+  });
+
+  it('does not emit href="javascript:" for a javascript: URL — plain escaped text', () => {
+    const html = externalLinkMarkup('javascript:alert(1)', 'javascript:alert(1)');
+    expect(html).not.toContain('href="javascript:');
+    expect(html).not.toMatch(/<a\b/);
+    expect(html).toBe('javascript:alert(1)');
+  });
+
+  it('rejects data: and protocol-relative URLs as plain text', () => {
+    expect(externalLinkMarkup('data:text/html,hi', 'payload')).toBe('payload');
+    expect(externalLinkMarkup('//evil.example', 'evil')).toBe('evil');
+    expect(externalLinkMarkup('//evil.example', 'evil')).not.toContain('href=');
+  });
+
+  it('escapes the label even on a safe href', () => {
+    const html = externalLinkMarkup('https://example.com', `<img src=x onerror=alert(1)>`);
+    expect(html).toContain('href="https://example.com/"');
+    expect(html).not.toContain('<img');
+    expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
   });
 });
 

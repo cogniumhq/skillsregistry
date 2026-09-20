@@ -98,8 +98,10 @@ import SkillsTable from '~/components/SkillsTable.astro';
   import {
     EDITABLE_STATUSES,
     escapeHtml,
+    externalLinkMarkup,
     fetchJson,
     formatDate,
+    safeHttpUrl,
     type AdminSkillsListPayload,
     type SkillDetailPayload,
   } from '~/scripts/dashboard-client';
@@ -158,8 +160,8 @@ import SkillsTable from '~/components/SkillsTable.astro';
     }
     const s = String(v);
     if (DATE_KEYS.has(key)) return `<span class="font-mono text-xs">${escapeHtml(formatDate(s))}</span>`;
-    if (/^https?:\/\//.test(s)) {
-      return `<a href="${escapeHtml(s)}" target="_blank" rel="noopener" class="font-mono text-xs underline" style="color: var(--color-accent);">${escapeHtml(s)}</a>`;
+    if (safeHttpUrl(s)) {
+      return externalLinkMarkup(s, s);
     }
     // Long-form content (skillMd, readme) keeps its whitespace.
     if (s.length > 200) {

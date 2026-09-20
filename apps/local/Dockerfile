@@ -59,7 +59,7 @@ FROM node:22-alpine AS runtime
 # OCI image labels — supply-chain identification, license reporting.
 LABEL org.opencontainers.image.title="skillsregistry-local"
 LABEL org.opencontainers.image.description="Open-source SkillsRegistry local runtime (Hono + Postgres/pgvector + Ollama)"
-LABEL org.opencontainers.image.source="https://github.com/cogniumhq/skillsregistry-local"
+LABEL org.opencontainers.image.source="https://github.com/cogniumhq/skillsregistry"
 LABEL org.opencontainers.image.licenses="Apache-2.0"
 LABEL org.opencontainers.image.vendor="Cognium Labs"
 

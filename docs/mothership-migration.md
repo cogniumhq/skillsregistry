@@ -8,14 +8,14 @@
 > in; open it, execute against the mothership, delete when done.
 >
 > **Sacred boundary:** the session that produced this note stopped
-> at the local-repo boundary per the `skillsregistry-local` CLAUDE.md.
+> at the local-repo boundary per this repo's CLAUDE.md.
 > Mothership edits belong to a mothership-repo session.
 
 ---
 
 ## Context
 
-`skillsregistry-local` publishes six SDK packages to npm under
+This repo (`cogniumhq/skillsregistry`) publishes six SDK packages to npm under
 `@skillsregistry/*`:
 
 | Package | Version | Extracted from mothership path |
@@ -238,18 +238,18 @@ pnpm install              # regenerate lockfile with file: links
 wrangler deploy -c wrangler.skillsregistry.toml
 ```
 
-Coordinate back to `skillsregistry-local`; do not force-merge a
+Coordinate back to this repo (`cogniumhq/skillsregistry`); do not force-merge a
 release below the R@5 gate.
 
 ---
 
-## Coordination back to skillsregistry-local
+## Coordination back to this repo
 
 If migration surfaces a port-shape mismatch (e.g., mothership needs
 a method not exported from `@skillsregistry/domain`), the fix belongs
-in `skillsregistry-local`, published as a patch bump. Steps:
+in `cogniumhq/skillsregistry`, published as a patch bump. Steps:
 
-1. Open an issue in `skillsregistry-local` describing the missing
+1. Open an issue in `cogniumhq/skillsregistry` describing the missing
    surface + a proposed port shape.
 2. That repo's session adds the port, ships a patch release
    (`@skillsregistry/domain@1.0.1`).
