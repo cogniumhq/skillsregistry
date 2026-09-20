@@ -70,7 +70,7 @@ jobs:
           fi
 
       - name: Create Release PR or publish
-        uses: changesets/action@v1
+        uses: changesets/action@v2
         with:
           publish: ${{ steps.npm.outputs.configured == 'true' && 'pnpm release' || '' }}
           version: pnpm version
