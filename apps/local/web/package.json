@@ -23,7 +23,7 @@
   "devDependencies": {
     "@astrojs/check": "^0.9.4",
     "jsdom": "^25.0.0",
-    "typescript": "^5.6.0",
+    "typescript": "^7.0.2",
     "vitest": "^2.1.0"
   }
 }
