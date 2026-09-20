@@ -1,8 +1,19 @@
-# Cognium Labs SkillsRegistry 
+# SkillsRegistry
 
+[![Cognium Labs Inc](https://img.shields.io/badge/Cognium_Labs_Inc-cognium.net-0a0a0b?labelColor=6ee7b7&color=111111)](https://cognium.net)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-**Open-source runtime + SDK for the [SkillsRegistry](https://skillsregistry.net) ecosystem.**
+**[Cognium Labs Inc](https://cognium.net)** — open-source runtime + SDK for the [SkillsRegistry](https://skillsregistry.net) ecosystem. Which skills to trust.
+
+Cognium is the control plane that evaluates AI-written code the same way every time, with proof you can re-run. This repository is the open skills-trust layer under that stack. Company site: **[cognium.net](https://cognium.net)**.
+
+- [cognium.net](https://cognium.net) — Cognium Labs Inc, company + control plane
+- [skillsregistry.net](https://skillsregistry.net) — SkillsRegistry catalog (this product)
+- [cognium.dev](https://cognium.dev) — open-source semantic SAST scanner
+- [specifica.org](https://specifica.org) — open spec format
+- [github.com/cogniumhq](https://github.com/cogniumhq) — open-source org
+
+Contact: [hello@cognium.net](mailto:hello@cognium.net)
 
 The hosted catalog also exposes a public, read-only MCP endpoint at
 `https://api.skillsregistry.net/mcp`. It uses Streamable HTTP, requires no key,
@@ -96,4 +107,4 @@ CLA-gated. See [`CONTRIBUTING.md`](CONTRIBUTING.md). Open an issue before starti
 
 ---
 
-*Cognium Labs · 2026*
+*[Cognium Labs Inc](https://cognium.net) · 2026*
