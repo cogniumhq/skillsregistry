@@ -28,7 +28,7 @@ jobs:
     timeout-minutes: 20
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Checkout only — no pnpm install — so node_modules is not present.
       # cognium.config.json further excludes node_modules / dist / coverage
