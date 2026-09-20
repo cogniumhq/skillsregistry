@@ -40,6 +40,7 @@ import SkillsTable from '~/components/SkillsTable.astro';
     fetchJson,
     pillMarkup,
     publishStatusToPill,
+    safeHttpUrl,
     toPublishStatus,
     type AdminSkillItem,
     type AdminSkillsListPayload,
@@ -65,14 +66,22 @@ import SkillsTable from '~/components/SkillsTable.astro';
 
   function actionCell(s: AdminSkillItem): string {
     const status = toPublishStatus(s.mothershipPublishStatus);
-    if (status === 'published' && s.mothershipUrl !== null && s.mothershipUrl !== '') {
+    const href = s.mothershipUrl ? safeHttpUrl(s.mothershipUrl) : null;
+    if (status === 'published' && href) {
       // rel=noopener because the target lives on api.skillsregistry.net —
-      // different origin, don't leak window.opener.
+      // different origin, don't leak window.opener. href is http(s)-only;
+      // escapeHtml alone would still allow javascript:/data: URLs.
       return (
         `<a class="text-xs font-mono underline" ` +
         `style="color: var(--color-accent);" ` +
-        `href="${escapeHtml(s.mothershipUrl)}" target="_blank" rel="noopener noreferrer">` +
+        `href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">` +
         `open on mothership</a>`
+      );
+    }
+    if (status === 'published' && s.mothershipUrl) {
+      return (
+        `<span class="text-xs font-mono" style="color: var(--color-text-muted);">` +
+        `${escapeHtml(s.mothershipUrl)}</span>`
       );
     }
     return (

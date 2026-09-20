@@ -4,12 +4,14 @@ import {
   escapeHtml,
   fetchJson,
   getAdminToken,
+  healthCheckRowMarkup,
   setAdminToken,
   formatDate,
   formatNumber,
   pillMarkup,
   publishStatusToPill,
   renderBudgetGauge,
+  safeHttpUrl,
   toPublishStatus,
   toPillStatus,
   type BudgetPayload,
@@ -73,6 +75,54 @@ describe('escapeHtml', () => {
     expect(escapeHtml(`<script>"x"&'y'</script>`)).toBe(
       '&lt;script&gt;&quot;x&quot;&amp;&#39;y&#39;&lt;/script&gt;',
     );
+  });
+});
+
+describe('safeHttpUrl', () => {
+  it('allows http and https after trim, returning the normalised href', () => {
+    expect(safeHttpUrl('https://api.skillsregistry.net/skills/x')).toBe(
+      'https://api.skillsregistry.net/skills/x',
+    );
+    expect(safeHttpUrl('http://localhost:3000/v1/health')).toBe(
+      'http://localhost:3000/v1/health',
+    );
+    expect(safeHttpUrl('  https://example.com/path  ')).toBe('https://example.com/path');
+  });
+
+  it('rejects javascript, data, and other schemes', () => {
+    expect(safeHttpUrl('javascript:alert(1)')).toBeNull();
+    expect(safeHttpUrl('data:text/html,<script>alert(1)</script>')).toBeNull();
+    expect(safeHttpUrl('vbscript:msgbox(1)')).toBeNull();
+    expect(safeHttpUrl('ftp://files.example/x')).toBeNull();
+  });
+
+  it('rejects protocol-relative, relative, and empty values', () => {
+    expect(safeHttpUrl('//evil.example/path')).toBeNull();
+    expect(safeHttpUrl('/admin/skills')).toBeNull();
+    expect(safeHttpUrl('example.com')).toBeNull();
+    expect(safeHttpUrl('')).toBeNull();
+    expect(safeHttpUrl('   ')).toBeNull();
+  });
+});
+
+describe('healthCheckRowMarkup', () => {
+  it('escapes embedder identity and other dynamic substrings', () => {
+    const html = healthCheckRowMarkup(
+      'embedder',
+      'ok',
+      'ok',
+      `<img src=x onerror=alert(1)>`,
+    );
+    expect(html).not.toContain('<img');
+    expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
+    expect(html).toContain('embedder');
+    expect(html).toContain('data-status="ok"');
+  });
+
+  it('omits the sub span when identity is absent', () => {
+    const html = healthCheckRowMarkup('database', 'ok', 'ok');
+    expect(html).not.toContain('color: var(--color-text-muted)');
+    expect(html).toContain('>database</span>');
   });
 });
 

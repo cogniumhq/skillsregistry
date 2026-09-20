@@ -3,7 +3,7 @@
 Drizzle schema + migration runner for the SkillsRegistry data model.
 
 **License:** Apache-2.0. This package is shared between the open-source
-[skillsregistry-local](https://github.com/cogniumhq/skillsregistry-local)
+[SkillsRegistry local](https://github.com/cogniumhq/skillsregistry)
 node and the proprietary mothership at `api.skillsregistry.net`. Both
 consume the same schema so migrations and column layouts never drift.
 

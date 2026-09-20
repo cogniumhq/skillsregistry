@@ -4,7 +4,7 @@ Zod schemas + TypeScript types for the SkillsRegistry public API and the
 local-node ↔ mothership contract.
 
 **License:** Apache-2.0. Consumed by both the open-source
-[skillsregistry-local](https://github.com/cogniumhq/skillsregistry-local)
+[SkillsRegistry local](https://github.com/cogniumhq/skillsregistry)
 node and the proprietary mothership. Both sides pin the exact same
 version so no field ever silently drifts.
 

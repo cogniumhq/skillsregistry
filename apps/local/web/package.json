@@ -2,7 +2,7 @@
   "name": "@skillsregistry/local-web",
   "version": "0.0.0",
   "private": true,
-  "description": "Admin UI for skillsregistry-local, built as static Astro bundle and served by Hono at /admin/*.",
+  "description": "Admin UI for the SkillsRegistry local node, built as a static Astro bundle and served by Hono at /admin/*.",
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {

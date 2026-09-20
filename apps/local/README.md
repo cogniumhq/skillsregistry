@@ -251,7 +251,7 @@ generates copy-paste config for Claude Desktop; the equivalent by hand for
 ```json
 {
   "mcpServers": {
-    "skillsregistry-local": {
+    "skillsregistry": {
       "command": "npx",
       "args": ["mcp-remote", "http://localhost:3000/mcp"]
     }
