@@ -164,10 +164,12 @@ export async function fetchJson<T>(
   init?: RequestInit,
 ): Promise<{ ok: boolean; status: number; body: T }> {
   const token = getAdminToken();
-  const auth = token ? { authorization: `Bearer ${token}` } : {};
+  const headers = new Headers(init?.headers);
+  headers.set('accept', 'application/json');
+  if (token) headers.set('authorization', `Bearer ${token}`);
   const res = await fetch(url, {
     ...init,
-    headers: { accept: 'application/json', ...auth, ...(init?.headers ?? {}) },
+    headers,
   });
   if (res.status === 401) {
     clearAdminToken();

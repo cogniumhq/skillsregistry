@@ -213,8 +213,8 @@ describe('fetchJson', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     await fetchJson('/v1/admin/health');
-    const headers = (fetchMock.mock.calls[0]?.[1] as RequestInit).headers as Record<string, string>;
-    expect(headers.authorization).toBeUndefined();
+    const headers = new Headers((fetchMock.mock.calls[0]?.[1] as RequestInit).headers);
+    expect(headers.get('authorization')).toBeNull();
   });
 
   it('attaches the stored token as a bearer', async () => {
@@ -227,8 +227,8 @@ describe('fetchJson', () => {
     setAdminToken('t0ken');
 
     await fetchJson('/v1/admin/health');
-    const headers = (fetchMock.mock.calls[0]?.[1] as RequestInit).headers as Record<string, string>;
-    expect(headers.authorization).toBe('Bearer t0ken');
+    const headers = new Headers((fetchMock.mock.calls[0]?.[1] as RequestInit).headers);
+    expect(headers.get('authorization')).toBe('Bearer t0ken');
   });
 
   it('on 401 clears the token and dispatches admin-auth-required', async () => {

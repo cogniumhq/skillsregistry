@@ -12,6 +12,11 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Job `name:` strings are the required-check contexts. Keep them stable.
+# Current ruleset on main requires: `build + typecheck + test`
+# After this lands, also require: `docker build (local app)` and
+# `compose + air-gap smoke` (see CONTRIBUTING.md).
+
 jobs:
   build:
     name: build + typecheck + test
@@ -21,9 +26,10 @@ jobs:
     # node_modules with every other repo on the box. Must stay a glibc image
     # (not alpine): actions/checkout runs on the node binary the runner mounts
     # in, and that binary is glibc-linked.
+    # No Docker socket here — image build + compose smoke run on ubuntu-latest.
     container:
       image: node:22-bookworm
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - uses: actions/checkout@v4
@@ -52,6 +58,11 @@ jobs:
 
       - name: Typecheck
         run: pnpm typecheck
+
+      - name: Astro check (admin UI)
+        env:
+          ASTRO_TELEMETRY_DISABLED: "1"
+        run: pnpm --filter @skillsregistry/local-web run check
 
       - name: Test
         run: pnpm test
@@ -103,3 +114,99 @@ jobs:
 
       - name: Verify changeset present for packages/* diffs
         run: pnpm changeset status --since=origin/main
+
+  # GitHub-hosted: the grace runner is node:22-bookworm with no Docker socket.
+  # linux/amd64 only — multi-arch (arm64) stays on publish-app.yml tag builds.
+  # No path filter: a broken Dockerfile is merge-critical for this repo.
+  docker-build:
+    name: docker build (local app)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android
+          df -h
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/local/Dockerfile
+          platforms: linux/amd64
+          push: false
+          provenance: false
+          cache-from: |
+            type=gha,scope=ci-local-amd64
+            type=gha,scope=linux-amd64
+          cache-to: type=gha,scope=ci-local-amd64,mode=max
+
+  # Full local stack: Postgres + Ollama + app, then smoke-airgap.sh.
+  # Air-gap is the supported posture (MOTHERSHIP_URL unset). First run pulls
+  # ollama/ollama + nomic-embed-text (~275MB) and can take 15–45 minutes;
+  # later runs hit the GHA image cache + Ollama model cache.
+  # Failures dump `docker compose logs` via apps/local/scripts/ci-compose-smoke.sh.
+  # No path filter — compose/runtime regressions are merge-critical.
+  # Not required on main until it has a green streak; then add it to the ruleset.
+  compose-smoke:
+    name: compose + air-gap smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android
+          df -h
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build + load image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/local/Dockerfile
+          platforms: linux/amd64
+          push: false
+          load: true
+          provenance: false
+          tags: skillsregistry-local:ci
+          cache-from: |
+            type=gha,scope=ci-local-amd64
+            type=gha,scope=linux-amd64
+          cache-to: type=gha,scope=ci-local-amd64,mode=max
+
+      - name: Cache Ollama models
+        uses: actions/cache@v4
+        with:
+          path: /tmp/sr-ollama-models
+          key: ollama-nomic-embed-text-v1
+          restore-keys: |
+            ollama-nomic-embed-text-
+
+      - name: Write air-gap compose .env
+        working-directory: apps/local
+        run: ./scripts/ci-write-env.sh
+
+      - name: Compose up + air-gap smoke
+        working-directory: apps/local
+        env:
+          OLLAMA_CACHE_DIR: /tmp/sr-ollama-models
+          COMPOSE_WAIT_TIMEOUT: "2400"
+          HEALTH_TIMEOUT: "180"
+          CURL_MAX_TIME: "60"
+          BASE_URL: http://127.0.0.1:3000
+        run: ./scripts/ci-compose-smoke.sh

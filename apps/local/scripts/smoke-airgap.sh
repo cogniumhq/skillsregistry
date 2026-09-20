@@ -6,8 +6,10 @@
 # Verifies the "MOTHERSHIP_URL unset" posture end-to-end against a running
 # node:
 #   1. GET  /v1/health              → 200, upstreamConfigured=false, dbReachable=true
-#   2. GET  /v1/search?q=<term>     → 200, `results` array present
-#   3. POST /mcp {tools/list}       → 200, 5 tools advertised
+#   2. GET  /v1/search?q=<term>     → 200, `skills` array present
+#   3. POST /mcp {tools/list}       → 200, 5 local tools advertised
+#      (hosted production may expose additional mothership-only tools;
+#      this script asserts the local node's surface — see TOOLS below)
 #   4. POST /v1/skills               → 201, `id` present
 #   5. POST /v1/trust/score          → 503, `error.code = upstream_not_configured`
 #
@@ -23,6 +25,7 @@
 # Env:
 #   BASE_URL          Base URL of the node under test (default http://localhost:3000)
 #   HEALTH_TIMEOUT    Seconds to wait for /v1/health = 200 (default 60)
+#   CURL_MAX_TIME     Seconds per assertion request after health (default 60)
 #   SMOKE_SLUG        Override the generated slug (default: airgap-smoke-<epoch>)
 #
 # ══════════════════════════════════════════════════════════════════════════════
@@ -32,6 +35,14 @@ set -euo pipefail
 BASE_URL="${BASE_URL:-http://localhost:3000}"
 HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-60}"
 SMOKE_SLUG="${SMOKE_SLUG:-airgap-smoke-$(date +%s)}"
+CURL_MAX_TIME="${CURL_MAX_TIME:-60}"
+
+# Local MCP surface from packages/mcp/src/tools/index.ts (wired by apps/local
+# POST /mcp). Hosted api.skillsregistry.net may advertise more tools; do not
+# raise this count to match production hosted — that would hide a local
+# regression or paper over extra tools that this repo does not ship.
+EXPECTED_TOOL_COUNT=5
+EXPECTED_TOOL_NAMES='["search_skills","get_skill","list_leaderboard","get_trust_breakdown","resolve_composition"]'
 
 # ── output helpers ───────────────────────────────────────────────────────────
 green() { printf '\033[0;32m%s\033[0m' "$1"; }
@@ -82,23 +93,26 @@ pass "/v1/health OK (air-gap posture confirmed)"
 
 # ── 2. /v1/search — 200 with skills array ────────────────────────────────────
 step "GET /v1/search?q=example → 200 with .skills[]"
-body=$(curl -sf "$BASE_URL/v1/search?q=example&limit=5") \
+body=$(curl -sf --max-time "$CURL_MAX_TIME" "$BASE_URL/v1/search?q=example&limit=5") \
   || die "search endpoint did not return 200"
 echo "$body" | jq -e '.skills | type == "array"' >/dev/null \
   || die "expected .skills to be an array" "$body"
 pass "/v1/search returned .skills[]"
 
-# ── 3. POST /mcp — tools/list advertises 5 tools ─────────────────────────────
-step "POST /mcp {tools/list} → 200 with 5 tools"
-body=$(curl -sf -X POST "$BASE_URL/mcp" \
+# ── 3. POST /mcp — tools/list advertises the local tool set ──────────────────
+step "POST /mcp {tools/list} → 200 with ${EXPECTED_TOOL_COUNT} local tools"
+body=$(curl -sf --max-time "$CURL_MAX_TIME" -X POST "$BASE_URL/mcp" \
   -H 'Content-Type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}') \
   || die "MCP dispatch did not return 200"
 tool_count=$(echo "$body" | jq '.result.tools | length')
-[ "$tool_count" = "5" ] || die "expected 5 tools, got $tool_count" "$body"
-echo "$body" | jq -e '.result.tools | map(.name) | contains(["search_skills","get_skill","list_leaderboard","get_trust_breakdown","resolve_composition"])' >/dev/null \
-  || die "expected the 5 canonical MCP tool names" "$body"
-pass "/mcp advertised all 5 tools"
+[ "$tool_count" = "$EXPECTED_TOOL_COUNT" ] \
+  || die "expected ${EXPECTED_TOOL_COUNT} local tools, got $tool_count" "$body"
+echo "$body" | jq -e --argjson expected "$EXPECTED_TOOL_NAMES" \
+  '.result.tools | map(.name) | contains($expected)' >/dev/null \
+  || die "expected the ${EXPECTED_TOOL_COUNT} canonical local MCP tool names" "$body"
+tool_names=$(echo "$body" | jq -r '.result.tools | map(.name) | join(", ")')
+pass "/mcp advertised all ${EXPECTED_TOOL_COUNT} local tools ($tool_names)"
 
 # ── 4. POST /v1/skills — publish a local skill ───────────────────────────────
 step "POST /v1/skills → 201 with .id"
@@ -116,7 +130,7 @@ publish_body=$(cat <<JSON
 }
 JSON
 )
-body=$(curl -sf -X POST "$BASE_URL/v1/skills" \
+body=$(curl -sf --max-time "$CURL_MAX_TIME" -X POST "$BASE_URL/v1/skills" \
   -H 'Content-Type: application/json' \
   -d "$publish_body") \
   || die "publish endpoint did not return 2xx"
@@ -131,7 +145,7 @@ score_body=$(cat <<JSON
 JSON
 )
 # -f would swallow the 503 body; we need it, so use -w to capture status
-resp=$(curl -sS -o /tmp/airgap-smoke-trust.json -w '%{http_code}' \
+resp=$(curl -sS --max-time "$CURL_MAX_TIME" -o /tmp/airgap-smoke-trust.json -w '%{http_code}' \
   -X POST "$BASE_URL/v1/trust/score" \
   -H 'Content-Type: application/json' \
   -d "$score_body")
