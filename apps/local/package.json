@@ -36,7 +36,7 @@
     "pino": "^9.5.0"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
+    "@types/node": "^22.20.3",
     "@types/node-cron": "^3.0.11",
     "@types/pg": "^8.23.1",
     "pino-pretty": "^11.3.0",
