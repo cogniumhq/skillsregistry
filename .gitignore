@@ -34,6 +34,7 @@ coverage/
 # local wrangler / docker state
 .wrangler/
 docker-data/
+apps/local/.ci-ollama-models/
 
 # changesets — versioning stays committed, but ignore the local temp state
 .changeset/*.tmp.md

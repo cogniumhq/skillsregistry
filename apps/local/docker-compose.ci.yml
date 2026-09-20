@@ -1,0 +1,30 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# CI overlay for `docker-compose.yml`.
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# Used only by GitHub Actions (`compose + air-gap smoke`) and
+# `scripts/ci-compose-smoke.sh`. Operators keep using the base file:
+#   docker compose up
+#
+# What this overlay changes:
+#   - `app` uses the pre-built `skillsregistry-local:ci` tag (loaded by
+#     docker/build-push-action with `load: true`, never pushed).
+#   - `ollama-models` is a bind mount so GHA can cache `nomic-embed-text`
+#     across runs. `OLLAMA_CACHE_DIR` must be an absolute host path.
+#
+# Loopback binds and air-gap (MOTHERSHIP_URL unset) come from the .env
+# written by `scripts/ci-write-env.sh`.
+# ══════════════════════════════════════════════════════════════════════════════
+
+services:
+  app:
+    image: skillsregistry-local:ci
+    pull_policy: never
+
+volumes:
+  ollama-models:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${OLLAMA_CACHE_DIR:?OLLAMA_CACHE_DIR must be an absolute host path}

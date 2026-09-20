@@ -6,7 +6,9 @@ This directory tracks pending version bumps for `@skillsregistry/*` npm packages
 
 Any PR that changes source in `packages/*` requires a changeset. CI enforces this.
 
-The local app under `apps/local` is versioned separately via Docker tags — it does not use changesets. It's listed in `ignore` in `config.json`.
+The local app under `apps/local` and its admin UI (`@skillsregistry/local-web`)
+are private and versioned with the Docker image — they do not use changesets.
+Both are listed in `ignore` in `config.json`.
 
 ## Adding a changeset
 

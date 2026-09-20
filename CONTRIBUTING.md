@@ -63,16 +63,52 @@ supported.
 1. Branch from `main`. Keep PRs focused — one concern per PR.
 2. Every PR that touches `packages/*` requires a changeset. Run
    `pnpm changeset` and commit the generated file. CI enforces this.
-3. Every PR must pass:
-   - `pnpm typecheck`
-   - `pnpm test`
-   - `pnpm build`
+3. Every PR must pass the CI merge gates below (not only a local
+   `pnpm typecheck` / `test` / `build`).
 4. Add tests for new behavior. Bug fixes need a regression test that
    fails on `main` and passes on your branch.
 5. Follow the existing code style. There is no separate formatting
    step — match the surrounding code.
 6. PR description should link to the relevant `tasks.md` entry (e.g.,
    "closes T-2.4") or the issue the PR resolves.
+
+## CI merge gates
+
+Workflow: [`.github/workflows/ci.yml`](.github/workflows/ci.yml). Job
+`name:` strings **are** the GitHub required-check contexts — keep them
+stable when editing the workflow.
+
+| Check name | What it runs | Runner |
+|---|---|---|
+| `build + typecheck + test` | `pnpm build`, `pnpm typecheck`, `pnpm --filter @skillsregistry/local-web run check` (Astro), `pnpm test` | self-hosted `grace` inside `node:22-bookworm` |
+| `changeset required on packages/* PRs` | `pnpm changeset status --since=origin/main` (skipped on version PRs) | self-hosted `grace` |
+| `docker build (local app)` | `apps/local/Dockerfile` linux/amd64, **no push** | GitHub-hosted `ubuntu-latest` |
+| `compose + air-gap smoke` | compose stack + `apps/local/scripts/smoke-airgap.sh` | GitHub-hosted `ubuntu-latest` |
+
+The `main` branch ruleset already requires `build + typecheck + test`.
+After this workflow has a green streak, also require `docker build (local
+app)` and `compose + air-gap smoke`. The changeset job is pull-request
+only, so it cannot be a push-to-main required check.
+
+Docker jobs **must not** run on `grace` — that runner has no Docker
+socket. Multi-arch (`linux/arm64`) stays on `publish-app.yml` for `v*`
+tags; PR/main image builds are amd64 only so they stay reliable.
+
+The compose smoke job is **not path-filtered**. A broken Dockerfile,
+compose file, or air-gap boot path is merge-critical. First run pulls
+`ollama/ollama` and `nomic-embed-text` (~275MB) and can take 15–45
+minutes; later runs reuse the GHA buildx cache and the Ollama model
+cache. Failures dump `docker compose logs` in the job log.
+
+`validate:listings` (live production MCP) is **not** a PR gate.
+
+Reproduce the smoke stack locally from `apps/local`:
+
+```bash
+./scripts/ci-write-env.sh
+# optional: docker build -t skillsregistry-local:ci -f Dockerfile ../..
+./scripts/ci-compose-smoke.sh
+```
 
 ## Commit messages
 
@@ -93,8 +129,10 @@ needs a changeset. Summary per SDK package:
 - `@skillsregistry/mcp` — major on any MCP tool signature change
 - `@skillsregistry/eval` — major on scoring metric rename
 
-The local app (`@skillsregistry/local`) is versioned separately
-via Docker tags and does not use changesets.
+The local app (`@skillsregistry/local`) and admin UI
+(`@skillsregistry/local-web`) are private and versioned with the Docker
+image — they are in the changesets `ignore` list and do not use
+changesets.
 
 ## Code of conduct
 
