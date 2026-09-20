@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">SkillsRegistry</title>
+  <desc id="desc">SkillsRegistry SR monogram</desc>
+  <rect width="256" height="256" rx="52" fill="#101827"/>
+  <path d="M52 76c0-18 14-32 32-32h88c18 0 32 14 32 32v9h-28v-7c0-5-4-9-9-9H89c-5 0-9 4-9 9v9c0 5 4 9 9 9h78c21 0 37 17 37 37v47c0 18-14 32-32 32H84c-18 0-32-14-32-32v-9h28v7c0 5 4 9 9 9h78c5 0 9-4 9-9v-43c0-5-4-9-9-9H89c-21 0-37-17-37-37V76Z" fill="#34d399"/>
+  <path d="M111 96h44c27 0 49 22 49 49v67h-28v-67c0-12-9-21-21-21h-44V96Z" fill="#f8fafc"/>
+</svg>

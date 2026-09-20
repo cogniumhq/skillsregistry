@@ -4,13 +4,13 @@
   "private": true,
   "description": "Open-source runtime + SDK for the SkillsRegistry ecosystem (Apache-2.0).",
   "license": "Apache-2.0",
-  "homepage": "https://github.com/cogniumhq/skillsregistry-local",
+  "homepage": "https://github.com/cogniumhq/skillsregistry",
   "repository": {
     "type": "git",
-    "url": "https://github.com/cogniumhq/skillsregistry-local.git"
+    "url": "https://github.com/cogniumhq/skillsregistry.git"
   },
   "bugs": {
-    "url": "https://github.com/cogniumhq/skillsregistry-local/issues"
+    "url": "https://github.com/cogniumhq/skillsregistry/issues"
   },
   "author": "Cognium Labs",
   "type": "module",
@@ -24,6 +24,7 @@
     "test": "vitest run --workspace ./vitest.workspace.ts",
     "test:coverage": "vitest run --workspace ./vitest.workspace.ts --coverage",
     "typecheck": "pnpm -r typecheck",
+    "validate:listings": "node scripts/validate-listings.mjs",
     "changeset": "changeset",
     "version": "changeset version",
     "release": "changeset publish",

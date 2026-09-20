@@ -1,0 +1,13 @@
+{
+  "name": "skillsregistry",
+  "version": "1.0.0",
+  "description": "Search and trust-check MCP servers and agent skills from the public SkillsRegistry catalog.",
+  "author": {
+    "name": "Cognium Labs",
+    "url": "https://cognium.net"
+  },
+  "homepage": "https://skillsregistry.net/agents",
+  "repository": "https://github.com/cogniumhq/skillsregistry",
+  "license": "Apache-2.0",
+  "mcpServers": "./.mcp.json"
+}
