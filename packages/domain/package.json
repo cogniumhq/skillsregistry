@@ -67,7 +67,7 @@
     "zod": "^3.23.0"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
+    "@types/node": "^26.6.1",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
   },
