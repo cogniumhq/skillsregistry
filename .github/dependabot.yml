@@ -1,0 +1,66 @@
+# Dependabot — weekly bumps for the three ecosystems this repo owns.
+# Open-PR cap is 10 per ecosystem. Minor/patch updates are grouped so
+# the queue stays reviewable; majors stay ungrouped for individual review.
+# Labels are applied when they exist on the repo (`dependencies` is the
+# convention). Dependabot security updates, if enabled, are a GitHub
+# repo-settings toggle separate from this file (see CONTRIBUTING.md).
+
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: UTC
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      npm-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: UTC
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      github-actions-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: docker
+    # apps/local/Dockerfile (node:22-alpine build + runtime stages)
+    directory: /apps/local
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: UTC
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      docker-minor-patch:
+        update-types:
+          - minor
+          - patch

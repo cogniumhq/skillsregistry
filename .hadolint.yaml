@@ -1,0 +1,3 @@
+# Fail the CI job on errors only. Warnings stay visible in the hadolint
+# action log so we can tighten later without reding main.
+failure-threshold: error

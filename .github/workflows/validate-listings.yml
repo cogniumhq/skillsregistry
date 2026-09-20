@@ -1,0 +1,43 @@
+# Production listings validator — live MCP + official registry check.
+#
+# Hits api.skillsregistry.net and registry.modelcontextprotocol.io.
+# This is a scheduled / on-demand workflow only. Do NOT add it as a
+# required PR merge check (see CONTRIBUTING.md). A red run here means
+# production listings drifted, not that a PR is unsafe to merge.
+
+name: Validate listings
+
+on:
+  schedule:
+    # Nightly 06:20 UTC.
+    - cron: "20 6 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: validate-listings
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: production listings
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Script is Node built-ins + fetch only; no workspace install needed.
+      - name: Validate production listings
+        run: pnpm validate:listings

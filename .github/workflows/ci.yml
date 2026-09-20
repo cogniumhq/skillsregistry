@@ -14,8 +14,10 @@ concurrency:
 
 # Job `name:` strings are the required-check contexts. Keep them stable.
 # Current ruleset on main requires: `build + typecheck + test`
-# After this lands, also require: `docker build (local app)` and
-# `compose + air-gap smoke` (see CONTRIBUTING.md).
+# Suggested next required checks (see CONTRIBUTING.md):
+#   `docker build (local app)`, `compose + air-gap smoke`,
+#   `dependency audit`, `hadolint (Dockerfile)`, `sdk pack dry-run`,
+#   `cognium-dev SAST`, and `coverage` once that floor has a green streak.
 
 jobs:
   build:
@@ -210,3 +212,140 @@ jobs:
           CURL_MAX_TIME: "60"
           BASE_URL: http://127.0.0.1:3000
         run: ./scripts/ci-compose-smoke.sh
+
+  # Fail only on high/critical production advisories. Low/moderate findings
+  # are printed and do not fail the job. See scripts/audit-prod.mjs.
+  # GitHub-hosted: the advisory DB fetch is network-heavy and does not need
+  # the grace node toolchain.
+  dependency-audit:
+    name: dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # `pnpm audit --prod --audit-level high` plus a small wrapper that
+      # ignores the high/critical GHSAs that need dedicated upgrades
+      # (astro 6/7, drizzle-orm 0.45, Astro/Vite transitives). New
+      # high/critical findings fail the job. Low/moderate never fail.
+      # See scripts/audit-prod.mjs and CONTRIBUTING.md.
+      - name: Production dependency audit (fail on high/critical)
+        run: pnpm audit:prod
+
+  # Dedicated job so the floor can be added to the ruleset independently of
+  # `build + typecheck + test`. Overall lines/statements ≥50%, functions ≥45%,
+  # branches ≥40% — see scripts/check-coverage.mjs and CONTRIBUTING.md.
+  # GitHub-hosted: same Node toolchain as the other new non-Docker jobs.
+  coverage:
+    name: coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Build first so workspace packages resolve via dist/ the same way the
+      # existing `build + typecheck + test` job does.
+      - name: Build
+        run: pnpm build
+
+      - name: Test with coverage
+        run: pnpm test:coverage
+
+      - name: Enforce coverage floor
+        run: pnpm coverage:check
+
+      - name: Upload coverage reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-json-summary
+          path: |
+            coverage/coverage-summary.json
+            coverage/lcov.info
+          if-no-files-found: warn
+          retention-days: 14
+
+  # After build, pack every publishable @skillsregistry/* package and check
+  # that exports / main / types / bin entrypoints exist. Private packages
+  # (@skillsregistry/local, @skillsregistry/local-web) are skipped.
+  # Always-on (cheap) so a broken types field cannot land unnoticed.
+  sdk-pack-dry-run:
+    name: sdk pack dry-run
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Pack publishable SDK packages (dry-run)
+        run: pnpm pack:dry-run
+
+  # Lint apps/local/Dockerfile. Fail on errors only; warnings are reported
+  # but do not fail the job (hadolint failure-threshold: error).
+  # GitHub-hosted: hadolint is not on the grace node container.
+  hadolint:
+    name: hadolint (Dockerfile)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run hadolint
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: apps/local/Dockerfile
+          failure-threshold: error
+

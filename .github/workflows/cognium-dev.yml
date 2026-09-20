@@ -1,0 +1,46 @@
+# Cognium SAST — first-party TypeScript only.
+# Job `name:` is the GitHub check context. Keep it stable (`cognium-dev SAST`)
+# if this becomes a required check on main (see CONTRIBUTING.md).
+#
+# GitHub-hosted: the official action installs cognium-dev on ubuntu-latest.
+
+name: cognium-dev
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: cognium-dev-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  cognium-dev:
+    name: cognium-dev SAST
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Checkout only — no pnpm install — so node_modules is not present.
+      # cognium.config.json further excludes node_modules / dist / coverage
+      # and includes only apps/local/src + packages/*/src (+ admin UI src).
+      - name: Run cognium-dev scan
+        uses: cogniumhq/cognium-dev/packages/cli@cognium-dev-v4.9.20
+        with:
+          path: .
+          format: sarif
+          output: cognium-results.sarif
+          severity: high
+          category: security
+          exclude-tests: true
+          upload-sarif: true
+          version: "4.9.20"
