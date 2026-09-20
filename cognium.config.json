@@ -1,0 +1,71 @@
+{
+  "include": [
+    "apps/local/src/**/*.ts",
+    "apps/local/web/src/**/*.ts",
+    "packages/*/src/**/*.ts"
+  ],
+  "exclude": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/coverage/**",
+    "**/*.test.ts",
+    "**/__tests__/**"
+  ],
+  "severity": "high",
+  "suppressions": [
+    {
+      "pass": "sql_injection",
+      "file": "apps/local/src/adapters/pg-kv.ts",
+      "line": 36,
+      "reason": "static CREATE TABLE DDL constant; no user input"
+    },
+    {
+      "pass": "sql_injection",
+      "file": "apps/local/src/routes/public.ts",
+      "line": 267,
+      "reason": "HTTP query-string loop, not SQL"
+    },
+    {
+      "pass": "sql_injection",
+      "file": "packages/domain/src/providers/pgvector-provider.ts",
+      "line": 366,
+      "reason": "internal embedding-column identifier; values are $1/$2 binds"
+    },
+    {
+      "pass": "sql_injection",
+      "file": "packages/domain/src/providers/pgvector-provider.ts",
+      "line": 492,
+      "reason": "parameter index interpolation + static weights; query text is bound"
+    },
+    {
+      "pass": "sql_injection",
+      "file": "packages/domain/src/resilience/tenant-circuit-registry.ts",
+      "line": 64,
+      "reason": "in-memory Map.get, not SQL"
+    },
+    {
+      "pass": "sql_injection",
+      "file": "packages/schema/src/runner.ts",
+      "line": 48,
+      "reason": "SqlClient.query type signature, not a query"
+    },
+    {
+      "pass": "sql_injection",
+      "file": "packages/schema/src/runner.ts",
+      "line": 90,
+      "reason": "static schema_migrations DDL constant"
+    },
+    {
+      "pass": "sql_injection",
+      "file": "packages/schema/src/runner.ts",
+      "line": 136,
+      "reason": "bundled migration SQL from package files, not request input"
+    },
+    {
+      "pass": "sql_injection",
+      "file": "packages/schema/src/runner.ts",
+      "line": 169,
+      "reason": "static schema_migrations DDL constant"
+    }
+  ]
+}

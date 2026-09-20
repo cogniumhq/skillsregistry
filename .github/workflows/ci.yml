@@ -17,7 +17,7 @@ concurrency:
 # Suggested next required checks (see CONTRIBUTING.md):
 #   `docker build (local app)`, `compose + air-gap smoke`,
 #   `dependency audit`, `hadolint (Dockerfile)`, `sdk pack dry-run`,
-#   `CodeQL`, and `coverage` once that floor has a green streak.
+#   `cognium-dev SAST`, and `coverage` once that floor has a green streak.
 
 jobs:
   build:

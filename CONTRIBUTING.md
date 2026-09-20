@@ -90,8 +90,11 @@ stable when editing the workflow.
 | `hadolint (Dockerfile)` | hadolint on `apps/local/Dockerfile`; fail on errors, warnings do not fail | GitHub-hosted `ubuntu-latest` | **suggest require** |
 | `sdk pack dry-run` | after build, entrypoint checks + `npm pack --dry-run` for each publishable `@skillsregistry/*` package (skips `@skillsregistry/local` and `@skillsregistry/local-web`; pnpm 9 has no `pack --dry-run`) | GitHub-hosted `ubuntu-latest` | **suggest require** |
 | `coverage` | `pnpm test:coverage` then `pnpm coverage:check` | GitHub-hosted `ubuntu-latest` | add if the floor stays stable |
+| `cognium-dev SAST` | Cognium SAST via `cogniumhq/cognium-dev` (`severity: high`, `category: security`, tests excluded). Scans first-party `apps/local/src`, `apps/local/web/src`, and `packages/*/src` only — never `node_modules`. | GitHub-hosted `ubuntu-latest` | **suggest require** |
 
-A separate workflow, [`.github/workflows/codeql.yml`](.github/workflows/codeql.yml), runs CodeQL (`javascript-typescript`) on pull requests to `main`, pushes to `main`, and a weekly schedule. The check name is **`CodeQL`**. Suggest adding it to the `main` ruleset after a green streak.
+A separate workflow, [`.github/workflows/cognium-dev.yml`](.github/workflows/cognium-dev.yml), runs **`cognium-dev SAST`** on pull requests to `main` and pushes to `main`. That is the security scan for this repo. CodeQL is intentionally not used.
+
+The scan uses `cognium.config.json`: first-party `src` only (never `node_modules`), `--severity high` (high + critical), `--category security`, tests excluded. The CLI exits 1 on security findings at that threshold. Reviewed false positives (parameterized SQL, static DDL, non-SQL call sites) are listed in `suppressions` there — do not add entries to silence a new finding.
 
 Docker jobs **must not** run on `grace` — that runner has no Docker
 socket. Multi-arch (`linux/arm64`) stays on `publish-app.yml` for `v*`
