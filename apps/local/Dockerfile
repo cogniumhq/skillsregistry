@@ -25,7 +25,7 @@
 # ══════════════════════════════════════════════════════════════════════════════
 
 # ─── build stage ────────────────────────────────────────────────────────────
-FROM node:22-alpine AS build
+FROM node:25-alpine AS build
 
 RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 
@@ -54,7 +54,7 @@ RUN pnpm --filter '@skillsregistry/local' deploy --prod /out
 RUN mkdir -p /out/web && cp -r apps/local/web/dist /out/web/dist
 
 # ─── runtime stage ──────────────────────────────────────────────────────────
-FROM node:22-alpine AS runtime
+FROM node:25-alpine AS runtime
 
 # OCI image labels — supply-chain identification, license reporting.
 LABEL org.opencontainers.image.title="skillsregistry-local"
