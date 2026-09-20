@@ -30,7 +30,7 @@
     "@skillsregistry/eval": "workspace:*",
     "@skillsregistry/mcp": "workspace:*",
     "@skillsregistry/schema": "workspace:*",
-    "hono": "^4.13.4",
+    "hono": "^4.13.5",
     "node-cron": "^3.0.3",
     "pg": "^8.23.0",
     "pino": "^9.5.0"
