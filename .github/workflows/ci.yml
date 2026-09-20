@@ -192,7 +192,7 @@ jobs:
           cache-to: type=gha,scope=ci-local-amd64,mode=max
 
       - name: Cache Ollama models
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: /tmp/sr-ollama-models
           key: ollama-nomic-embed-text-v1
