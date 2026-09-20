@@ -129,8 +129,10 @@ needs a changeset. Summary per SDK package:
 - `@skillsregistry/mcp` — major on any MCP tool signature change
 - `@skillsregistry/eval` — major on scoring metric rename
 
-The local app (`@skillsregistry/local`) is versioned separately
-via Docker tags and does not use changesets.
+The local app (`@skillsregistry/local`) and admin UI
+(`@skillsregistry/local-web`) are private and versioned with the Docker
+image — they are in the changesets `ignore` list and do not use
+changesets.
 
 ## Code of conduct
 
