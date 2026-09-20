@@ -139,7 +139,7 @@ jobs:
       - uses: docker/setup-buildx-action@v4
 
       - name: Build image (no push)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: apps/local/Dockerfile
@@ -177,7 +177,7 @@ jobs:
       - uses: docker/setup-buildx-action@v4
 
       - name: Build + load image (no push)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: apps/local/Dockerfile
@@ -344,7 +344,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Run hadolint
-        uses: hadolint/hadolint-action@v3.1.0
+        uses: hadolint/hadolint-action@v3.5.0
         with:
           dockerfile: apps/local/Dockerfile
           failure-threshold: error
