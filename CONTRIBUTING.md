@@ -78,17 +78,20 @@ Workflow: [`.github/workflows/ci.yml`](.github/workflows/ci.yml). Job
 `name:` strings **are** the GitHub required-check contexts — keep them
 stable when editing the workflow.
 
-| Check name | What it runs | Runner |
-|---|---|---|
-| `build + typecheck + test` | `pnpm build`, `pnpm typecheck`, `pnpm --filter @skillsregistry/local-web run check` (Astro), `pnpm test` | self-hosted `grace` inside `node:22-bookworm` |
-| `changeset required on packages/* PRs` | `pnpm changeset status --since=origin/main` (skipped on version PRs) | self-hosted `grace` |
-| `docker build (local app)` | `apps/local/Dockerfile` linux/amd64, **no push** | GitHub-hosted `ubuntu-latest` |
-| `compose + air-gap smoke` | compose stack + `apps/local/scripts/smoke-airgap.sh` | GitHub-hosted `ubuntu-latest` |
+### Pull request / push-to-`main` checks
 
-The `main` branch ruleset already requires `build + typecheck + test`.
-After this workflow has a green streak, also require `docker build (local
-app)` and `compose + air-gap smoke`. The changeset job is pull-request
-only, so it cannot be a push-to-main required check.
+| Check name | What it runs | Runner | Ruleset today |
+|---|---|---|---|
+| `build + typecheck + test` | `pnpm build`, `pnpm typecheck`, `pnpm --filter @skillsregistry/local-web run check` (Astro), `pnpm test` | self-hosted `grace` inside `node:22-bookworm` | **already required** |
+| `changeset required on packages/* PRs` | `pnpm changeset status --since=origin/main` (skipped on version PRs) | self-hosted `grace` | PR-only — cannot be a push-to-main required check |
+| `docker build (local app)` | `apps/local/Dockerfile` linux/amd64, **no push** | GitHub-hosted `ubuntu-latest` | add after a green streak |
+| `compose + air-gap smoke` | compose stack + `apps/local/scripts/smoke-airgap.sh` | GitHub-hosted `ubuntu-latest` | add once reliable on `main` |
+| `dependency audit` | `pnpm audit:prod` — `pnpm audit --prod` gated to **high/critical** only (low/moderate do not fail CI). A small ignore list covers GHSAs that need dedicated upgrades (astro 6/7, drizzle-orm 0.45, Astro/Vite transitives); new high/critical findings fail the job. See `scripts/audit-prod.mjs`. | GitHub-hosted `ubuntu-latest` | **suggest require** |
+| `hadolint (Dockerfile)` | hadolint on `apps/local/Dockerfile`; fail on errors, warnings do not fail | GitHub-hosted `ubuntu-latest` | **suggest require** |
+| `sdk pack dry-run` | after build, entrypoint checks + `npm pack --dry-run` for each publishable `@skillsregistry/*` package (skips `@skillsregistry/local` and `@skillsregistry/local-web`; pnpm 9 has no `pack --dry-run`) | GitHub-hosted `ubuntu-latest` | **suggest require** |
+| `coverage` | `pnpm test:coverage` then `pnpm coverage:check` | GitHub-hosted `ubuntu-latest` | add if the floor stays stable |
+
+A separate workflow, [`.github/workflows/codeql.yml`](.github/workflows/codeql.yml), runs CodeQL (`javascript-typescript`) on pull requests to `main`, pushes to `main`, and a weekly schedule. The check name is **`CodeQL`**. Suggest adding it to the `main` ruleset after a green streak.
 
 Docker jobs **must not** run on `grace` — that runner has no Docker
 socket. Multi-arch (`linux/arm64`) stays on `publish-app.yml` for `v*`
@@ -100,7 +103,47 @@ compose file, or air-gap boot path is merge-critical. First run pulls
 minutes; later runs reuse the GHA buildx cache and the Ollama model
 cache. Failures dump `docker compose logs` in the job log.
 
-`validate:listings` (live production MCP) is **not** a PR gate.
+### Coverage floor
+
+Overall (all workspaces combined — `packages/*`, `apps/local`,
+`apps/local/web`), enforced by `scripts/check-coverage.mjs`:
+
+| Metric | Floor |
+|---|---|
+| lines | ≥ 50% |
+| statements | ≥ 50% |
+| functions | ≥ 45% |
+| branches | ≥ 40% |
+
+This is a modest floor below the totals the current suite already
+clears (2026-09-20: 69.5% lines/statements, 80.6% functions, 86.0%
+branches). The same numbers live in `vitest.config.ts` (native vitest
+thresholds) and `scripts/check-coverage.mjs`. Bump all three together.
+Locally: `pnpm test:coverage && pnpm coverage:check`.
+
+### Dependency audit threshold
+
+`pnpm audit:prod` runs `pnpm audit --prod` and fails the job only on
+**high** or **critical** advisories. Low and moderate findings are
+printed and do not fail CI.
+
+A checked-in ignore list in `scripts/audit-prod.mjs` holds high/critical
+GHSAs that need a dedicated upgrade (astro 5 → 6/7, drizzle-orm 0.36 →
+0.45, and in-range transitives of that Astro/Vite graph). **Do not add
+IDs there to silence a new finding** — fix it or open a tracked upgrade.
+Remove an ID once the upgrade lands.
+
+### Scheduled / settings-layer checks (not PR merge gates)
+
+| Check | When | Required to merge? |
+|---|---|---|
+| `production listings` ([`.github/workflows/validate-listings.yml`](.github/workflows/validate-listings.yml)) | nightly 06:20 UTC + `workflow_dispatch`; runs `pnpm validate:listings` against live `api.skillsregistry.net` and `registry.modelcontextprotocol.io` | **No** — a red run means production listings drifted |
+| Dependabot version updates ([`.github/dependabot.yml`](.github/dependabot.yml)) | weekly npm (root), GitHub Actions, and Docker (`apps/local/Dockerfile`); minor/patch grouped; open-PR limit 10 per ecosystem | n/a (opens PRs) |
+| Dependabot security updates | repo **Settings → Code security** (not this repo's YAML) | n/a |
+| Secret scanning / push protection | repo **Settings → Code security** (GitHub-hosted, not a workflow in this repo) | n/a — may already be on for a public repo |
+
+`validate:listings` (live production MCP) is **not** a PR gate and
+must not be added to the `main` required-check ruleset.
 
 Reproduce the smoke stack locally from `apps/local`:
 
