@@ -23,7 +23,7 @@
     "clean": "rm -rf dist .tsbuildinfo web/dist web/.astro"
   },
   "dependencies": {
-    "@hono/node-server": "^1.13.0",
+    "@hono/node-server": "^1.19.15",
     "@skillsregistry/contracts": "workspace:*",
     "@skillsregistry/dag": "workspace:*",
     "@skillsregistry/domain": "workspace:*",
