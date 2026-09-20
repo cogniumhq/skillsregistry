@@ -25,7 +25,7 @@ importers:
     dependencies:
       '@hono/node-server':
         specifier: ^1.13.0
-        version: 1.19.14(hono@4.13.4)
+        version: 1.19.14(hono@4.13.5)
       '@skillsregistry/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -45,8 +45,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/schema
       hono:
-        specifier: ^4.13.4
-        version: 4.13.4
+        specifier: ^4.13.5
+        version: 4.13.5
       node-cron:
         specifier: ^3.0.3
         version: 3.0.3
@@ -114,7 +114,7 @@ importers:
     dependencies:
       '@hono/zod-openapi':
         specifier: ^0.19.0
-        version: 0.19.10(hono@4.13.4)(zod@3.25.76)
+        version: 0.19.10(hono@4.13.5)(zod@3.25.76)
       zod:
         specifier: ^3.23.0
         version: 3.25.76
@@ -2545,8 +2545,8 @@ packages:
   help-me@5.0.0:
     resolution: {integrity: sha512-7xgomUX6ADmcYzFik0HzAxh/73YlKR9bmFzf51CZwR+b6YtzU2m0u49hQCqV6SvlqIqsaxovfwdvbnsw3b/zpg==}
 
-  hono@4.13.4:
-    resolution: {integrity: sha512-AGEwKIyRMHRv1t8Wjwa3LHxQ61X5CqrdFT+4BRNTpqS5aJNnpl5WLjADb7vFlJzI/8uK7T5QLVApCMQKNa3LgQ==}
+  hono@4.13.5:
+    resolution: {integrity: sha512-O6+/eCYRkzzzy0rPWwKLiGBR1nFuUPZynnwjxN1MBA62NNqbT0wQEzQyK2gSO5yDIDB336sXQleAhOHrzlYyKw==}
     engines: {node: '>=16.9.0'}
 
   html-encoding-sniffer@4.0.0:
@@ -4812,21 +4812,21 @@ snapshots:
 
   '@fontsource-variable/jetbrains-mono@5.3.0': {}
 
-  '@hono/node-server@1.19.14(hono@4.13.4)':
+  '@hono/node-server@1.19.14(hono@4.13.5)':
     dependencies:
-      hono: 4.13.4
+      hono: 4.13.5
 
-  '@hono/zod-openapi@0.19.10(hono@4.13.4)(zod@3.25.76)':
+  '@hono/zod-openapi@0.19.10(hono@4.13.5)(zod@3.25.76)':
     dependencies:
       '@asteasolutions/zod-to-openapi': 7.3.4(zod@3.25.76)
-      '@hono/zod-validator': 0.7.6(hono@4.13.4)(zod@3.25.76)
-      hono: 4.13.4
+      '@hono/zod-validator': 0.7.6(hono@4.13.5)(zod@3.25.76)
+      hono: 4.13.5
       openapi3-ts: 4.6.0
       zod: 3.25.76
 
-  '@hono/zod-validator@0.7.6(hono@4.13.4)(zod@3.25.76)':
+  '@hono/zod-validator@0.7.6(hono@4.13.5)(zod@3.25.76)':
     dependencies:
-      hono: 4.13.4
+      hono: 4.13.5
       zod: 3.25.76
 
   '@img/colour@1.1.0':
@@ -6146,7 +6146,7 @@ snapshots:
 
   help-me@5.0.0: {}
 
-  hono@4.13.4: {}
+  hono@4.13.5: {}
 
   html-encoding-sniffer@4.0.0:
     dependencies:
