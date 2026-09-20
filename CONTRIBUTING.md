@@ -141,7 +141,7 @@ Remove an ID once the upgrade lands.
 | Check | When | Required to merge? |
 |---|---|---|
 | `production listings` ([`.github/workflows/validate-listings.yml`](.github/workflows/validate-listings.yml)) | nightly 06:20 UTC + `workflow_dispatch`; runs `pnpm validate:listings` against live `api.skillsregistry.net` and `registry.modelcontextprotocol.io` | **No** — a red run means production listings drifted |
-| Dependabot version updates ([`.github/dependabot.yml`](.github/dependabot.yml)) | weekly npm (root), GitHub Actions, and Docker (`apps/local/Dockerfile`); minor/patch grouped; open-PR limit 10 per ecosystem | n/a (opens PRs) |
+| Dependabot version updates ([`.github/dependabot.yml`](.github/dependabot.yml)) | weekly npm (root), GitHub Actions, and Docker (`apps/local/Dockerfile`); one grouped PR per ecosystem; incompatible majors ignored | n/a (opens PRs) |
 | Dependabot security updates | repo **Settings → Code security** (not this repo's YAML) | n/a |
 | Secret scanning / push protection | repo **Settings → Code security** (GitHub-hosted, not a workflow in this repo) | n/a — may already be on for a public repo |
 
