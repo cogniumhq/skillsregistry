@@ -45,7 +45,7 @@
     "clean": "rm -rf dist .tsbuildinfo"
   },
   "dependencies": {
-    "@hono/zod-openapi": "^1.6.3",
+    "@hono/zod-openapi": "^0.19.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {
