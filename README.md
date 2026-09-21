@@ -3,36 +3,68 @@
 [![Cognium Labs Inc](https://img.shields.io/badge/Cognium_Labs_Inc-cognium.net-0a0a0b?labelColor=6ee7b7&color=111111)](https://cognium.net)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-**[Cognium Labs Inc](https://cognium.net)** — open-source runtime + SDK for the [SkillsRegistry](https://skillsregistry.net) ecosystem. Which skills to trust.
+**Find MCP servers and agent skills by what they do, with explicit trust and
+scan-coverage signals.** [SkillsRegistry](https://skillsregistry.net) is built
+by **[Cognium Labs Inc](https://cognium.net)**. This Apache-2.0 repository
+contains its TypeScript SDK and self-hosted local node; the public catalog runs
+as a separate hosted service.
 
-Cognium is the control plane that evaluates AI-written code the same way every time, with proof you can re-run. This repository is the open skills-trust layer under that stack. Company site: **[cognium.net](https://cognium.net)**.
+## Try the public MCP catalog
 
-- [cognium.net](https://cognium.net) — Cognium Labs Inc, company + control plane
-- [skillsregistry.net](https://skillsregistry.net) — SkillsRegistry catalog (this product)
-- [cognium.dev](https://cognium.dev) — open-source semantic SAST scanner
-- [specifica.org](https://specifica.org) — open spec format
-- [github.com/cogniumhq](https://github.com/cogniumhq) — open-source org
+Connect Claude Code to the hosted, read-only MCP endpoint. The public tools
+require no API key or signup:
 
-Contact: [hello@cognium.net](mailto:hello@cognium.net)
+```bash
+claude mcp add --transport http --scope user skillsregistry https://api.skillsregistry.net/mcp
+```
 
-The hosted catalog also exposes a public, read-only MCP endpoint at
-`https://api.skillsregistry.net/mcp`. It uses Streamable HTTP, requires no key,
-and is packaged in this repository for Cursor and Claude. See
-[`docs/listings/README.md`](docs/listings/README.md) for install configuration,
-verified listing copy, limitations, and submission status.
+Ask your client to find an MCP server by task. `search_skills` returns available
+endpoint or repository links, an install-method classification, and the trust
+and scan coverage recorded for each result. For other clients, see the
+[generic MCP configuration](docs/listings/README.md#install-configuration) and
+[product docs](https://skillsregistry.net/agents).
 
-This monorepo produces two things:
+## Self-host the open-source node
 
-1. **The SDK packages** (`packages/*`) that back both the hosted mothership at `api.skillsregistry.net` and this local node. Published to npm under the `@skillsregistry/*` scope.
-2. **The local node app** (`apps/local`) — a single-tenant, Docker-friendly Node deployment users run in their own environment.
+Run a private SkillsRegistry instance over your own manifests. The local node
+(`apps/local`) uses Postgres with pgvector and an embedding provider; Docker
+Compose builds and wires up the supported air-gap deployment from source.
 
-## What this is for
+```bash
+git clone https://github.com/cogniumhq/skillsregistry.git
+cd skillsregistry/apps/local
+cp .env.example .env          # then set ADMIN_TOKEN — openssl rand -hex 32
+docker compose up -d
+```
 
-Run a private SkillsRegistry instance in isolation. You get your own tenant subtree, publish your own skills locally, and reach out to the mothership only for global concerns (trust scoring, leaderboards, skill fallback). Later, migrate to the hosted enterprise tier without rewriting anything.
+Then `curl http://localhost:3000/v1/health`. The
+[local-node walkthrough](apps/local/README.md) covers prerequisites,
+verification, authentication, and troubleshooting.
+
+## What the trust signals mean
+
+The hosted catalog reports the trust signals and scan coverage available for a
+record. **Unscanned means unscanned, not safe or clean.** Coverage is not
+universal, and a trust score is context for review rather than a guarantee that
+a skill is safe to run. Use `get_trust_breakdown` to inspect the recorded signals
+before deciding whether to install or invoke a result.
+
+The public MCP endpoint is read-only. In air-gap mode, the local node uses your
+local index for search, MCP, composition, and publishing without upstream calls.
+It does **not** run Cognium's hosted trust-scoring engine. Connected scoring,
+leaderboards, and migration require a hosted API key; self-serve signup is not
+available yet, so that mode remains a preview. See the
+[security policy](SECURITY.md) to report a vulnerability privately.
+
+## How the pieces fit
+
+This monorepo publishes six `@skillsregistry/*` SDK packages and the
+single-tenant local node. The hosted service consumes the SDK packages but runs
+in a separate, proprietary codebase.
 
 ```
 ┌─ Your infra ───────────────────────────┐        ┌─ api.skillsregistry.net ─┐
-│  apps/local (this repo)                │        │  Mothership              │
+│  apps/local (this repo)                │        │  Hosted SkillsRegistry   │
 │  • Postgres + pgvector                 │        │  • live catalog totals   │
 │  • Ollama embeddings (default)         │◄──────►│  • Trust scoring (paid)  │
 │  • Search + MCP + composition (local)  │  API   │  • Trust leaderboard     │
@@ -59,25 +91,8 @@ node runs from a `docker compose up`.
 | [`@skillsregistry/dag`](https://www.npmjs.com/package/@skillsregistry/dag) | 1.1.0 |
 | [`@skillsregistry/eval`](https://www.npmjs.com/package/@skillsregistry/eval) | 1.0.3 |
 
-**Air-gap mode is the supported path today.** Search, MCP, composition and local
-publishing all work with no account and no network. Connected mode — trust
-scoring, global leaderboards and the migration door — needs a mothership API key,
-and self-serve signup does not exist yet, so treat that half as preview.
-
 Design and roadmap are tracked internally. For anything non-trivial, open an
 issue first — see [`CONTRIBUTING.md`](CONTRIBUTING.md).
-
-## Quickstart
-
-```bash
-git clone https://github.com/cogniumhq/skillsregistry.git
-cd skillsregistry/apps/local
-cp .env.example .env          # then set ADMIN_TOKEN — openssl rand -hex 32
-docker compose up -d
-```
-
-Then `curl http://localhost:3000/v1/health`. Full walkthrough, verification
-commands, auth model and troubleshooting: **[`apps/local/README.md`](apps/local/README.md)**.
 
 ## Layout
 
@@ -95,15 +110,29 @@ skillsregistry/
 └── LICENSE                  # Apache-2.0
 ```
 
+## About Cognium
+
+[Cognium Labs Inc](https://cognium.net) builds SkillsRegistry and
+[Cognium SAST](https://cognium.dev). The company site is
+[cognium.net](https://cognium.net); [SkillsRegistry](https://skillsregistry.net)
+is the catalog and product documentation. Other open work is at
+[github.com/cogniumhq](https://github.com/cogniumhq), and
+[Specifica](https://specifica.org) documents the open spec format. Contact:
+[hello@cognium.net](mailto:hello@cognium.net).
+
 ## License
 
 Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
-The hosted service at `api.skillsregistry.net` runs a separate, private proprietary codebase that consumes these SDK packages via npm. This repository — `cogniumhq/skillsregistry` — is the open-source half.
+The hosted service at `api.skillsregistry.net` is proprietary and consumes the
+open-source SDK packages. This repository contains the Apache-2.0 runtime and
+SDK.
 
 ## Contributing
 
-CLA-gated. See [`CONTRIBUTING.md`](CONTRIBUTING.md). Open an issue before starting non-trivial work.
+External contributions are welcome; no separate CLA form is currently required.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) and open an issue before starting
+non-trivial work.
 
 ---
 

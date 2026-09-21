@@ -13,6 +13,7 @@ server version and catalog totals change independently of this repository.
 | Field | Value |
 |---|---|
 | Name | SkillsRegistry |
+| Publisher | Cognium Labs Inc (`https://cognium.net`) |
 | MCP endpoint | `https://api.skillsregistry.net/mcp` |
 | Transport | Streamable HTTP (`POST`) |
 | Protocol | 2025-06-18; also negotiates 2025-03-26 and 2024-11-05 |
@@ -49,20 +50,21 @@ Generic client configuration:
 
 ### One line
 
-> Search 90,000+ MCP servers and agent skills by what they do. No key required.
+> SkillsRegistry by Cognium Labs: search 90,000+ MCP servers and agent skills by what they do. No key required.
 
 ### Short description
 
-> SkillsRegistry is a searchable index of MCP servers and agent skills
-> aggregated from multiple public registries and GitHub. Search semantically by
+> SkillsRegistry by Cognium Labs is a searchable index of MCP servers and agent
+> skills aggregated from multiple public registries and GitHub. Search semantically by
 > what a tool does; results include the endpoint or repository needed to use it,
 > plus trust and scan-coverage signals. The public MCP endpoint is read-only and
 > requires no key or signup.
 
 ### Long description
 
-> SkillsRegistry brings MCP servers and agent skills from multiple ecosystem
-> sources into one semantically searchable catalog with a public MCP endpoint.
+> SkillsRegistry by Cognium Labs brings MCP servers and agent skills from
+> multiple ecosystem sources into one semantically searchable catalog with a
+> public MCP endpoint.
 >
 > `search_skills` returns `mcpUrl`, `repositoryUrl`, and `installMethod`, so an
 > agent can distinguish a callable remote from a source installation without a
@@ -100,9 +102,9 @@ Generic client configuration:
 
 ### Body
 
-> I wanted agents to be able to discover a usable MCP server without searching
-> several directories and then making another trip to work out how to install
-> it. SkillsRegistry exposes a public Streamable HTTP endpoint at
+> At Cognium Labs, we built SkillsRegistry so agents can discover a usable MCP
+> server without searching several directories and then making another trip to
+> work out how to install it. The public Streamable HTTP endpoint is at
 > `https://api.skillsregistry.net/mcp` with no key or signup.
 >
 > `search_skills` accepts a natural-language query and returns the MCP endpoint
@@ -112,7 +114,7 @@ Generic client configuration:
 >
 > Docs and client configs: https://skillsregistry.net/agents
 >
-> I would especially value feedback on the result shape: is there another field
+> We would especially value feedback on the result shape: is there another field
 > a client needs before it can decide whether to call, inspect, or skip a result?
 
 Use this for the MCP community and developer forums. Do not cross-post it
