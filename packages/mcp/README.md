@@ -43,9 +43,13 @@ interface McpAdapters {
 
 ## Auth stance
 
-v1 tools are read-only. `X-Tenant-Id` is an *advisory* scope hint — a
-missing / spoofed header degrades to public-only. Write tools + OAuth
-2.1 + RFC 8707 Resource Indicators land with v2.
+The MCP tools are read-only. `X-Tenant-Id` is an *advisory* scope hint, not
+authentication or a tenant-isolation boundary. Protect private deployments
+with your own access control.
+
+Tool availability depends on the host. The self-hosted local node currently
+returns no match for `resolve_composition` because it has no local composition
+index; the hosted endpoint has a different tool set.
 
 ## License
 

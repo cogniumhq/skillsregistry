@@ -1,12 +1,12 @@
-# Contributing to SkillsRegistry Local
+# Contributing to SkillsRegistry
 
 Thanks for your interest. This repo is Apache-2.0 and welcomes external
 contributions. A few ground rules keep the codebase coherent.
 
 ## Before you start
 
-1. **Open a discussion issue first** for anything non-trivial. Design
-   and roadmap are tracked internally, so an issue is how you find out
+1. **Open an issue or discussion first** for anything non-trivial. Design
+   and roadmap are tracked internally, so a conversation is how you find out
    whether a change fits the direction before you build it — and it is
    the fastest way to get that answer. Please don't land a large PR
    unannounced.
@@ -37,12 +37,12 @@ contributions. A few ground rules keep the codebase coherent.
   and is consumed here via `POST /v1/trust/score` (metered). Local
   proxies of the scoring pipeline are not accepted.
 
-## Contributor License Agreement
+## Contribution licensing
 
 By submitting a pull request you agree that your contribution is
-licensed under the Apache License 2.0 (see `LICENSE`). No CLA form to
-sign for now; the Apache-2.0 grant is sufficient. If we ever need a
-CLA, we'll switch to one before merging further PRs and give notice.
+licensed under the Apache License 2.0 (see `LICENSE`). No separate CLA form is
+currently required. If that changes, we will give notice before merging
+further pull requests.
 
 ## Development workflow
 
@@ -69,8 +69,9 @@ supported.
    fails on `main` and passes on your branch.
 5. Follow the existing code style. There is no separate formatting
    step — match the surrounding code.
-6. PR description should link to the relevant `tasks.md` entry (e.g.,
-   "closes T-2.4") or the issue the PR resolves.
+6. Link to the public issue or discussion the PR addresses when applicable.
+   Maintainers can also cite an internal task, but external contributors do
+   not need access to the private roadmap.
 
 ## CI merge gates
 

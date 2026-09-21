@@ -54,4 +54,4 @@ Originally published as `@runics/dag` under the OpenMason monorepo. Renamed to `
 
 ## License
 
-MIT © Cognium Labs
+Apache-2.0 — see [LICENSE](../../LICENSE) in the monorepo root.

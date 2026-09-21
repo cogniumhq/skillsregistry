@@ -13,10 +13,9 @@ consume the same schema so migrations and column layouts never drift.
   `schema.compositions`, `schema.invocations`, `schema.publisherKeys`,
   `schema.mcpInvocations`, `schema.searchLogs`, and the rest of the data
   model. Import the ones you need for type-safe queries.
-- **32 SQL migrations** (`0001` → `0032`) bundled inside the package.
+- **Bundled SQL migrations** (currently `0000` → `0037`) inside the package.
 - **A runtime-agnostic migration runner** — accepts any client with
-  `query(sql, values)`. Works with `pg`, `pg-pool`, and
-  `@neondatabase/serverless`.
+  `query(sql, values)`. Works with compatible PostgreSQL clients.
 - **`SCHEMA_VERSION` constant** — the highest migration number bundled
   in this SDK version. Fail-fast if the DB is behind.
 
