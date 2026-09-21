@@ -69,8 +69,9 @@ supported.
    fails on `main` and passes on your branch.
 5. Follow the existing code style. There is no separate formatting
    step — match the surrounding code.
-6. PR description should link to the relevant `tasks.md` entry (e.g.,
-   "closes T-2.4") or the issue the PR resolves.
+6. Link to the public issue or discussion the PR addresses when applicable.
+   Maintainers can also cite an internal task, but external contributors do
+   not need access to the private roadmap.
 
 ## CI merge gates
 

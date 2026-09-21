@@ -2,12 +2,8 @@
 
 ## Supported versions
 
-This project is in **MVP / pre-alpha**. Only the latest `main` and the
-most recent tagged release receive security fixes. Older tags are not
-patched.
-
-Once a stable line ships, this table will be updated with the
-supported range.
+Only the latest `main` and the most recent tagged release receive security
+fixes. Older tags are not patched.
 
 ## Reporting a vulnerability
 
