@@ -50,7 +50,8 @@ a skill is safe to run. Use `get_trust_breakdown` to inspect the recorded signal
 before deciding whether to install or invoke a result.
 
 The public MCP endpoint is read-only. In air-gap mode, the local node uses your
-local index for search, MCP, composition, and publishing without upstream calls.
+local index for search, MCP discovery, and publishing without upstream API calls.
+Its `resolve_composition` MCP tool does not yet resolve local compositions.
 It does **not** run Cognium's hosted trust-scoring engine. Connected scoring,
 leaderboards, and migration require a hosted API key; self-serve signup is not
 available yet, so that mode remains a preview. See the
@@ -66,8 +67,8 @@ in a separate, proprietary codebase.
 ┌─ Your infra ───────────────────────────┐        ┌─ api.skillsregistry.net ─┐
 │  apps/local (this repo)                │        │  Hosted SkillsRegistry   │
 │  • Postgres + pgvector                 │        │  • live catalog totals   │
-│  • Ollama embeddings (default)         │◄──────►│  • Trust scoring (paid)  │
-│  • Search + MCP + composition (local)  │  API   │  • Trust leaderboard     │
+│  • Ollama embeddings (default)         │◄──────►│  • Trust scoring API     │
+│  • Search + MCP (local)                │  API   │  • Trust leaderboard     │
 │  • Local skill publishing              │        │  • Publisher PKI         │
 │  • Budget meter + migration door       │        │  • Sync workers          │
 └────────────────────────────────────────┘        └──────────────────────────┘
@@ -106,7 +107,7 @@ skillsregistry/
 │   ├── domain/              # @skillsregistry/domain      — Search, confidence gate, reranker, composition, adapter interfaces
 │   ├── mcp/                 # @skillsregistry/mcp         — MCP tool handlers (delegate to domain)
 │   ├── eval/                # @skillsregistry/eval        — Fixtures + runner + metrics
-│   └── dag/                 # @skillsregistry/dag         — Graph library (moved from mothership vendored copy)
+│   └── dag/                 # @skillsregistry/dag         — Workflow graph types, validation, and interpreter
 └── LICENSE                  # Apache-2.0
 ```
 

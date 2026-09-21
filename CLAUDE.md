@@ -41,7 +41,7 @@ This monorepo produces two deliverables under **one Apache-2.0 license**:
 - Docker Compose for one-command deploy
 - Astro + `@astrojs/node` for the admin UI (`apps/local/web/`)
 
-## Commands (planned — see `tasks.md`)
+## Commands
 
 ```
 pnpm install                 # install workspace deps

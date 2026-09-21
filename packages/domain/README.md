@@ -8,21 +8,22 @@ zero direct dependency on any runtime, driver, or framework.
 Consumers (mothership Cloudflare Worker, local Node app) provide
 concrete adapters at boot.
 
-## Status
+## What ships
 
-**`0.1.0` — adapter interfaces only.** The domain-logic modules land
-incrementally per the internal roadmap
-subtasks T-1.4a → T-1.4f. `1.0.0` gates on completing all six
-sub-tasks so consumers see one coherent surface, not a moving target.
+This package includes adapters, resilience utilities, providers,
+search intelligence, scoring policy, and composition modules. Check
+`package.json` for the source version and npm for the latest published version.
+The local node wires a subset of these capabilities; see
+[its guide](../../apps/local/README.md) for runtime limitations.
 
 ## Adapter interfaces
 
 | Interface | Purpose | Mothership binding | Local binding |
 |---|---|---|---|
 | `KvAdapter` | Key-value cache | Cloudflare KV | `kv_store` Postgres table |
-| `QueueAdapter<T>` | Background dispatch | Cloudflare Queues | In-memory (MVP) / Postgres LISTEN-NOTIFY (post-MVP) |
+| `QueueAdapter<T>` | Background dispatch | Cloudflare Queues | In-memory queue |
 | `ArtifactAdapter` | Blob storage | R2 | `./data/artifacts/` |
-| `EmbedderAdapter` | Text embeddings | hosted qwen3-embedding-0.6B (MRL-512) | Ollama (default) or budgeted upstream |
+| `EmbedderAdapter` | Text embeddings | Hosted embedding service | Ollama; upstream embedding is not implemented locally |
 | `AfterResponse` | Deferred work | `executionCtx.waitUntil()` | `setImmediate()` |
 
 ## Usage
