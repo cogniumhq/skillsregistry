@@ -94,7 +94,7 @@ stable when editing the workflow.
 
 A separate workflow, [`.github/workflows/cognium-dev.yml`](.github/workflows/cognium-dev.yml), runs **`cognium-dev SAST`** on pull requests to `main` and pushes to `main`. That is the security scan for this repo. CodeQL is intentionally not used.
 
-The scan uses `cognium.config.json`: first-party `src` only (never `node_modules`), `--severity high` (high + critical), `--category security`, tests excluded. The CLI exits 1 on security findings at that threshold. Reviewed false positives (parameterized SQL, static DDL, non-SQL call sites) are listed in `suppressions` there — do not add entries to silence a new finding.
+The scan uses `cognium.config.json`: first-party `src` only (never `node_modules`), `--severity high` (high + critical), `--category security`, tests excluded. The CLI exits 1 on security findings at that threshold. Reviewed false positives (parameterized SQL, static DDL, non-SQL call sites) are listed in `suppressions` there and tracked as [cogniumhq/cognium-dev#409](https://github.com/cogniumhq/cognium-dev/issues/409) — do not add entries to silence a new finding.
 
 Docker jobs **must not** run on `grace` — that runner has no Docker
 socket. Multi-arch (`linux/arm64`) stays on `publish-app.yml` for `v*`
