@@ -28,13 +28,13 @@ jobs:
     timeout-minutes: 20
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Checkout only — no pnpm install — so node_modules is not present.
       # cognium.config.json further excludes node_modules / dist / coverage
       # and includes only apps/local/src + packages/*/src (+ admin UI src).
       - name: Run cognium-dev scan
-        uses: cogniumhq/cognium-dev/packages/cli@cognium-dev-v4.9.20
+        uses: cogniumhq/cognium-dev/packages/cli@cognium-dev-v4.9.16
         with:
           path: .
           format: sarif

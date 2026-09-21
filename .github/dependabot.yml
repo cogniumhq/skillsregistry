@@ -1,8 +1,8 @@
 # Dependabot — weekly bumps for the three ecosystems this repo owns.
-# Open-PR cap is 10 per ecosystem. Minor/patch updates are grouped so
-# the queue stays reviewable; majors stay ungrouped for individual review.
-# Labels are applied when they exist on the repo (`dependencies` is the
-# convention). Dependabot security updates, if enabled, are a GitHub
+# One open PR per ecosystem (all updates grouped) so the self-hosted
+# runner is not flooded. Known-incompatible majors are ignored and
+# need a dedicated migration, not an automated bump.
+# Dependabot security updates, if enabled, are a GitHub
 # repo-settings toggle separate from this file (see CONTRIBUTING.md).
 
 version: 2
@@ -14,17 +14,38 @@ updates:
       day: monday
       time: "06:00"
       timezone: UTC
-    open-pull-requests-limit: 10
-    labels:
-      - dependencies
+    open-pull-requests-limit: 1
     commit-message:
       prefix: chore
       include: scope
     groups:
-      npm-minor-patch:
+      all:
+        patterns:
+          - "*"
         update-types:
           - minor
           - patch
+    ignore:
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+      - dependency-name: zod
+        update-types: ["version-update:semver-major"]
+      - dependency-name: vitest
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@vitest/coverage-v8"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@hono/zod-openapi"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@hono/node-server"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: node-cron
+        update-types: ["version-update:semver-major"]
+      - dependency-name: pino
+        update-types: ["version-update:semver-major"]
+      - dependency-name: pino-pretty
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
@@ -33,14 +54,14 @@ updates:
       day: monday
       time: "06:00"
       timezone: UTC
-    open-pull-requests-limit: 10
-    labels:
-      - dependencies
+    open-pull-requests-limit: 1
     commit-message:
       prefix: chore
       include: scope
     groups:
-      github-actions-minor-patch:
+      all:
+        patterns:
+          - "*"
         update-types:
           - minor
           - patch
@@ -53,14 +74,17 @@ updates:
       day: monday
       time: "06:00"
       timezone: UTC
-    open-pull-requests-limit: 10
-    labels:
-      - dependencies
+    open-pull-requests-limit: 1
     commit-message:
       prefix: chore
       include: scope
     groups:
-      docker-minor-patch:
+      all:
+        patterns:
+          - "*"
         update-types:
           - minor
           - patch
+    ignore:
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]

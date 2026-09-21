@@ -94,7 +94,7 @@ stable when editing the workflow.
 
 A separate workflow, [`.github/workflows/cognium-dev.yml`](.github/workflows/cognium-dev.yml), runs **`cognium-dev SAST`** on pull requests to `main` and pushes to `main`. That is the security scan for this repo. CodeQL is intentionally not used.
 
-The scan uses `cognium.config.json`: first-party `src` only (never `node_modules`), `--severity high` (high + critical), `--category security`, tests excluded. The CLI exits 1 on security findings at that threshold. Reviewed false positives (parameterized SQL, static DDL, non-SQL call sites) are listed in `suppressions` there — do not add entries to silence a new finding.
+The scan uses `cognium.config.json`: first-party `src` only (never `node_modules`), `--severity high` (high + critical), `--category security`, tests excluded. The CLI exits 1 on security findings at that threshold. Reviewed false positives (parameterized SQL, static DDL, non-SQL call sites) are listed in `suppressions` there and tracked as [cogniumhq/cognium-dev#409](https://github.com/cogniumhq/cognium-dev/issues/409) — do not add entries to silence a new finding.
 
 Docker jobs **must not** run on `grace` — that runner has no Docker
 socket. Multi-arch (`linux/arm64`) stays on `publish-app.yml` for `v*`
@@ -141,7 +141,7 @@ Remove an ID once the upgrade lands.
 | Check | When | Required to merge? |
 |---|---|---|
 | `production listings` ([`.github/workflows/validate-listings.yml`](.github/workflows/validate-listings.yml)) | nightly 06:20 UTC + `workflow_dispatch`; runs `pnpm validate:listings` against live `api.skillsregistry.net` and `registry.modelcontextprotocol.io` | **No** — a red run means production listings drifted |
-| Dependabot version updates ([`.github/dependabot.yml`](.github/dependabot.yml)) | weekly npm (root), GitHub Actions, and Docker (`apps/local/Dockerfile`); minor/patch grouped; open-PR limit 10 per ecosystem | n/a (opens PRs) |
+| Dependabot version updates ([`.github/dependabot.yml`](.github/dependabot.yml)) | weekly npm (root), GitHub Actions, and Docker (`apps/local/Dockerfile`); one grouped PR per ecosystem; incompatible majors ignored | n/a (opens PRs) |
 | Dependabot security updates | repo **Settings → Code security** (not this repo's YAML) | n/a |
 | Secret scanning / push protection | repo **Settings → Code security** (GitHub-hosted, not a workflow in this repo) | n/a — may already be on for a public repo |
 

@@ -12,60 +12,61 @@
     "**/__tests__/**"
   ],
   "severity": "high",
+  "defect": "https://github.com/cogniumhq/cognium-dev/issues/409",
   "suppressions": [
     {
       "pass": "sql_injection",
       "file": "apps/local/src/adapters/pg-kv.ts",
       "line": 36,
-      "reason": "static CREATE TABLE DDL constant; no user input"
+      "reason": "static CREATE TABLE DDL constant; no user input (cognium-dev#409)"
     },
     {
       "pass": "sql_injection",
       "file": "apps/local/src/routes/public.ts",
       "line": 267,
-      "reason": "HTTP query-string loop, not SQL"
+      "reason": "HTTP query-string loop, not SQL (cognium-dev#409)"
     },
     {
       "pass": "sql_injection",
       "file": "packages/domain/src/providers/pgvector-provider.ts",
       "line": 366,
-      "reason": "internal embedding-column identifier; values are $1/$2 binds"
+      "reason": "internal embedding-column identifier; values are $1/$2 binds (cognium-dev#409)"
     },
     {
       "pass": "sql_injection",
       "file": "packages/domain/src/providers/pgvector-provider.ts",
       "line": 492,
-      "reason": "parameter index interpolation + static weights; query text is bound"
+      "reason": "parameter index interpolation + static weights; query text is bound (cognium-dev#409)"
     },
     {
       "pass": "sql_injection",
       "file": "packages/domain/src/resilience/tenant-circuit-registry.ts",
       "line": 64,
-      "reason": "in-memory Map.get, not SQL"
+      "reason": "in-memory Map.get, not SQL (cognium-dev#409)"
     },
     {
       "pass": "sql_injection",
       "file": "packages/schema/src/runner.ts",
       "line": 48,
-      "reason": "SqlClient.query type signature, not a query"
+      "reason": "SqlClient.query type signature, not a query (cognium-dev#409)"
     },
     {
       "pass": "sql_injection",
       "file": "packages/schema/src/runner.ts",
       "line": 90,
-      "reason": "static schema_migrations DDL constant"
+      "reason": "static schema_migrations DDL constant (cognium-dev#409)"
     },
     {
       "pass": "sql_injection",
       "file": "packages/schema/src/runner.ts",
       "line": 136,
-      "reason": "bundled migration SQL from package files, not request input"
+      "reason": "bundled migration SQL from package files, not request input (cognium-dev#409)"
     },
     {
       "pass": "sql_injection",
       "file": "packages/schema/src/runner.ts",
       "line": 169,
-      "reason": "static schema_migrations DDL constant"
+      "reason": "static schema_migrations DDL constant (cognium-dev#409)"
     }
   ]
 }
