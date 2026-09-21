@@ -1,0 +1,56 @@
+# Code owners for skillsregistry.
+#
+# Owners are requested automatically on any PR touching a matching path.
+# Last match wins, so the specific rules below override the catch-all.
+#
+# THIS FILE IS INERT UNTIL TWO THINGS ARE DONE — neither reports an error
+# when missing:
+#
+#   1. @cogniumhq/coreteam must have WRITE access to this repository.
+#      GitHub silently ignores CODEOWNERS entries naming a team without
+#      write access. At time of writing
+#      `GET /repos/cogniumhq/skillsregistry/teams` returns [] — no team has
+#      been granted access to this repo.
+#   2. `main` is protected but requires no reviews at all
+#      (`required_pull_request_reviews` is null), so owners would be
+#      requested without blocking a merge. "Require review from Code Owners"
+#      has to be enabled.
+#
+# See cogniumhq/cognium-dev#442.
+
+# Default owner for everything not matched below.
+*                                   @cogniumhq/coreteam
+
+# ---------------------------------------------------------------------------
+# Client-facing manifests. These point installed tooling at an endpoint
+# (api.skillsregistry.net) — changing one silently redirects every user's
+# editor or agent to a different server. Highest-value target in this repo,
+# and the reason scripts/validate-listings.mjs exists to cross-check them.
+# ---------------------------------------------------------------------------
+
+/server.json                        @cogniumhq/coreteam
+/mcp.json                           @cogniumhq/coreteam
+/.mcp.json                          @cogniumhq/coreteam
+/.claude-plugin/                    @cogniumhq/coreteam
+/.cursor-plugin/                    @cogniumhq/coreteam
+/cognium.config.json                @cogniumhq/coreteam
+
+# ---------------------------------------------------------------------------
+# Supply chain — CI can execute arbitrary code and publish packages.
+# ---------------------------------------------------------------------------
+
+/.github/                           @cogniumhq/coreteam
+/.github/workflows/                 @cogniumhq/coreteam
+/scripts/                           @cogniumhq/coreteam
+/.changeset/                        @cogniumhq/coreteam
+
+/package.json                       @cogniumhq/coreteam
+/pnpm-lock.yaml                     @cogniumhq/coreteam
+/pnpm-workspace.yaml                @cogniumhq/coreteam
+# `**` rather than `*`: apps/local/web/package.json is nested a level deeper
+# than apps/local/package.json, and a single-star rule would skip it.
+/packages/**/package.json           @cogniumhq/coreteam
+/apps/**/package.json               @cogniumhq/coreteam
+
+# Security policy.
+/SECURITY.md                        @cogniumhq/coreteam
