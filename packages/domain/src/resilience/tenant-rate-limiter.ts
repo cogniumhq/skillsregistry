@@ -22,7 +22,7 @@
 //
 // Degrade-open contract: if no KvAdapter is provided the limiter is a no-op.
 // Callers can still hit the breaker; only the local counter goes away. Matches
-// the mothership behavior when the SEARCH_CACHE binding is missing.
+// the mothership behavior when the cache binding is missing.
 //
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -65,7 +65,7 @@ export interface LLMProxyRateLimiterOptions {
 }
 
 /**
- * Tenant-scoped sliding-window limiter for llmproxy calls.
+ * Tenant-scoped sliding-window limiter for upstream LLM-proxy calls.
  *
  * - increment: optimistic; uses kv.get + kv.put, no CAS. KV is typically
  *   eventually consistent so very tight bursts may slip past the cap. That's

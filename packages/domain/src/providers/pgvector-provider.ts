@@ -88,7 +88,7 @@ export class PgVectorProvider implements SearchProvider {
   // the legacy vector(384) `embedding` column and renamed `embedding_h512` →
   // `embedding`, so the on-disk column is halfvec(512) under its old name.
   // No more EMBEDDING_PROVIDER branching — the only supported embedder is the
-  // qwen3-embedding-0.6B @ MRL-512 path via llmproxy.
+  // qwen3-embedding-0.6B @ MRL-512 path via the upstream embedding proxy.
   private static readonly EMBEDDING_COLUMN = 'embedding';
   private static readonly EMBEDDING_CAST = 'halfvec';
 
@@ -898,7 +898,7 @@ export class PgVectorProvider implements SearchProvider {
 
       // §10 A10 (post-cutover): single-column write. The canonical `embedding`
       // column is halfvec(512); the embedder is the qwen3-embedding-0.6B @
-      // MRL-512 path via llmproxy. Anything else is rejected upstream — the
+      // MRL-512 path via the upstream embedding proxy. Anything else is rejected upstream — the
       // ingest pipeline only produces 512-d vectors after the cutover. We
       // assert here so a misconfigured embedder fails loud instead of
       // silently writing an undersized vector that pgvector would reject.

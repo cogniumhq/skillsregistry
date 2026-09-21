@@ -153,8 +153,8 @@ export const SkillDetailSchema = z
     specAlignmentScore: z.number().nullable(),
     specGaps: z.unknown().nullable(),
     specAnalyzedAt: z.string().nullable(),
-    // D2 publisher-signing surface — see techspec/skillsregistry.md §11 and
-    // techspec/cortex.md §6.3. NULL for pre-D2 rows, sync-exempt rows, and
+    // D2 publisher-signing surface — see skillsregistry.md §11 and
+    // cortex.md §6.3. NULL for pre-D2 rows, sync-exempt rows, and
     // failed-verify rows (failure detail lives in signatureFailureReason).
     publisherKeyId: z.string().nullable(),
     signatureVerifiedAt: z.string().nullable(),
@@ -190,7 +190,7 @@ export const SkillPullResponseSchema = z
     forkedFrom: z.string().nullable(),
     source: z.string(),
     // D2 publisher-signing surface — Cortex inspects these on pull to build
-    // signatureChain (techspec/cortex.md §6.3) before dispatching.
+    // signatureChain (cortex.md §6.3) before dispatching.
     publisherKeyId: z.string().nullable(),
     signatureVerifiedAt: z.string().nullable(),
     signatureFailureReason: z.string().nullable(),
@@ -215,7 +215,7 @@ const SkillVersionSummarySchema = z.object({
   cogniumScanned: z.boolean(),
   cogniumScannedAt: z.string().nullable(),
   scanCoverage: z.string().nullable(),
-  // D2 publisher-signing surface per-version (techspec/skillsregistry.md §11).
+  // D2 publisher-signing surface per-version (skillsregistry.md §11).
   publisherKeyId: z.string().nullable(),
   signatureVerifiedAt: z.string().nullable(),
   signatureFailureReason: z.string().nullable(),

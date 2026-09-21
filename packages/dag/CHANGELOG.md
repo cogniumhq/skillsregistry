@@ -20,7 +20,7 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **`resolveInputs`** does *not* walk nested leaves — non-string values are
   passed through verbatim. Callers that need recursive template expansion
   inside nested structures must resolve them before calling `resolveInputs`,
-  or use a higher-level resolver (Cortex's `input-mapping.ts` is one).
+  or use a higher-level resolver (a consumer-side resolver, not this package).
 - **`validateDAG`** skips reference checks on non-string leaves. Inter-step
   references embedded inside nested structures are the caller's responsibility.
 - **Downstream TypeScript consumers** that pinned the inferred

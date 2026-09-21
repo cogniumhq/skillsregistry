@@ -13,7 +13,7 @@
 -- This catches the common case where the publish/composition pipelines
 -- enqueue the same skill twice in a row, or where a sync run re-publishes
 -- a skill whose agent_summary hasn't changed. Without the gate we re-call
--- llmproxy /v1/embeddings on every replay, wasting ~50 ms + token cost.
+-- the upstream embeddings endpoint on every replay, wasting ~50 ms + token cost.
 --
 -- Normalization (kept in lockstep with `src/ingestion/text-fingerprint.ts`):
 --   lowercase → trim → collapse runs of whitespace to a single space → SHA-256

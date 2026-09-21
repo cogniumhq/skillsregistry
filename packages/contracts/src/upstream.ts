@@ -171,11 +171,11 @@ export type BudgetResponse = z.infer<typeof BudgetResponseSchema>;
  *
  * `profile: 'agent'` + `budget_caps` are the agent-runtime extension
  * (§14.2). `budget_caps` are hard caps enforced in-band by the agent skill's
- * wrapper script through llmproxy session metering — the caller cannot rely
+ * wrapper script through session metering — the caller cannot rely
  * on Cortex enforcing them at the outer boundary.
  */
 export const SkillSandboxSchema = z.object({
-  /** OCI ref, e.g. `ghcr.io/cognium-labs/skill-base:1.0.0`. */
+  /** OCI ref, e.g. `ghcr.io/example/skill-base:1.0.0`. */
   image: z.string().min(1),
   /** Memory allocation in MB. Base default 512 (vm) / 2048 (agent). */
   memory_mb: z.number().int().positive(),
@@ -193,7 +193,7 @@ export const SkillSandboxSchema = z.object({
   profile: z.literal('agent').optional(),
   /**
    * Agent-only hard caps. Enforced in-band by the wrapper script via
-   * llmproxy metering (Cortex only enforces the outer wall-clock via
+   * LLM-proxy metering (Cortex only enforces the outer wall-clock via
    * provider timeout).
    */
   budget_caps: z
