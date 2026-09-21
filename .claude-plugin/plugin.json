@@ -1,7 +1,7 @@
 {
   "name": "skillsregistry",
   "version": "1.0.0",
-  "description": "Search and trust-check MCP servers and agent skills from the public SkillsRegistry catalog.",
+  "description": "SkillsRegistry by Cognium: search MCP servers and agent skills with explicit trust and scan-coverage signals.",
   "author": {
     "name": "Cognium Labs",
     "url": "https://cognium.net"

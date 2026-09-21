@@ -12,7 +12,7 @@ server version and catalog totals change independently of this repository.
 
 | Field | Value |
 |---|---|
-| Name | SkillsRegistry |
+| Display name | SkillsRegistry by Cognium |
 | Publisher | Cognium Labs Inc (`https://cognium.net`) |
 | MCP endpoint | `https://api.skillsregistry.net/mcp` |
 | Transport | Streamable HTTP (`POST`) |
@@ -50,11 +50,11 @@ Generic client configuration:
 
 ### One line
 
-> SkillsRegistry by Cognium Labs: search 90,000+ MCP servers and agent skills by what they do. No key required.
+> SkillsRegistry by Cognium: search 90,000+ MCP servers and agent skills by what they do. No key required.
 
 ### Short description
 
-> SkillsRegistry by Cognium Labs is a searchable index of MCP servers and agent
+> SkillsRegistry by Cognium is a searchable index of MCP servers and agent
 > skills aggregated from multiple public registries and GitHub. Search semantically by
 > what a tool does; results include the endpoint or repository needed to use it,
 > plus trust and scan-coverage signals. The public MCP endpoint is read-only and
@@ -62,7 +62,7 @@ Generic client configuration:
 
 ### Long description
 
-> SkillsRegistry by Cognium Labs brings MCP servers and agent skills from
+> SkillsRegistry by Cognium brings MCP servers and agent skills from
 > multiple ecosystem sources into one semantically searchable catalog with a
 > public MCP endpoint.
 >
@@ -98,7 +98,7 @@ Generic client configuration:
 
 ### Title
 
-> A public MCP endpoint for searching 90,000+ MCP servers and agent skills
+> SkillsRegistry by Cognium: a public MCP endpoint for finding agent skills
 
 ### Body
 

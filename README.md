@@ -1,4 +1,4 @@
-# SkillsRegistry
+# SkillsRegistry by Cognium
 
 [![Cognium Labs Inc](https://img.shields.io/badge/Cognium_Labs_Inc-cognium.net-0a0a0b?labelColor=6ee7b7&color=111111)](https://cognium.net)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
