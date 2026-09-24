@@ -17,3 +17,6 @@ test demonstrates the fix.
 - [ ] I added or updated tests for behavior changes, or explained why none are needed.
 - [ ] I added a changeset if this PR touches `packages/*` (CI requires one).
 - [ ] I removed credentials, personal data, and private skill content from the diff.
+- [ ] This diff does not include scan output, customer findings, or `.env` files.
+- [ ] This diff does not include tokens, private keys, or other credentials.
+- [ ] Nothing in this diff was copied from another checkout on the same machine.
