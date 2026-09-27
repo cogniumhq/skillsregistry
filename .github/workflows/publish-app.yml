@@ -108,7 +108,25 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Report image deployment start
+        env:
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          CHANGE_MONITOR_ENV: ghcr
+          CHANGE_MONITOR_SERVICE: skillsregistry-local
+          DEPLOY_VERSION: ${{ github.sha }}
+          DEPLOY_ACTOR: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          bash scripts/report-rollouts-deployment.sh bootstrap
+          bash scripts/report-rollouts-deployment.sh start
+
+      - name: Checkout deployment reporter
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: scripts/report-rollouts-deployment.sh
+          sparse-checkout-cone-mode: false
+
       - name: Create + push multi-arch manifest
+        id: manifest
         working-directory: /tmp/digests
         run: |
           docker buildx imagetools create \
@@ -118,3 +136,15 @@ jobs:
 
       - name: Inspect manifest
         run: docker buildx imagetools inspect ${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
+
+      - name: Report image deployment result
+        if: always()
+        env:
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          CHANGE_MONITOR_ENV: ghcr
+          CHANGE_MONITOR_SERVICE: skillsregistry-local
+          DEPLOY_VERSION: ${{ github.sha }}
+          DEPLOY_ACTOR: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          DEPLOY_OUTCOME: ${{ steps.manifest.outcome == 'success' && 'succeeded' || (steps.manifest.outcome == 'cancelled' && 'aborted' || 'failed') }}
+          DEPLOY_FAILURE_MESSAGE: GHCR manifest publish ${{ steps.manifest.outcome }}
+        run: bash scripts/report-rollouts-deployment.sh finish
