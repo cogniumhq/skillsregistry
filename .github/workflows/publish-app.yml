@@ -108,7 +108,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Checkout deployment reporter
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: scripts/report-rollouts-deployment.sh
+          sparse-checkout-cone-mode: false
+
       - name: Report image deployment start
+        continue-on-error: true
         env:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
           CHANGE_MONITOR_ENV: ghcr
@@ -118,12 +125,6 @@ jobs:
         run: |
           bash scripts/report-rollouts-deployment.sh bootstrap
           bash scripts/report-rollouts-deployment.sh start
-
-      - name: Checkout deployment reporter
-        uses: actions/checkout@v7
-        with:
-          sparse-checkout: scripts/report-rollouts-deployment.sh
-          sparse-checkout-cone-mode: false
 
       - name: Create + push multi-arch manifest
         id: manifest
@@ -139,6 +140,7 @@ jobs:
 
       - name: Report image deployment result
         if: always()
+        continue-on-error: true
         env:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
           CHANGE_MONITOR_ENV: ghcr
