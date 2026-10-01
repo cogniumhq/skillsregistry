@@ -31,6 +31,7 @@ This monorepo produces two deliverables under **one Apache-2.0 license**:
 - **Work stays inside this repository.** No edits, writes, or file creation in sibling private repos (the mothership, the platform specs, and the other Cognium services) from this project's sessions. Cross-repo work (e.g., mothership consuming a new `@skillsregistry/schema` version) is a coordination ask, not a direct edit. Exception: explicit user override for a specific sibling — see the 2026-07-13 `cognium-skills` bundle fix.
 - **The mothership is proprietary.** This repo never publishes anything that assumes access to mothership internals. All mothership interaction is via the public HTTP API defined in `@skillsregistry/contracts`.
 - **One upstream module.** `apps/local/src/upstream-client.ts` is the **only** place code here talks to `api.skillsregistry.net`. Every other module goes through it.
+- **This repo is public.** Do not copy material from any other checkout into this tree. No scan output, customer findings, tokens, or unpublished internal design. See `.cursor/rules/public-repo.mdc`.
 
 ## Stack (target)
 
