@@ -10,4 +10,5 @@ export default defineWorkspace([
   'apps/local',
   'apps/local/web',
   'tools',
+  'scripts',
 ]);
