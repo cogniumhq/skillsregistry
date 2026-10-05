@@ -26,8 +26,9 @@ packages. Builds from source (Node 22 + Postgres 16 + Ollama) — which is what
 - `http://localhost:3000/admin/` — web dashboard for health, budget, indexed
   skills, hosted publishing, and MCP wiring. With Docker Compose, the app sees
   the Docker bridge address, so enter `ADMIN_TOKEN` when prompted.
-- Optional connected-mode passthrough to `api.skillsregistry.net` for trust
-  scoring + leaderboards + publish-to-mothership
+- Optional connected mode (leaderboard proxy and skill-lookup fallback). Hosted
+  publishing and trust scoring are not usable from the local node yet; see
+  [Connected](#connected).
 
 Air-gap is the default runtime posture: the node makes no upstream API calls
 unless you set `MOTHERSHIP_URL`. A fresh Docker Compose install still downloads
@@ -130,36 +131,72 @@ Behaviour:
 
 ### Connected
 
-Connected mode requires a provisioned `TENANT_ID` and `MOTHERSHIP_API_KEY`.
-Self-serve signup is not available yet; contact
-[Cognium Labs](mailto:hello@cognium.net) if you need access. Once provisioned,
-set all three values in `.env`:
+> **Status: partial.** Connected mode is wired on the local-node side, but
+> most of its upstream calls target routes the hosted registry does not
+> implement yet. Read this section before pointing a node at the hosted
+> service.
+
+**Publishing to the hosted registry is operator-only today.** The hosted
+registry exposes two origins:
+
+- `api.skillsregistry.net` — the public host. It is **read-only by design**:
+  every write (including publish) returns `404`.
+- the registry's `workers.dev` origin — the only origin that serves writes.
+  It accepts a write when the request carries
+  `Authorization: Bearer <write key>`, where the key is issued by the
+  SkillsRegistry operators, or a D2 Ed25519 publisher signature. Hosted
+  publisher-key registration is not open to the public yet.
+
+There is no self-serve signup, tenant dashboard, or `sk_live_…` key. Self-serve
+publisher identity is planned but not available. If you need write access,
+contact [Cognium Labs](mailto:hello@cognium.net); the operators provide the
+write key and the write-enabled origin URL together.
+
+Even with an operator key, the local node's publish, trust, budget, and sync
+calls do **not** work against the hosted registry today. The upstream client
+calls `POST /v1/publish`, `POST /v1/trust/score`, `GET /v1/tenant/budget`, and
+`GET /v1/sync/trust-scores`, and the hosted registry implements none of them
+(its publish route is `POST /v1/skills`). In particular,
+**`POST /v1/migrate/publish` fails against the hosted registry** — the row's
+`mothership_publish_status` does not reach `published`. Keep skills local
+until the client and the hosted API are aligned.
+
+If you still want to wire the node up (for example, to use the leaderboard
+proxy), set all three values in `.env`. The local node refuses to boot if only
+some of them are set:
 
 ```bash
 # .env
-MOTHERSHIP_URL=https://api.skillsregistry.net
-MOTHERSHIP_API_KEY=sk_live_…       # provisioned by Cognium Labs
-TENANT_ID=your-tenant-slug         # provisioned by Cognium Labs
+MOTHERSHIP_URL=<write-enabled origin from the operators>  # api.skillsregistry.net is read-only
+MOTHERSHIP_API_KEY=<operator-issued write key>            # sent as Authorization: Bearer
+TENANT_ID=<tenant id agreed with the operators>           # sent as X-Tenant-Id; not a credential
 ```
 
-`docker compose up -d --force-recreate app` to pick up the new env. Effects:
+`docker compose up -d --force-recreate app` to pick up the new env. What
+happens against the hosted registry today:
 
-- `POST /v1/trust/score` — proxies to the mothership; results cached against
-  the local skills row (`trust_score_v2`, `trust_tier`, `trust_results`,
-  `trust_analyzed_at`) and budget decremented in KV
-- `GET /v1/leaderboards/:kind` — proxied from `api.skillsregistry.net`
-- `GET /v1/admin/budget` — real budget snapshot polled hourly
-- `POST /v1/migrate/publish?skill_id=<uuid>` — publish local manifests up to
-  the mothership; each row's `mothership_publish_status` transitions to
-  `published` with a `mothership_url`
+- `GET /v1/leaderboards/:kind` — proxied to the hosted `GET
+  /v1/leaderboards/:kind`, which exists
+- `GET /v1/skills/:id` — local first; on a local miss, falls back to the
+  hosted `GET /v1/skills/:id`, which exists
+- `POST /v1/trust/score` — **fails**: the node calls `POST /v1/trust/score`
+  upstream, which the hosted registry does not implement
+- `GET /v1/admin/budget` — **no real snapshot**: the hourly poll calls
+  `GET /v1/tenant/budget`, which the hosted registry does not implement
+- `POST /v1/migrate/publish?skill_id=<uuid>` — **fails**: the node calls
+  `POST /v1/publish` upstream, which does not exist (see above)
 - `GET /v1/search` — continues to search the local index; upstream search
   fallback is not implemented.
 
+`TENANT_ID` is a scoping hint, not an identity. The hosted registry ignores
+`X-Tenant-Id` on `api.skillsregistry.net` and honours it only on its trusted
+`workers.dev` origin.
+
 The upstream client at `src/upstream-client/` is the **only** module that
-talks to `api.skillsregistry.net` — token-bucket rate limited + circuit
-breaker + typed `UpstreamError` taxonomy. If the mothership is down, the
-local node stays up and gracefully returns `503 upstream_not_configured` or
-the local-only view.
+talks to `MOTHERSHIP_URL`. It adds a token-bucket rate limit, a circuit
+breaker, and a typed `UpstreamError` taxonomy. If the hosted registry is down
+or rejects a call, the local node stays up and returns an upstream error or the
+local-only view.
 
 ## Hosted service compatibility
 
@@ -324,9 +361,9 @@ Only two are required — everything else has a sensible default in
 | `EMBEDDER` | | `ollama` | Use `ollama`; `upstream` currently fails at boot |
 | `OLLAMA_URL` | | `http://localhost:11434` | Ollama server for local embeddings |
 | `OLLAMA_EMBEDDING_MODEL` | | `nomic-embed-text` | 768-dim; matches the schema baseline |
-| `MOTHERSHIP_URL` | | — | Unset ⇒ air-gap mode |
-| `MOTHERSHIP_API_KEY` | | — | Required if `MOTHERSHIP_URL` is set |
-| `TENANT_ID` | | — | Required if `MOTHERSHIP_URL` is set |
+| `MOTHERSHIP_URL` | | — | Unset ⇒ air-gap mode. Hosted writes need the operator-provided `workers.dev` origin; `api.skillsregistry.net` is read-only. See [Connected](#connected) |
+| `MOTHERSHIP_API_KEY` | | — | Required if `MOTHERSHIP_URL` is set. Operator-issued write key, sent as `Authorization: Bearer`. No self-serve keys |
+| `TENANT_ID` | | — | Required if `MOTHERSHIP_URL` is set. Sent as `X-Tenant-Id`; a scoping hint, not a credential |
 | `LOG_FORMAT` | | `json` | `json` (NDJSON for log collectors) or `pretty` (dev) |
 | `LOG_LEVEL` | | `info` | `trace` / `debug` / `info` / `warn` / `error` / `fatal` |
 
@@ -342,8 +379,9 @@ picked up automatically (name it `.env`).
 after the model is ready.
 
 **`upstream_not_configured` on `/v1/trust/score`.** Expected in air-gap
-mode — trust scoring only runs on the mothership. Set the three upstream
-env vars to switch to connected mode.
+mode — the local node has no scoring engine. Connected mode does not fix this
+today: the hosted registry does not implement the upstream route the node calls
+(see [Connected](#connected)).
 
 **Admin UI prompts for a token.** Enter the `ADMIN_TOKEN` from your `.env`.
 Docker bridge requests require it even when you open the UI from the same
