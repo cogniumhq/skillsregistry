@@ -423,3 +423,54 @@ describe('PgVectorProvider.index — connect() failure', () => {
     expect(connect).toHaveBeenCalledTimes(1);
   });
 });
+
+// ──────────────────────────────────────────────────────────────────────────────
+// index() — composite workflow_definition (chk_composite_requires_workflow)
+// ──────────────────────────────────────────────────────────────────────────────
+//
+// Postgres checks the proposed INSERT row before ON CONFLICT. A composite
+// upsert that omits workflow_definition violates chk_composite_requires_workflow
+// even when the stored row already has one. The upsert must reuse that stored
+// value, and must keep a caller-supplied definition.
+
+describe('PgVectorProvider.index — composite workflow_definition', () => {
+  it('reuses the stored workflow_definition when a composite reindex omits it', async () => {
+    const c = scriptedClient();
+    const { pool } = scriptedPool(async () => c.client);
+    const p = new PgVectorProvider({ pool });
+
+    await p.index(
+      makeSkill({ id: 'sk_composite', executionLayer: 'composite' }),
+      makeEmbeddings()
+    );
+
+    const sql = c.log[1]!.sql;
+    expect(sql).toContain('workflow_definition');
+    expect(sql).toContain('LEFT JOIN skills existing ON existing.id = $1');
+    expect(sql).toContain(
+      'COALESCE($14::jsonb, existing.workflow_definition)'
+    );
+    expect(sql).toContain(
+      'workflow_definition = COALESCE(EXCLUDED.workflow_definition, skills.workflow_definition)'
+    );
+    expect(c.log[1]!.params![11]).toBe('composite');
+    expect(c.log[1]!.params![13]).toBeNull();
+  });
+
+  it('binds a caller-supplied workflowDefinition on the skill upsert', async () => {
+    const c = scriptedClient();
+    const { pool } = scriptedPool(async () => c.client);
+    const p = new PgVectorProvider({ pool });
+    const workflow = { steps: [{ id: 'scan' }] };
+
+    await p.index(
+      makeSkill({
+        executionLayer: 'composite',
+        workflowDefinition: workflow,
+      }),
+      makeEmbeddings()
+    );
+
+    expect(c.log[1]!.params![13]).toBe(JSON.stringify(workflow));
+  });
+});

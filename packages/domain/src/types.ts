@@ -62,6 +62,12 @@ export interface SkillInput {
   capabilitiesRequired?: string[];
   executionLayer: string;
   tenantId: string;
+  /**
+   * DAG payload required by `chk_composite_requires_workflow` when
+   * `executionLayer` is `composite`. Omit it on reindex to keep the
+   * definition already stored for this skill id.
+   */
+  workflowDefinition?: unknown;
 }
 
 export interface EmbeddingSet {
