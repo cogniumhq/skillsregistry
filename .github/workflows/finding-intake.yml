@@ -1,0 +1,41 @@
+name: finding-intake
+
+on:
+  schedule:
+    - cron: "0 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  intake:
+    name: finding intake
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install cognium-dev
+        run: npm install -g cognium-dev@4.9.20
+
+      - name: Scan main
+        run: |
+          set +e
+          cognium-dev scan . \
+            --format json \
+            --severity high \
+            --category security \
+            --exclude-tests \
+            --output cognium-results.json
+          if [ ! -f cognium-results.json ]; then
+            echo "cognium-dev did not write cognium-results.json"
+            exit 1
+          fi
+
+      - name: File new findings
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node scripts/finding-intake.mjs cognium-results.json
