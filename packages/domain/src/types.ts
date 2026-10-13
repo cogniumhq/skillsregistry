@@ -266,6 +266,9 @@ export interface SkillResult {
   version: string;
   agentSummary: string;
 
+  /** Upstream repository. Search dedupe treats this as project identity. */
+  repositoryUrl?: string | null;
+
   trustScore: number;
   verificationTier: VerificationTier;
   trustBadge: TrustBadge | null;
