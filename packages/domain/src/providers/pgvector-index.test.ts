@@ -171,29 +171,9 @@ describe('PgVectorProvider.index — happy path', () => {
     expect(params[9]).toBe(0.8);
     expect(params[10]).toEqual(['net.fetch']);
     expect(params[11]).toBe('wasm');
-    expect(params[12]).toBeNull();
     // content_safety_passed hardcoded true
-    expect(params[13]).toBe(true);
-  });
-
-  it('includes workflow_definition on the skill INSERT for composite re-index', async () => {
-    const c = scriptedClient();
-    const { pool } = scriptedPool(async () => c.client);
-    const p = new PgVectorProvider({ pool });
-
-    const workflow = { id: 'wf-1', steps: [{ id: 'a', skillRef: 'foo@1.0.0' }] };
-    await p.index(
-      makeSkill({
-        executionLayer: 'composite',
-        workflowDefinition: workflow,
-      }),
-      makeEmbeddings()
-    );
-
-    const sql = c.log[1]!.sql;
-    expect(sql).toContain('workflow_definition');
-    expect(sql).toContain('COALESCE($13::jsonb');
-    expect(c.log[1]!.params![12]).toEqual(workflow);
+    expect(params[12]).toBe(true);
+    expect(params[13]).toBeNull();
   });
 
   it('substitutes empty array when capabilitiesRequired is omitted', async () => {
@@ -442,5 +422,47 @@ describe('PgVectorProvider.index — connect() failure', () => {
 
     await expect(p.index(makeSkill(), makeEmbeddings())).rejects.toBe(boom);
     expect(connect).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('PgVectorProvider.index — composite workflow_definition', () => {
+  it('reuses the stored workflow_definition when a composite reindex omits it', async () => {
+    const c = scriptedClient();
+    const { pool } = scriptedPool(async () => c.client);
+    const p = new PgVectorProvider({ pool });
+
+    await p.index(
+      makeSkill({ id: 'sk_composite', executionLayer: 'composite' }),
+      makeEmbeddings()
+    );
+
+    const sql = c.log[1]!.sql;
+    expect(sql).toContain('workflow_definition');
+    expect(sql).toContain('LEFT JOIN skills existing ON existing.id = $1');
+    expect(sql).toContain(
+      'COALESCE($14::jsonb, existing.workflow_definition)'
+    );
+    expect(sql).toContain(
+      'workflow_definition = COALESCE(EXCLUDED.workflow_definition, skills.workflow_definition)'
+    );
+    expect(c.log[1]!.params![11]).toBe('composite');
+    expect(c.log[1]!.params![13]).toBeNull();
+  });
+
+  it('binds a caller-supplied workflowDefinition on the skill upsert', async () => {
+    const c = scriptedClient();
+    const { pool } = scriptedPool(async () => c.client);
+    const p = new PgVectorProvider({ pool });
+    const workflow = { steps: [{ id: 'scan' }] };
+
+    await p.index(
+      makeSkill({
+        executionLayer: 'composite',
+        workflowDefinition: workflow,
+      }),
+      makeEmbeddings()
+    );
+
+    expect(c.log[1]!.params![13]).toBe(JSON.stringify(workflow));
   });
 });
