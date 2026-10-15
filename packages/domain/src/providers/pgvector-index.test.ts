@@ -171,8 +171,29 @@ describe('PgVectorProvider.index — happy path', () => {
     expect(params[9]).toBe(0.8);
     expect(params[10]).toEqual(['net.fetch']);
     expect(params[11]).toBe('wasm');
+    expect(params[12]).toBeNull();
     // content_safety_passed hardcoded true
-    expect(params[12]).toBe(true);
+    expect(params[13]).toBe(true);
+  });
+
+  it('includes workflow_definition on the skill INSERT for composite re-index', async () => {
+    const c = scriptedClient();
+    const { pool } = scriptedPool(async () => c.client);
+    const p = new PgVectorProvider({ pool });
+
+    const workflow = { id: 'wf-1', steps: [{ id: 'a', skillRef: 'foo@1.0.0' }] };
+    await p.index(
+      makeSkill({
+        executionLayer: 'composite',
+        workflowDefinition: workflow,
+      }),
+      makeEmbeddings()
+    );
+
+    const sql = c.log[1]!.sql;
+    expect(sql).toContain('workflow_definition');
+    expect(sql).toContain('COALESCE($13::jsonb');
+    expect(c.log[1]!.params![12]).toEqual(workflow);
   });
 
   it('substitutes empty array when capabilitiesRequired is omitted', async () => {

@@ -866,8 +866,12 @@ export class PgVectorProvider implements SearchProvider {
         `INSERT INTO skills (
           id, name, slug, version, source, description, agent_summary,
           tags, category, trust_score, capabilities_required, execution_layer,
-          content_safety_passed, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW())
+          workflow_definition, content_safety_passed, created_at, updated_at
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
+          COALESCE($13::jsonb, (SELECT workflow_definition FROM skills WHERE id = $1)),
+          $14, NOW(), NOW()
+        )
         ON CONFLICT (id) DO UPDATE SET
           name = EXCLUDED.name,
           description = EXCLUDED.description,
@@ -886,6 +890,7 @@ export class PgVectorProvider implements SearchProvider {
           skill.trustScore,
           skill.capabilitiesRequired || [],
           skill.executionLayer,
+          skill.workflowDefinition ?? null,
           true, // content_safety_passed
         ]
       );
