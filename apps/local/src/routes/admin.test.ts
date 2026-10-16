@@ -249,18 +249,37 @@ describe('GET /v1/admin/health', () => {
     expect(body.checks.migrations.status).toBe('ok');
   });
 
-  it('reports embeddingCoverage when the DB is reachable (#159)', async () => {
+  it('degrades when published skills lack embeddings (#159)', async () => {
     const services = healthyServices();
     const app = mount(
       services,
       reachablePool(SCHEMA_VERSION, { published: 4, embedded: 1 }),
     );
     const res = await app.request('/v1/admin/health', { headers: BEARER });
+    expect(res.status).toBe(503);
+    const body = (await res.json()) as {
+      status: string;
+      embeddingCoverage: { published: number; embedded: number } | null;
+      checks: { searchIndex: { status: string; message?: string } };
+    };
+    expect(body.status).toBe('degraded');
+    expect(body.embeddingCoverage).toEqual({ published: 4, embedded: 1 });
+    expect(body.checks.searchIndex.status).toBe('degraded');
+    expect(body.checks.searchIndex.message).toContain('3 of 4');
+  });
+
+  it('searchIndex stays ok when the catalog is empty', async () => {
+    const services = healthyServices();
+    const app = mount(
+      services,
+      reachablePool(SCHEMA_VERSION, { published: 0, embedded: 0 }),
+    );
+    const res = await app.request('/v1/admin/health', { headers: BEARER });
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
-      embeddingCoverage: { published: number; embedded: number } | null;
+      checks: { searchIndex: { status: string } };
     };
-    expect(body.embeddingCoverage).toEqual({ published: 4, embedded: 1 });
+    expect(body.checks.searchIndex.status).toBe('ok');
   });
 
   it('returns 503 degraded when the DB probe fails', async () => {
