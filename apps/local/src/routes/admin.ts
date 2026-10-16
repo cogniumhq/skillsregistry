@@ -81,6 +81,11 @@ interface EmbeddingCoverage {
   embedded: number;
 }
 
+interface SearchIndexCheck {
+  status: 'ok' | 'degraded' | 'unknown';
+  message?: string;
+}
+
 interface HealthResponseBody {
   status: 'ok' | 'degraded';
   schemaVersion: { current: number; required: number };
@@ -91,6 +96,7 @@ interface HealthResponseBody {
     embedder: EmbedderCheck;
     mothership: MothershipCheck;
     migrations: MigrationsCheck;
+    searchIndex: SearchIndexCheck;
   };
 }
 
@@ -208,11 +214,13 @@ export function createAdminRoutes(
     ]);
     const embeddingCoverage =
       dbCheck.status === 'ok' ? await probeEmbeddingCoverage(pool) : null;
+    const searchIndexCheck = evaluateSearchIndexCheck(embeddingCoverage);
     const mothershipCheck = probeMothership(services);
     const aggregate: HealthResponseBody['status'] =
       dbCheck.status === 'ok' &&
       embedderCheck.status === 'ok' &&
-      migrationsCheck.status === 'ok'
+      migrationsCheck.status === 'ok' &&
+      searchIndexCheck.status !== 'degraded'
         ? 'ok'
         : 'degraded';
     const body: HealthResponseBody = {
@@ -227,6 +235,7 @@ export function createAdminRoutes(
         embedder: embedderCheck,
         mothership: mothershipCheck,
         migrations: migrationsCheck,
+        searchIndex: searchIndexCheck,
       },
     };
     return c.json(body, aggregate === 'ok' ? 200 : 503);
@@ -543,6 +552,26 @@ async function probeDb(pool: Pool): Promise<DbCheck> {
       message: err instanceof Error ? err.message : String(err),
     };
   }
+}
+
+/**
+ * When the embedder is healthy but published skills lack embeddings, search
+ * returns empty results while `/admin/health` would otherwise look fine (#159).
+ */
+function evaluateSearchIndexCheck(
+  coverage: EmbeddingCoverage | null,
+): SearchIndexCheck {
+  if (coverage === null) {
+    return { status: 'unknown' };
+  }
+  if (coverage.published === 0 || coverage.embedded >= coverage.published) {
+    return { status: 'ok' };
+  }
+  const missing = coverage.published - coverage.embedded;
+  return {
+    status: 'degraded',
+    message: `${missing} of ${coverage.published} published skill(s) lack search embeddings`,
+  };
 }
 
 /** Published vs search-indexed skill counts — surfaces silent embed failures (#159). */
