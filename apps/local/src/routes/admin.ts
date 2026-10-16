@@ -10,6 +10,7 @@
 //
 //   GET  /v1/admin/budget          — cached mothership budget snapshot
 //   POST /v1/admin/budget/refresh  — force-refresh from mothership
+//   POST /v1/admin/reindex         — embed published skills missing index rows
 //   GET  /v1/admin/health          — deep health (DB, Ollama, upstream,
 //                                     migration state)
 //   GET    /v1/admin/skills        — paginated local skill list (T-3.4)
@@ -81,6 +82,11 @@ interface EmbeddingCoverage {
   embedded: number;
 }
 
+interface SearchIndexCheck {
+  status: 'ok' | 'degraded' | 'unknown';
+  message?: string;
+}
+
 interface HealthResponseBody {
   status: 'ok' | 'degraded';
   schemaVersion: { current: number; required: number };
@@ -91,6 +97,7 @@ interface HealthResponseBody {
     embedder: EmbedderCheck;
     mothership: MothershipCheck;
     migrations: MigrationsCheck;
+    searchIndex: SearchIndexCheck;
   };
 }
 
@@ -182,9 +189,27 @@ export function createAdminRoutes(
     }
   });
 
+  // ── POST /v1/admin/reindex ─────────────────────────────────────────────
+  //
+  // Backfill `skill_embeddings` for published rows that were stored while the
+  // embedder was down or before embed-on-publish shipped (#159 / #168).
+  app.post('/admin/reindex', async (c) => {
+    const limitParam = c.req.query('limit');
+    const limit =
+      limitParam === undefined ? undefined : Number.parseInt(limitParam, 10);
+    if (limit !== undefined && (!Number.isFinite(limit) || limit < 1)) {
+      return c.json(
+        { error: { code: 'bad_request' as const, message: 'limit must be a positive integer' } },
+        400,
+      );
+    }
+    const result = await services.skillsClient.reindexMissingEmbeddings({ limit });
+    return c.json(result, 200);
+  });
+
   // ── GET /v1/admin/health ───────────────────────────────────────────────
   //
-  // Deep health across four subsystems:
+  // Deep health across five subsystems:
   //
   //   1. DB          — active `SELECT 1` via the pg pool
   //   2. Embedder    — active `.embed('.')` probe of Ollama
@@ -193,10 +218,12 @@ export function createAdminRoutes(
   //                    /admin/health poll does not burn mothership budget.
   //   4. Migrations  — `SELECT MAX(version)` vs `SCHEMA_VERSION` from
   //                    `@skillsregistry/schema`.
+  //   5. Search index — `embeddingCoverage` counts; degraded when published
+  //                    skills lack `skill_embeddings` rows (#159).
   //
-  // Aggregate `status` is `ok` only when db + embedder + migrations are all
-  // `ok`. Mothership does not gate `ok` — air-gap mode is a valid healthy
-  // posture — but its own sub-check surfaces the circuit state.
+  // Aggregate `status` is `ok` only when db + embedder + migrations + search
+  // index are all `ok`. Mothership does not gate `ok` — air-gap mode is a
+  // valid healthy posture — but its own sub-check surfaces the circuit state.
   //
   // Returns 200 when aggregate is `ok`, 503 when `degraded`. This makes
   // the endpoint usable directly as a container probe.
@@ -208,11 +235,13 @@ export function createAdminRoutes(
     ]);
     const embeddingCoverage =
       dbCheck.status === 'ok' ? await probeEmbeddingCoverage(pool) : null;
+    const searchIndexCheck = evaluateSearchIndexCheck(embeddingCoverage);
     const mothershipCheck = probeMothership(services);
     const aggregate: HealthResponseBody['status'] =
       dbCheck.status === 'ok' &&
       embedderCheck.status === 'ok' &&
-      migrationsCheck.status === 'ok'
+      migrationsCheck.status === 'ok' &&
+      searchIndexCheck.status !== 'degraded'
         ? 'ok'
         : 'degraded';
     const body: HealthResponseBody = {
@@ -227,6 +256,7 @@ export function createAdminRoutes(
         embedder: embedderCheck,
         mothership: mothershipCheck,
         migrations: migrationsCheck,
+        searchIndex: searchIndexCheck,
       },
     };
     return c.json(body, aggregate === 'ok' ? 200 : 503);
@@ -543,6 +573,26 @@ async function probeDb(pool: Pool): Promise<DbCheck> {
       message: err instanceof Error ? err.message : String(err),
     };
   }
+}
+
+/**
+ * When the embedder is healthy but published skills lack embeddings, search
+ * returns empty results while `/admin/health` would otherwise look fine (#159).
+ */
+function evaluateSearchIndexCheck(
+  coverage: EmbeddingCoverage | null,
+): SearchIndexCheck {
+  if (coverage === null) {
+    return { status: 'unknown' };
+  }
+  if (coverage.published === 0 || coverage.embedded >= coverage.published) {
+    return { status: 'ok' };
+  }
+  const missing = coverage.published - coverage.embedded;
+  return {
+    status: 'degraded',
+    message: `${missing} of ${coverage.published} published skill(s) lack search embeddings`,
+  };
 }
 
 /** Published vs search-indexed skill counts — surfaces silent embed failures (#159). */

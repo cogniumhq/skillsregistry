@@ -10,7 +10,7 @@
 
 import { Hono } from 'hono';
 import type { Pool } from 'pg';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { SCHEMA_VERSION } from '@skillsregistry/schema';
 import type { AppServices } from '../services.js';
 import type { BudgetSnapshot } from '../trust-client.js';
@@ -61,7 +61,7 @@ function unreachablePool(): Pool {
   } as unknown as Pool;
 }
 
-function healthyServices(): AppServices {
+function healthyServices(overrides: Partial<AppServices> = {}): AppServices {
   return {
     embedder: {
       embed: async () => new Float32Array(4),
@@ -69,6 +69,15 @@ function healthyServices(): AppServices {
     },
     upstream: { isAirGapped: false, circuitState: 'closed' },
     budgetMeter: { getCached: async () => null, refresh: async () => null },
+    skillsClient: {
+      reindexMissingEmbeddings: async () => ({
+        examined: 2,
+        indexed: 2,
+        failed: 0,
+        errors: [],
+      }),
+    },
+    ...overrides,
   } as unknown as AppServices;
 }
 
@@ -84,6 +93,46 @@ function snapshot(overrides: Partial<BudgetSnapshot> = {}): BudgetSnapshot {
     ...overrides,
   };
 }
+
+// ── POST /v1/admin/reindex ────────────────────────────────────────────────
+
+describe('POST /v1/admin/reindex (#159)', () => {
+  it('delegates to SkillsClient.reindexMissingEmbeddings', async () => {
+    const reindex = vi.fn(async () => ({
+      examined: 1,
+      indexed: 1,
+      failed: 0,
+      errors: [],
+    }));
+    const app = mount(
+      healthyServices({
+        skillsClient: { reindexMissingEmbeddings: reindex },
+      } as unknown as AppServices),
+      reachablePool(),
+    );
+    const res = await app.request('/v1/admin/reindex?limit=25', {
+      method: 'POST',
+      headers: BEARER,
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      examined: 1,
+      indexed: 1,
+      failed: 0,
+      errors: [],
+    });
+    expect(reindex).toHaveBeenCalledWith({ limit: 25 });
+  });
+
+  it('rejects a non-positive limit', async () => {
+    const app = mount(healthyServices(), reachablePool());
+    const res = await app.request('/v1/admin/reindex?limit=0', {
+      method: 'POST',
+      headers: BEARER,
+    });
+    expect(res.status).toBe(400);
+  });
+});
 
 // ── GET /v1/admin/budget ──────────────────────────────────────────────────
 
@@ -249,18 +298,37 @@ describe('GET /v1/admin/health', () => {
     expect(body.checks.migrations.status).toBe('ok');
   });
 
-  it('reports embeddingCoverage when the DB is reachable (#159)', async () => {
+  it('degrades when published skills lack embeddings (#159)', async () => {
     const services = healthyServices();
     const app = mount(
       services,
       reachablePool(SCHEMA_VERSION, { published: 4, embedded: 1 }),
     );
     const res = await app.request('/v1/admin/health', { headers: BEARER });
+    expect(res.status).toBe(503);
+    const body = (await res.json()) as {
+      status: string;
+      embeddingCoverage: { published: number; embedded: number } | null;
+      checks: { searchIndex: { status: string; message?: string } };
+    };
+    expect(body.status).toBe('degraded');
+    expect(body.embeddingCoverage).toEqual({ published: 4, embedded: 1 });
+    expect(body.checks.searchIndex.status).toBe('degraded');
+    expect(body.checks.searchIndex.message).toContain('3 of 4');
+  });
+
+  it('searchIndex stays ok when the catalog is empty', async () => {
+    const services = healthyServices();
+    const app = mount(
+      services,
+      reachablePool(SCHEMA_VERSION, { published: 0, embedded: 0 }),
+    );
+    const res = await app.request('/v1/admin/health', { headers: BEARER });
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
-      embeddingCoverage: { published: number; embedded: number } | null;
+      checks: { searchIndex: { status: string } };
     };
-    expect(body.embeddingCoverage).toEqual({ published: 4, embedded: 1 });
+    expect(body.checks.searchIndex.status).toBe('ok');
   });
 
   it('returns 503 degraded when the DB probe fails', async () => {
