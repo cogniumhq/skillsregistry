@@ -9,4 +9,6 @@ export default defineWorkspace([
   'packages/eval',
   'apps/local',
   'apps/local/web',
+  'tools',
+  'scripts',
 ]);
