@@ -208,16 +208,17 @@ request across deployments:
 
 | Concern | Local (`apps/local`) | Mothership (`api.skillsregistry.net`) |
 |---|---|---|
-| Health | `GET /health` **and** `GET /v1/health` | `GET /health` (its `/v1/health` is 404) |
+| Health | `GET /health` **and** `GET /v1/health` | `GET /health` **and** `GET /v1/health` |
 | Search verb | `GET /v1/search?q=…` | `POST /v1/search` (JSON body) |
 | Search query field | `q` (query param) | `query` (**required**, body) |
 | Search tenant | `X-Tenant-Id` header (optional) | `tenantId` (**required**, body) |
 | Hits array | `.skills[]` | `.results[]` |
 
-Health is aligned as of #45 — both nodes answer `GET /health`, so a liveness
-probe is portable. The **search** surface is intentionally different: the local
-node ships a simple `GET` for quick single-operator use; the mothership takes a
-richer `POST` (confidence tiers, filters, tenant scoping). Concrete examples:
+Both deployments answer `GET /health` and `GET /v1/health`, so liveness probes
+can use either path on either host. The **search** surface is intentionally
+different: the local node ships a simple `GET` for quick single-operator use;
+the mothership takes a richer `POST` (confidence tiers, filters, tenant
+scoping). Concrete examples:
 
 ```bash
 # Local — GET, `q`, `.skills[]`
@@ -232,8 +233,6 @@ curl -s -X POST https://api.skillsregistry.net/v1/search \
 Aligning the search request/response shapes (a `POST /v1/search` alias on the
 local node, or a mothership `q`/`.skills[]` compat layer) is a larger contract
 decision tracked separately; the matrix above is the source of truth until then.
-The mothership adding a `GET /v1/health` alias for full path symmetry is a
-mothership-side follow-up (cross-linked from #45).
 
 ## Auth model
 
@@ -252,6 +251,12 @@ Two-tier by design:
   default Docker bridge publish, where the container only ever sees the bridge
   gateway IP and can never observe a loopback source (#44). For a pure-API
   deployment with no dashboard, keep the default loopback bind.
+- **Reverse proxy on the same host** — if nginx, Caddy, Traefik, or a tunnel
+  agent on the machine forwards to `127.0.0.1:3000`, every proxied request
+  arrives from loopback and skips the bearer. Do not route `/v1/admin/*` or
+  `/v1/migrate/*` through that proxy, or set `ADMIN_REQUIRE_TOKEN=true` in
+  `.env` so loopback callers must present `Authorization: Bearer $ADMIN_TOKEN`
+  as well.
 
 **Host binds.** The Compose file publishes the app, Postgres and Ollama on
 `127.0.0.1` only (#99): Postgres ships with a well-known password and
@@ -267,6 +272,22 @@ Public routes (`/v1/health`, `/v1/search`, `/v1/skills`, `/v1/skills/:id`,
 `/.well-known/mcp.json`) have no auth in v1 — tenant scoping is advisory via
 `X-Tenant-Id` header. The MCP tools are read-only, but the HTTP
 `POST /v1/skills` route writes to the local index without authentication.
+
+### Admin and migration API
+
+Mutating operator routes (all gated by `adminAuth`; over-network callers need
+`Authorization: Bearer $ADMIN_TOKEN` unless `ADMIN_REQUIRE_TOKEN=true`):
+
+| Method | Path | What it does |
+|---|---|---|
+| `GET` | `/v1/admin/budget` | Cached mothership budget snapshot (connected mode) |
+| `POST` | `/v1/admin/budget/refresh` | Force-refresh budget from mothership |
+| `POST` | `/v1/admin/reindex` | Embed published skills missing search index rows |
+| `GET` | `/v1/admin/health` | Deep health: DB, embedder, upstream, migrations, embedding coverage |
+| `GET` | `/v1/admin/skills` | Paginated local skill list (admin UI) |
+| `PATCH` | `/v1/admin/skills/:id` | Lifecycle status transition on a local skill |
+| `DELETE` | `/v1/admin/skills/:id` | Remove a skill from the local catalog |
+| `POST` | `/v1/migrate/publish` | Push one local skill to the mothership (connected mode) |
 
 ## Admin UI
 
@@ -357,7 +378,14 @@ Only two are required — everything else has a sensible default in
 |---|---|---|---|
 | `DATABASE_URL` | ✓ | — | libpq connection string to Postgres 16 + pgvector |
 | `ADMIN_TOKEN` | ✓ | — | Bearer token for over-network admin/migration calls |
+| `ADMIN_REQUIRE_TOKEN` | | `false` | When `true`, loopback callers must send the bearer too (use behind a same-host reverse proxy) |
 | `PORT` | | `3000` | HTTP bind port |
+| `UPSTREAM_SEARCH_FALLBACK` | | `false` | When connected, fall back to mothership search on local miss |
+| `SEARCH_TIER1_THRESHOLD` | | — | Optional tier-1 confidence cutoff (unset ⇒ domain default) |
+| `SEARCH_TIER2_THRESHOLD` | | — | Optional tier-2 confidence cutoff |
+| `SEARCH_CACHE_TTL_TIER1` | | `3600` | Result-cache TTL (seconds) for tier-1 hits |
+| `SEARCH_CACHE_TTL_TIER2` | | `1800` | Tier-2 cache TTL |
+| `SEARCH_CACHE_TTL_TIER3` | | `600` | Tier-3 cache TTL |
 | `EMBEDDER` | | `ollama` | Use `ollama`; `upstream` currently fails at boot |
 | `OLLAMA_URL` | | `http://localhost:11434` | Ollama server for local embeddings |
 | `OLLAMA_EMBEDDING_MODEL` | | `nomic-embed-text` | 768-dim; matches the schema baseline |
