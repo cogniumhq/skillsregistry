@@ -190,7 +190,7 @@ export function createAdminRoutes(
 
   // ── GET /v1/admin/health ───────────────────────────────────────────────
   //
-  // Deep health across four subsystems:
+  // Deep health across five subsystems:
   //
   //   1. DB          — active `SELECT 1` via the pg pool
   //   2. Embedder    — active `.embed('.')` probe of Ollama
@@ -199,10 +199,12 @@ export function createAdminRoutes(
   //                    /admin/health poll does not burn mothership budget.
   //   4. Migrations  — `SELECT MAX(version)` vs `SCHEMA_VERSION` from
   //                    `@skillsregistry/schema`.
+  //   5. Search index — `embeddingCoverage` counts; degraded when published
+  //                    skills lack `skill_embeddings` rows (#159).
   //
-  // Aggregate `status` is `ok` only when db + embedder + migrations are all
-  // `ok`. Mothership does not gate `ok` — air-gap mode is a valid healthy
-  // posture — but its own sub-check surfaces the circuit state.
+  // Aggregate `status` is `ok` only when db + embedder + migrations + search
+  // index are all `ok`. Mothership does not gate `ok` — air-gap mode is a
+  // valid healthy posture — but its own sub-check surfaces the circuit state.
   //
   // Returns 200 when aggregate is `ok`, 503 when `degraded`. This makes
   // the endpoint usable directly as a container probe.
