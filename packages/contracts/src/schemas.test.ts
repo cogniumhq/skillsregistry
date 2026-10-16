@@ -562,6 +562,18 @@ describe('publish envelopes', () => {
     expect(PublishResultSchema.parse(v)).toEqual(v);
   });
 
+  it('PublishResult accepts local search-index fields', () => {
+    const v = {
+      id: 'sk_1',
+      slug: 'a',
+      version: '1.0.0',
+      status: 'published',
+      searchIndexed: false,
+      searchIndexError: 'ollama unreachable',
+    };
+    expect(PublishResultSchema.parse(v)).toEqual(v);
+  });
+
   it('DeleteResult requires literal "deleted" status', () => {
     expect(DeleteResultSchema.parse({ id: 'sk_1', status: 'deleted' })).toEqual({
       id: 'sk_1',
