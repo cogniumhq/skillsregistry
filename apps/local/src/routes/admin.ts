@@ -119,13 +119,16 @@ const ADMIN_SKILLS_MAX_LIMIT = 500;
  */
 export function createAdminRoutes(
   services: AppServices,
-  adminToken: string,
+  admin: { token: string; requireTokenAlways: boolean },
   pool: Pool,
 ): Hono {
   const app = new Hono();
   // Scoped to admin + migrate paths so the guard does not leak onto sibling
   // public routes when this sub-app shares the /v1 mount prefix.
-  const guard = adminAuth({ token: adminToken });
+  const guard = adminAuth({
+    token: admin.token,
+    allowLoopbackBypass: !admin.requireTokenAlways,
+  });
   app.use('/admin/*', guard);
   app.use('/migrate/*', guard);
 

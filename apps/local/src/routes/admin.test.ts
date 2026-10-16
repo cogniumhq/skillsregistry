@@ -22,7 +22,10 @@ const BEARER = { Authorization: `Bearer ${ADMIN_TOKEN}` };
 
 function mount(services: AppServices, pool: Pool): Hono {
   const app = new Hono();
-  app.route('/v1', createAdminRoutes(services, ADMIN_TOKEN, pool));
+  app.route(
+    '/v1',
+    createAdminRoutes(services, { token: ADMIN_TOKEN, requireTokenAlways: false }, pool),
+  );
   return app;
 }
 

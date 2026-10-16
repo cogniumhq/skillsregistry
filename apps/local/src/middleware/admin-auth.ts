@@ -28,6 +28,11 @@ import { isLoopbackRequest } from './loopback.js';
 export interface AdminAuthOptions {
   /** Expected bearer token. Must be non-empty. */
   token: string;
+  /**
+   * When false, loopback callers skip the bearer check (default). Set false
+   * when `ADMIN_REQUIRE_TOKEN=true` on the admin config.
+   */
+  allowLoopbackBypass?: boolean;
 }
 
 /**
@@ -35,7 +40,7 @@ export interface AdminAuthOptions {
  * routes so every request under the mount is guarded.
  */
 export function adminAuth(options: AdminAuthOptions): MiddlewareHandler {
-  const { token } = options;
+  const { token, allowLoopbackBypass = true } = options;
   if (typeof token !== 'string' || token === '') {
     throw new Error('[admin-auth] token must be a non-empty string');
   }
@@ -45,7 +50,7 @@ export function adminAuth(options: AdminAuthOptions): MiddlewareHandler {
     // Loopback bypass: the admin UI lives at /admin/* on the same process
     // and calls /v1/admin/* + /v1/migrate/* from a same-origin browser.
     // A LAN caller still has to present the bearer token.
-    if (isLoopbackRequest(c.env)) {
+    if (allowLoopbackBypass && isLoopbackRequest(c.env)) {
       await next();
       return;
     }
