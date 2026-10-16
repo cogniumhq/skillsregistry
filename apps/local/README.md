@@ -275,8 +275,10 @@ Public routes (`/v1/health`, `/v1/search`, `/v1/skills`, `/v1/skills/:id`,
 
 ### Admin and migration API
 
-Mutating operator routes (all gated by `adminAuth`; over-network callers need
-`Authorization: Bearer $ADMIN_TOKEN` unless `ADMIN_REQUIRE_TOKEN=true`):
+Mutating operator routes (all gated by `adminAuth`). Over-network callers
+always need `Authorization: Bearer $ADMIN_TOKEN`. Loopback callers skip the
+bearer by default; set `ADMIN_REQUIRE_TOKEN=true` to require the bearer there
+too (for example behind a same-host reverse proxy):
 
 | Method | Path | What it does |
 |---|---|---|
