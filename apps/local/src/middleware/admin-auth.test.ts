@@ -106,5 +106,21 @@ describe('adminAuth', () => {
       );
       expect(res.status).toBe(200);
     });
+
+    it('requires bearer from loopback when bypass is disabled (#171)', async () => {
+      const app = new Hono();
+      app.use('*', adminAuth({ token: TOKEN, allowLoopbackBypass: false }));
+      app.get('/probe', (c) => c.json({ ok: true }));
+
+      const unauth = await app.request('/probe', {}, loopbackEnv('127.0.0.1'));
+      expect(unauth.status).toBe(401);
+
+      const authed = await app.request(
+        '/probe',
+        { headers: { Authorization: `Bearer ${TOKEN}` } },
+        loopbackEnv('127.0.0.1'),
+      );
+      expect(authed.status).toBe(200);
+    });
   });
 });

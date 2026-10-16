@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════════════════════════════════════
-// list_leaderboard — five leaderboard projections behind one tool
+// list_leaderboard — trust and agent leaderboard projections
 // ══════════════════════════════════════════════════════════════════════════════
 
 import type {
@@ -12,13 +12,7 @@ import type {
 import { JSONRPC_INVALID_PARAMS, McpError } from '../errors.js';
 import { asRecord, clampLimit, optString, reqString } from '../args.js';
 
-const VALID_KINDS: readonly LeaderboardKind[] = [
-  'trust',
-  'trending',
-  'agents',
-  'composed',
-  'forked',
-];
+const VALID_KINDS: readonly LeaderboardKind[] = ['trust', 'agents'];
 
 async function handler(args: unknown, ctx: ToolContext): Promise<ToolResult> {
   const rec = asRecord(args);
@@ -58,9 +52,9 @@ export const listLeaderboardTool: ToolDefinition = {
     properties: {
       kind: {
         type: 'string',
-        enum: ['trust', 'trending', 'agents', 'composed', 'forked'],
+        enum: ['trust', 'agents'],
         description:
-          'Which leaderboard to read. trust = human-signal trust ranking; trending = weekly agent invocations; agents = all-time agent invocations; composed = inclusion-in-composition count; forked = human fork count.',
+          'Which leaderboard to read. trust = ranked by trust score; agents = ranked by MCP agent invocations. trending, composed, and forked are not available via MCP (no usage signal collected yet).',
       },
       limit: { type: 'integer', minimum: 1, maximum: 100, description: 'Result cap.' },
       skillType: { type: 'string', description: 'Filter to a single skill_type.' },
