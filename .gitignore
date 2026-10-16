@@ -13,6 +13,9 @@ build/
 .env.*
 !.env.example
 
+# local scan output — never commit findings
+*-scan.json
+
 # runtime data
 data/
 artifacts/
