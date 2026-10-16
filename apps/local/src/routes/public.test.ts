@@ -495,6 +495,7 @@ describe('POST /v1/skills (T-2.11b)', () => {
       slug: 'my-skill',
       version: '1.0.0',
       status: 'published',
+      searchIndexed: true,
     });
     const services = {
       skillsClient: { publishLocal },
@@ -512,6 +513,7 @@ describe('POST /v1/skills (T-2.11b)', () => {
       slug: 'my-skill',
       version: '1.0.0',
       status: 'published',
+      searchIndexed: true,
     });
     // #86: the route threads the caller's tenant (default 'local') so the
     // embedding row is scoped the same way search queries it.
