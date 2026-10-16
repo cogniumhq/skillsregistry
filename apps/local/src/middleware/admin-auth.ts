@@ -29,7 +29,7 @@ export interface AdminAuthOptions {
   /** Expected bearer token. Must be non-empty. */
   token: string;
   /**
-   * When false, loopback callers skip the bearer check (default). Set false
+   * When true (default), loopback callers skip the bearer check. Set false
    * when `ADMIN_REQUIRE_TOKEN=true` on the admin config.
    */
   allowLoopbackBypass?: boolean;
