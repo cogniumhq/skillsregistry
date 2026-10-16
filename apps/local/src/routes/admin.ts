@@ -183,6 +183,24 @@ export function createAdminRoutes(
     }
   });
 
+  // ── POST /v1/admin/reindex ─────────────────────────────────────────────
+  //
+  // Backfill `skill_embeddings` for published rows that were stored while the
+  // embedder was down or before embed-on-publish shipped (#159 / #168).
+  app.post('/admin/reindex', async (c) => {
+    const limitParam = c.req.query('limit');
+    const limit =
+      limitParam === undefined ? undefined : Number.parseInt(limitParam, 10);
+    if (limit !== undefined && (!Number.isFinite(limit) || limit < 1)) {
+      return c.json(
+        { error: { code: 'bad_request' as const, message: 'limit must be a positive integer' } },
+        400,
+      );
+    }
+    const result = await services.skillsClient.reindexMissingEmbeddings({ limit });
+    return c.json(result, 200);
+  });
+
   // ── GET /v1/admin/health ───────────────────────────────────────────────
   //
   // Deep health across four subsystems:
