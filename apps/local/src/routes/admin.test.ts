@@ -10,7 +10,7 @@
 
 import { Hono } from 'hono';
 import type { Pool } from 'pg';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { SCHEMA_VERSION } from '@skillsregistry/schema';
 import type { AppServices } from '../services.js';
 import type { BudgetSnapshot } from '../trust-client.js';
@@ -61,7 +61,7 @@ function unreachablePool(): Pool {
   } as unknown as Pool;
 }
 
-function healthyServices(): AppServices {
+function healthyServices(overrides: Partial<AppServices> = {}): AppServices {
   return {
     embedder: {
       embed: async () => new Float32Array(4),
@@ -69,6 +69,15 @@ function healthyServices(): AppServices {
     },
     upstream: { isAirGapped: false, circuitState: 'closed' },
     budgetMeter: { getCached: async () => null, refresh: async () => null },
+    skillsClient: {
+      reindexMissingEmbeddings: async () => ({
+        examined: 2,
+        indexed: 2,
+        failed: 0,
+        errors: [],
+      }),
+    },
+    ...overrides,
   } as unknown as AppServices;
 }
 
@@ -84,6 +93,46 @@ function snapshot(overrides: Partial<BudgetSnapshot> = {}): BudgetSnapshot {
     ...overrides,
   };
 }
+
+// ── POST /v1/admin/reindex ────────────────────────────────────────────────
+
+describe('POST /v1/admin/reindex (#159)', () => {
+  it('delegates to SkillsClient.reindexMissingEmbeddings', async () => {
+    const reindex = vi.fn(async () => ({
+      examined: 1,
+      indexed: 1,
+      failed: 0,
+      errors: [],
+    }));
+    const app = mount(
+      healthyServices({
+        skillsClient: { reindexMissingEmbeddings: reindex },
+      } as unknown as AppServices),
+      reachablePool(),
+    );
+    const res = await app.request('/v1/admin/reindex?limit=25', {
+      method: 'POST',
+      headers: BEARER,
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      examined: 1,
+      indexed: 1,
+      failed: 0,
+      errors: [],
+    });
+    expect(reindex).toHaveBeenCalledWith({ limit: 25 });
+  });
+
+  it('rejects a non-positive limit', async () => {
+    const app = mount(healthyServices(), reachablePool());
+    const res = await app.request('/v1/admin/reindex?limit=0', {
+      method: 'POST',
+      headers: BEARER,
+    });
+    expect(res.status).toBe(400);
+  });
+});
 
 // ── GET /v1/admin/budget ──────────────────────────────────────────────────
 
