@@ -10,6 +10,7 @@
 //
 //   GET  /v1/admin/budget          — cached mothership budget snapshot
 //   POST /v1/admin/budget/refresh  — force-refresh from mothership
+//   POST /v1/admin/reindex         — embed published skills missing index rows
 //   GET  /v1/admin/health          — deep health (DB, Ollama, upstream,
 //                                     migration state)
 //   GET    /v1/admin/skills        — paginated local skill list (T-3.4)
@@ -74,14 +75,29 @@ interface MigrationsCheck {
   message?: string;
 }
 
+interface EmbeddingCoverage {
+  /** Published skills in the local catalog. */
+  published: number;
+  /** Published skills with at least one `skill_embeddings` row (any tenant). */
+  embedded: number;
+}
+
+interface SearchIndexCheck {
+  status: 'ok' | 'degraded' | 'unknown';
+  message?: string;
+}
+
 interface HealthResponseBody {
   status: 'ok' | 'degraded';
   schemaVersion: { current: number; required: number };
+  /** Null when the DB probe failed and coverage could not be read (#159 / #168). */
+  embeddingCoverage: EmbeddingCoverage | null;
   checks: {
     db: DbCheck;
     embedder: EmbedderCheck;
     mothership: MothershipCheck;
     migrations: MigrationsCheck;
+    searchIndex: SearchIndexCheck;
   };
 }
 
@@ -103,13 +119,16 @@ const ADMIN_SKILLS_MAX_LIMIT = 500;
  */
 export function createAdminRoutes(
   services: AppServices,
-  adminToken: string,
+  admin: { token: string; requireTokenAlways: boolean },
   pool: Pool,
 ): Hono {
   const app = new Hono();
   // Scoped to admin + migrate paths so the guard does not leak onto sibling
   // public routes when this sub-app shares the /v1 mount prefix.
-  const guard = adminAuth({ token: adminToken });
+  const guard = adminAuth({
+    token: admin.token,
+    allowLoopbackBypass: !admin.requireTokenAlways,
+  });
   app.use('/admin/*', guard);
   app.use('/migrate/*', guard);
 
@@ -173,9 +192,27 @@ export function createAdminRoutes(
     }
   });
 
+  // ── POST /v1/admin/reindex ─────────────────────────────────────────────
+  //
+  // Backfill `skill_embeddings` for published rows that were stored while the
+  // embedder was down or before embed-on-publish shipped (#159 / #168).
+  app.post('/admin/reindex', async (c) => {
+    const limitParam = c.req.query('limit');
+    const limit =
+      limitParam === undefined ? undefined : Number.parseInt(limitParam, 10);
+    if (limit !== undefined && (!Number.isFinite(limit) || limit < 1)) {
+      return c.json(
+        { error: { code: 'bad_request' as const, message: 'limit must be a positive integer' } },
+        400,
+      );
+    }
+    const result = await services.skillsClient.reindexMissingEmbeddings({ limit });
+    return c.json(result, 200);
+  });
+
   // ── GET /v1/admin/health ───────────────────────────────────────────────
   //
-  // Deep health across four subsystems:
+  // Deep health across five subsystems:
   //
   //   1. DB          — active `SELECT 1` via the pg pool
   //   2. Embedder    — active `.embed('.')` probe of Ollama
@@ -184,10 +221,12 @@ export function createAdminRoutes(
   //                    /admin/health poll does not burn mothership budget.
   //   4. Migrations  — `SELECT MAX(version)` vs `SCHEMA_VERSION` from
   //                    `@skillsregistry/schema`.
+  //   5. Search index — `embeddingCoverage` counts; degraded when published
+  //                    skills lack `skill_embeddings` rows (#159).
   //
-  // Aggregate `status` is `ok` only when db + embedder + migrations are all
-  // `ok`. Mothership does not gate `ok` — air-gap mode is a valid healthy
-  // posture — but its own sub-check surfaces the circuit state.
+  // Aggregate `status` is `ok` only when db + embedder + migrations + search
+  // index are all `ok`. Mothership does not gate `ok` — air-gap mode is a
+  // valid healthy posture — but its own sub-check surfaces the circuit state.
   //
   // Returns 200 when aggregate is `ok`, 503 when `degraded`. This makes
   // the endpoint usable directly as a container probe.
@@ -197,11 +236,15 @@ export function createAdminRoutes(
       probeEmbedder(services),
       probeMigrations(pool),
     ]);
+    const embeddingCoverage =
+      dbCheck.status === 'ok' ? await probeEmbeddingCoverage(pool) : null;
+    const searchIndexCheck = evaluateSearchIndexCheck(embeddingCoverage);
     const mothershipCheck = probeMothership(services);
     const aggregate: HealthResponseBody['status'] =
       dbCheck.status === 'ok' &&
       embedderCheck.status === 'ok' &&
-      migrationsCheck.status === 'ok'
+      migrationsCheck.status === 'ok' &&
+      searchIndexCheck.status !== 'degraded'
         ? 'ok'
         : 'degraded';
     const body: HealthResponseBody = {
@@ -210,11 +253,13 @@ export function createAdminRoutes(
         current: migrationsCheck.current,
         required: migrationsCheck.required,
       },
+      embeddingCoverage,
       checks: {
         db: dbCheck,
         embedder: embedderCheck,
         mothership: mothershipCheck,
         migrations: migrationsCheck,
+        searchIndex: searchIndexCheck,
       },
     };
     return c.json(body, aggregate === 'ok' ? 200 : 503);
@@ -530,6 +575,52 @@ async function probeDb(pool: Pool): Promise<DbCheck> {
       status: 'degraded',
       message: err instanceof Error ? err.message : String(err),
     };
+  }
+}
+
+/**
+ * When the embedder is healthy but published skills lack embeddings, search
+ * returns empty results while `/admin/health` would otherwise look fine (#159).
+ */
+function evaluateSearchIndexCheck(
+  coverage: EmbeddingCoverage | null,
+): SearchIndexCheck {
+  if (coverage === null) {
+    return { status: 'unknown' };
+  }
+  if (coverage.published === 0 || coverage.embedded >= coverage.published) {
+    return { status: 'ok' };
+  }
+  const missing = coverage.published - coverage.embedded;
+  return {
+    status: 'degraded',
+    message: `${missing} of ${coverage.published} published skill(s) lack search embeddings`,
+  };
+}
+
+/** Published vs search-indexed skill counts — surfaces silent embed failures (#159). */
+async function probeEmbeddingCoverage(pool: Pool): Promise<EmbeddingCoverage | null> {
+  try {
+    const result = await pool.query<{ published: string; embedded: string }>(
+      `SELECT
+        (SELECT COUNT(*)::int FROM skills WHERE status = 'published') AS published,
+        (SELECT COUNT(DISTINCT s.id)::int
+         FROM skills s
+         WHERE s.status = 'published'
+           AND EXISTS (
+             SELECT 1 FROM skill_embeddings se WHERE se.skill_id = s.id
+           )) AS embedded`,
+    );
+    const row = result.rows[0];
+    if (!row) return { published: 0, embedded: 0 };
+    const published = Number.parseInt(row.published, 10);
+    const embedded = Number.parseInt(row.embedded, 10);
+    return {
+      published: Number.isFinite(published) ? published : 0,
+      embedded: Number.isFinite(embedded) ? embedded : 0,
+    };
+  } catch {
+    return null;
   }
 }
 
