@@ -26,11 +26,27 @@ function mount(services: AppServices, pool: Pool): Hono {
   return app;
 }
 
-function reachablePool(currentVersion: number = SCHEMA_VERSION): Pool {
+function reachablePool(
+  currentVersion: number = SCHEMA_VERSION,
+  embeddingCoverage: { published: number; embedded: number } = {
+    published: 2,
+    embedded: 2,
+  },
+): Pool {
   return {
     query: async (sql: string) => {
       if (sql.includes('schema_migrations')) {
         return { rows: [{ v: currentVersion }] };
+      }
+      if (sql.includes('skill_embeddings')) {
+        return {
+          rows: [
+            {
+              published: String(embeddingCoverage.published),
+              embedded: String(embeddingCoverage.embedded),
+            },
+          ],
+        };
       }
       return { rows: [{ '?column?': 1 }] };
     },
@@ -233,6 +249,20 @@ describe('GET /v1/admin/health', () => {
     expect(body.checks.migrations.status).toBe('ok');
   });
 
+  it('reports embeddingCoverage when the DB is reachable (#159)', async () => {
+    const services = healthyServices();
+    const app = mount(
+      services,
+      reachablePool(SCHEMA_VERSION, { published: 4, embedded: 1 }),
+    );
+    const res = await app.request('/v1/admin/health', { headers: BEARER });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      embeddingCoverage: { published: number; embedded: number } | null;
+    };
+    expect(body.embeddingCoverage).toEqual({ published: 4, embedded: 1 });
+  });
+
   it('returns 503 degraded when the DB probe fails', async () => {
     const services = healthyServices();
     const app = mount(services, unreachablePool());
@@ -240,6 +270,7 @@ describe('GET /v1/admin/health', () => {
     expect(res.status).toBe(503);
     const body = (await res.json()) as {
       status: string;
+      embeddingCoverage: null;
       checks: {
         db: { status: string; message?: string };
         migrations: { status: string; message?: string };
@@ -248,6 +279,7 @@ describe('GET /v1/admin/health', () => {
     expect(body.status).toBe('degraded');
     expect(body.checks.db.status).toBe('degraded');
     expect(body.checks.db.message).toContain('unreachable');
+    expect(body.embeddingCoverage).toBeNull();
     // migrations also fails since it reads from the same pool
     expect(body.checks.migrations.status).toBe('degraded');
   });

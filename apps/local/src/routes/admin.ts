@@ -74,9 +74,18 @@ interface MigrationsCheck {
   message?: string;
 }
 
+interface EmbeddingCoverage {
+  /** Published skills in the local catalog. */
+  published: number;
+  /** Published skills with at least one `skill_embeddings` row (any tenant). */
+  embedded: number;
+}
+
 interface HealthResponseBody {
   status: 'ok' | 'degraded';
   schemaVersion: { current: number; required: number };
+  /** Null when the DB probe failed and coverage could not be read (#159 / #168). */
+  embeddingCoverage: EmbeddingCoverage | null;
   checks: {
     db: DbCheck;
     embedder: EmbedderCheck;
@@ -197,6 +206,8 @@ export function createAdminRoutes(
       probeEmbedder(services),
       probeMigrations(pool),
     ]);
+    const embeddingCoverage =
+      dbCheck.status === 'ok' ? await probeEmbeddingCoverage(pool) : null;
     const mothershipCheck = probeMothership(services);
     const aggregate: HealthResponseBody['status'] =
       dbCheck.status === 'ok' &&
@@ -210,6 +221,7 @@ export function createAdminRoutes(
         current: migrationsCheck.current,
         required: migrationsCheck.required,
       },
+      embeddingCoverage,
       checks: {
         db: dbCheck,
         embedder: embedderCheck,
@@ -530,6 +542,32 @@ async function probeDb(pool: Pool): Promise<DbCheck> {
       status: 'degraded',
       message: err instanceof Error ? err.message : String(err),
     };
+  }
+}
+
+/** Published vs search-indexed skill counts — surfaces silent embed failures (#159). */
+async function probeEmbeddingCoverage(pool: Pool): Promise<EmbeddingCoverage | null> {
+  try {
+    const result = await pool.query<{ published: string; embedded: string }>(
+      `SELECT
+        (SELECT COUNT(*)::int FROM skills WHERE status = 'published') AS published,
+        (SELECT COUNT(DISTINCT s.id)::int
+         FROM skills s
+         WHERE s.status = 'published'
+           AND EXISTS (
+             SELECT 1 FROM skill_embeddings se WHERE se.skill_id = s.id
+           )) AS embedded`,
+    );
+    const row = result.rows[0];
+    if (!row) return { published: 0, embedded: 0 };
+    const published = Number.parseInt(row.published, 10);
+    const embedded = Number.parseInt(row.embedded, 10);
+    return {
+      published: Number.isFinite(published) ? published : 0,
+      embedded: Number.isFinite(embedded) ? embedded : 0,
+    };
+  } catch {
+    return null;
   }
 }
 
