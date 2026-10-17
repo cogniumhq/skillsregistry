@@ -680,6 +680,52 @@ describe('SkillsClient.publishLocal — search indexing (#86)', () => {
   });
 });
 
+describe('SkillsClient.reindexMissingEmbeddings (#159)', () => {
+  const unindexedRow = mkRow({
+    id: '22222222-2222-2222-2222-222222222222',
+    slug: 'stale',
+    agent_summary: 'Needs embedding',
+    tenant_id: 'acme',
+  });
+
+  function makeIndexer() {
+    const embed = vi.fn(async () => Float32Array.from({ length: 768 }, () => 0.1));
+    const index = vi.fn(async () => undefined);
+    return {
+      embedder: { identity: { id: 'nomic-embed-text@768' }, embed } as never,
+      provider: { index } as never,
+      embed,
+      index,
+    };
+  }
+
+  it('indexes published rows missing embeddings and reports counts', async () => {
+    const { pool } = makePool([{ rowCount: 1, rows: [unindexedRow] }]);
+    const ix = makeIndexer();
+    const client = new SkillsClient({
+      upstream: makeUpstream(),
+      pool,
+      logger: SILENT_LOGGER,
+      searchIndex: { embedder: ix.embedder, provider: ix.provider },
+    });
+    const result = await client.reindexMissingEmbeddings({ limit: 10 });
+    expect(result).toEqual({ examined: 1, indexed: 1, failed: 0, errors: [] });
+    expect(ix.embed).toHaveBeenCalledWith('Needs embedding');
+    expect(ix.index).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns zeros when search indexing is not configured', async () => {
+    const { pool } = makePool([]);
+    const client = new SkillsClient({
+      upstream: makeUpstream(),
+      pool,
+      logger: SILENT_LOGGER,
+    });
+    const result = await client.reindexMissingEmbeddings();
+    expect(result).toEqual({ examined: 0, indexed: 0, failed: 0, errors: [] });
+  });
+});
+
 // ── #94: deterministic get-by-slug after UNIQUE(slug, version) ───────────
 
 describe('SkillsClient.getSkill — version determinism (#94)', () => {

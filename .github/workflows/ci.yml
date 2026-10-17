@@ -12,6 +12,9 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 # Job `name:` strings are the required-check contexts. Keep them stable.
 # Current ruleset on main requires: `build + typecheck + test`
 # Suggested next required checks (see CONTRIBUTING.md):

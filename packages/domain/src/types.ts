@@ -61,6 +61,8 @@ export interface SkillInput {
   trustScore: number;
   capabilitiesRequired?: string[];
   executionLayer: string;
+  /** Required when executionLayer is `composite` and the skill row is new. */
+  workflowDefinition?: Record<string, unknown> | null;
   tenantId: string;
 }
 
