@@ -7,6 +7,7 @@ export {
   formatSkillDetail,
   type GetSkillResult,
   type LocalPublishResult,
+  type ReindexMissingEmbeddingsResult,
   type SkillsClientLogger,
   type SkillsClientOptions,
 } from './skills-client.js';
