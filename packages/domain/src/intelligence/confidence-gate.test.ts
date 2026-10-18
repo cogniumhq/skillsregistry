@@ -603,19 +603,11 @@ describe('ConfidenceGate — name-boost', () => {
 // Deduplication by name
 // ──────────────────────────────────────────────────────────────────────────────
 
-describe('ConfidenceGate — cross-source dedup by name', () => {
-  it('collapses duplicate names, keeping the higher score', async () => {
-    const result = fakeResult([
-      candidate('sk_a', 0.5),
-      candidate('sk_b', 0.9),
-      candidate('sk_c', 0.3),
-    ]);
+describe('ConfidenceGate — cross-source dedup by repository', () => {
+  function gateFor(rows: any[], scores: Array<[string, number]>) {
+    const result = fakeResult(scores.map(([id, score]) => candidate(id, score)));
     const provider = makeProvider(result);
-    const pool = makePool([
-      { ...SKILL_ROW, id: 'sk_a', name: 'DuplicateName', slug: 'x/a' },
-      { ...SKILL_ROW, id: 'sk_b', name: 'duplicatename', slug: 'x/b' },
-      { ...SKILL_ROW, id: 'sk_c', name: 'unique', slug: 'y/c' },
-    ]);
+    const pool = makePool(rows);
     const gate = new ConfidenceGate({
       provider,
       embedFn: async () => [0],
@@ -627,12 +619,62 @@ describe('ConfidenceGate — cross-source dedup by name', () => {
       reranker: makeReranker(),
       nameBoostWeight: 0,
     });
+    return gate;
+  }
+
+  it('keeps different projects that share a display name', async () => {
+    const gate = gateFor(
+      [
+        { ...SKILL_ROW, id: 'sk_a', name: 'Gmail MCP', slug: 'acme-gmail', repository_url: 'https://github.com/acme/gmail' },
+        { ...SKILL_ROW, id: 'sk_b', name: 'gmail mcp', slug: 'other-gmail', repository_url: 'https://github.com/other/gmail' },
+      ],
+      [['sk_a', 0.9], ['sk_b', 0.4]],
+    );
+
+    const out = await gate.findSkill('q', 't', {}, makeAfterResponse());
+    expect(out.results.map((r) => r.id).sort()).toEqual(['sk_a', 'sk_b']);
+    expect(out.results.find((r) => r.id === 'sk_a')!.repositoryUrl).toBe('https://github.com/acme/gmail');
+  });
+
+  it('collapses equivalent repository URLs and keeps the higher score', async () => {
+    const gate = gateFor(
+      [
+        { ...SKILL_ROW, id: 'sk_a', name: 'Weather', slug: 'glama-weather', repository_url: 'https://github.com/acme/weather.git' },
+        { ...SKILL_ROW, id: 'sk_b', name: 'weather', slug: 'smithery-weather', repository_url: 'git@github.com:acme/weather.git' },
+        { ...SKILL_ROW, id: 'sk_c', name: 'unique', slug: 'other', repository_url: null },
+      ],
+      [['sk_a', 0.5], ['sk_b', 0.9], ['sk_c', 0.3]],
+    );
+
+    const out = await gate.findSkill('q', 't', {}, makeAfterResponse());
+    expect(out.results.map((r) => r.id).sort()).toEqual(['sk_b', 'sk_c']);
+  });
+
+  it('keeps a published row over a higher-scoring deprecated copy of the same repo', async () => {
+    const gate = gateFor(
+      [
+        { ...SKILL_ROW, id: 'old', name: 'QA smoke probe', slug: 'qa-old', status: 'deprecated', repository_url: 'https://github.com/acme/qa' },
+        { ...SKILL_ROW, id: 'live', name: 'QA smoke probe', slug: 'qa-new', status: 'published', repository_url: 'https://github.com/acme/qa' },
+      ],
+      [['old', 0.9], ['live', 0.4]],
+    );
+
+    const out = await gate.findSkill('q', 't', {}, makeAfterResponse());
+    expect(out.results).toHaveLength(1);
+    expect(out.results[0]!.id).toBe('live');
+  });
+
+  it('does not merge same-named rows that have no repository', async () => {
+    const gate = gateFor(
+      [
+        { ...SKILL_ROW, id: 'sk_a', name: 'DuplicateName', slug: 'x/a', repository_url: null },
+        { ...SKILL_ROW, id: 'sk_b', name: 'duplicatename', slug: 'x/b', repository_url: null },
+      ],
+      [['sk_a', 0.5], ['sk_b', 0.9]],
+    );
 
     const out = await gate.findSkill('q', 't', {}, makeAfterResponse());
     expect(out.results).toHaveLength(2);
-    // Higher-score version wins
-    expect(out.results.find((r) => r.id === 'sk_b')).toBeDefined();
-    expect(out.results.find((r) => r.id === 'sk_a')).toBeUndefined();
   });
 });
 
