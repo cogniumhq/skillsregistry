@@ -11,7 +11,8 @@ export function normalizeRepositoryUrl(raw: string | null | undefined): string |
   if (raw == null) return null;
   let s = raw.trim();
   if (!s) return null;
-  s = s.replace(/\.git$/i, '').replace(/\/+$/, '');
+  // Strip trailing slashes before `.git` so `repo.git/` canonicalizes like `repo.git`.
+  s = s.replace(/\/+$/, '').replace(/\.git$/i, '').replace(/\/+$/, '');
 
   const ssh = SSH_REPO.exec(s);
   const sshHost = ssh?.[1];
