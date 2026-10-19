@@ -291,6 +291,19 @@ too (for example behind a same-host reverse proxy):
 | `DELETE` | `/v1/admin/skills/:id` | Remove a skill from the local catalog |
 | `POST` | `/v1/migrate/publish` | Push one local skill to the mothership (connected mode) |
 
+## Abuse and cost controls
+
+- **Keep the default loopback bind.** Every published port binds to `127.0.0.1`
+  (`APP_BIND`). Only set `APP_BIND=0.0.0.0` on a trusted LAN.
+- **If you put a same-host reverse proxy in front (nginx/Caddy), do not proxy
+  `/v1/admin/*` or `/v1/migrate/*`.** Every proxied request arrives from
+  loopback and would skip the `ADMIN_TOKEN` check. If you must proxy them, set
+  `ADMIN_REQUIRE_TOKEN=true` first (see [Auth model](#auth-model)). Rate limits
+  and body-size caps at the proxy are fine for the public read routes
+  (`/v1/search`, `/v1/skills` GET, `/mcp`).
+- **When calling the hosted registry (connected mode),** honour its
+  `X-RateLimit-*` and `Retry-After` response headers.
+
 ## Admin UI
 
 Open `http://localhost:3000/admin/` from the same machine with the default
@@ -396,6 +409,40 @@ Only two are required — everything else has a sensible default in
 | `TENANT_ID` | | — | Required if `MOTHERSHIP_URL` is set. Sent as `X-Tenant-Id`; a scoping hint, not a credential |
 | `LOG_FORMAT` | | `json` | `json` (NDJSON for log collectors) or `pretty` (dev) |
 | `LOG_LEVEL` | | `info` | `trace` / `debug` / `info` / `warn` / `error` / `fatal` |
+
+## Backup and restore
+
+Postgres data and Ollama model weights live in Docker volumes (`postgres-data`,
+`ollama-models`). They survive `docker compose down`, but **`docker compose
+down -v` deletes them permanently** — take a backup first.
+
+**Logical backup (recommended):**
+
+```bash
+docker compose exec -T postgres pg_dump -U skillsregistry -d skillsregistry -Fc \
+  > "skillsregistry-$(date +%F).dump"
+```
+
+**Restore** (stack running, target DB already exists with pgvector):
+
+```bash
+docker compose exec -T postgres pg_restore -U skillsregistry -d skillsregistry \
+  --clean --if-exists < skillsregistry-YYYY-MM-DD.dump
+```
+
+**Volume snapshot (cold):** stop Postgres, archive the volume, then start again
+(volume name is `<compose-project>_postgres-data`; default project name is the
+directory name, e.g. `local_postgres-data` when run from `apps/local`):
+
+```bash
+docker compose stop postgres
+docker run --rm -v local_postgres-data:/data -v "$PWD:/backup" alpine \
+  tar czf /backup/postgres-data.tgz -C /data .
+docker compose start postgres
+```
+
+Restore by extracting into a fresh `postgres-data` volume before first boot.
+The `ollama-models` volume can be re-pulled; backing it up is optional.
 
 ## Troubleshooting
 
