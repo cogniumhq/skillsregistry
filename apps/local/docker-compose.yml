@@ -37,7 +37,8 @@
 # `env_file` long syntax below needs Docker Compose v2.24+.
 #
 # Volumes: postgres data + ollama model cache both persist across `docker
-# compose down`. Use `docker compose down -v` to wipe them.
+# compose down`. Use `docker compose down -v` to wipe them (destructive: see
+# README "Backup and restore").
 #
 # ══════════════════════════════════════════════════════════════════════════════
 
