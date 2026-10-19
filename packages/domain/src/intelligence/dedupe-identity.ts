@@ -5,6 +5,38 @@
 // so two unpublished-source listings stay distinct.
 
 const SSH_REPO = /^git@([^:/\s]+):(.+)$/i;
+const SCP_STYLE_GIT = /^git@([^:/\s]+)[/:](.+)$/i;
+
+/** GitHub web UI paths after `owner/repo` — not part of clone identity. */
+const GITHUB_WEB_SEGMENTS = new Set([
+  'tree',
+  'blob',
+  'pull',
+  'issues',
+  'wiki',
+  'commit',
+  'releases',
+  'actions',
+  'settings',
+  'packages',
+  'discussions',
+  'projects',
+]);
+
+function stripGitHubWebPath(hostPath: string): string {
+  const parts = hostPath.split('/');
+  if (parts.length < 3 || parts[0] !== 'github.com') return hostPath;
+  const segment = parts[3]?.toLowerCase();
+  if (!segment || !GITHUB_WEB_SEGMENTS.has(segment)) return hostPath;
+  return `${parts[0]}/${parts[1]}/${parts[2]}`;
+}
+
+function canonicalHostPath(host: string, path: string): string | null {
+  const h = host.toLowerCase();
+  const p = path.replace(/^\/+/, '').replace(/\/+$/, '').toLowerCase();
+  if (!p) return null;
+  return stripGitHubWebPath(`${h}/${p}`);
+}
 
 /** Canonical `host/path` form. Null when the value is empty. */
 export function normalizeRepositoryUrl(raw: string | null | undefined): string | null {
@@ -13,20 +45,24 @@ export function normalizeRepositoryUrl(raw: string | null | undefined): string |
   if (!s) return null;
   // Strip trailing slashes before `.git` so `repo.git/` canonicalizes like `repo.git`.
   s = s.replace(/\/+$/, '').replace(/\.git$/i, '').replace(/\/+$/, '');
+  // `ssh://git@host/path` and `git+ssh://git@host/path` — slash separator, not `:`
+  s = s.replace(/^(?:git\+ssh|ssh):\/\//i, '');
 
   const ssh = SSH_REPO.exec(s);
   const sshHost = ssh?.[1];
   const sshPath = ssh?.[2];
   if (sshHost && sshPath) {
-    const host = sshHost.toLowerCase();
-    const path = sshPath.replace(/^\/+/, '').replace(/\/+$/, '').toLowerCase();
-    if (!path) return null;
-    return `${host}/${path}`;
+    return canonicalHostPath(sshHost, sshPath);
+  }
+
+  const scp = SCP_STYLE_GIT.exec(s);
+  if (scp?.[1] && scp[2]) {
+    return canonicalHostPath(scp[1], scp[2]);
   }
 
   s = s.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '');
   s = s.replace(/^www\./i, '').toLowerCase();
-  return s || null;
+  return s ? stripGitHubWebPath(s) : null;
 }
 
 export function searchDedupeKey(skill: {
