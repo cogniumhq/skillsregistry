@@ -21,6 +21,12 @@ describe('normalizeRepositoryUrl', () => {
     expect(normalizeRepositoryUrl('https://github.com/owner/repo.git/')).toBe(expected);
     expect(normalizeRepositoryUrl('ssh://git@github.com/owner/repo.git')).toBe(expected);
     expect(normalizeRepositoryUrl('git+ssh://git@github.com/owner/repo')).toBe(expected);
+    expect(
+      normalizeRepositoryUrl('https://github.com/owner/repo/tree/main/skills/acme/widget'),
+    ).toBe(expected);
+    expect(normalizeRepositoryUrl('https://github.com/owner/repo/blob/main/README.md')).toBe(
+      expected,
+    );
   });
 
   it('keeps nested group paths', () => {

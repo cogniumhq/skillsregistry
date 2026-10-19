@@ -7,11 +7,35 @@
 const SSH_REPO = /^git@([^:/\s]+):(.+)$/i;
 const SCP_STYLE_GIT = /^git@([^:/\s]+)[/:](.+)$/i;
 
+/** GitHub web UI paths after `owner/repo` — not part of clone identity. */
+const GITHUB_WEB_SEGMENTS = new Set([
+  'tree',
+  'blob',
+  'pull',
+  'issues',
+  'wiki',
+  'commit',
+  'releases',
+  'actions',
+  'settings',
+  'packages',
+  'discussions',
+  'projects',
+]);
+
+function stripGitHubWebPath(hostPath: string): string {
+  const parts = hostPath.split('/');
+  if (parts.length < 3 || parts[0] !== 'github.com') return hostPath;
+  const segment = parts[3]?.toLowerCase();
+  if (!segment || !GITHUB_WEB_SEGMENTS.has(segment)) return hostPath;
+  return `${parts[0]}/${parts[1]}/${parts[2]}`;
+}
+
 function canonicalHostPath(host: string, path: string): string | null {
   const h = host.toLowerCase();
   const p = path.replace(/^\/+/, '').replace(/\/+$/, '').toLowerCase();
   if (!p) return null;
-  return `${h}/${p}`;
+  return stripGitHubWebPath(`${h}/${p}`);
 }
 
 /** Canonical `host/path` form. Null when the value is empty. */
@@ -38,7 +62,7 @@ export function normalizeRepositoryUrl(raw: string | null | undefined): string |
 
   s = s.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '');
   s = s.replace(/^www\./i, '').toLowerCase();
-  return s || null;
+  return s ? stripGitHubWebPath(s) : null;
 }
 
 export function searchDedupeKey(skill: {
