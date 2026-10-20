@@ -31,11 +31,22 @@ function stripGitHubWebPath(hostPath: string): string {
   return `${parts[0]}/${parts[1]}/${parts[2]}`;
 }
 
+/** GitLab browser URLs use `/-/tree/`, `/-/blob/`, etc. after the project path. */
+function stripGitLabWebPath(hostPath: string): string {
+  if (!hostPath.startsWith('gitlab.com/')) return hostPath;
+  const dash = hostPath.indexOf('/-/');
+  return dash === -1 ? hostPath : hostPath.slice(0, dash);
+}
+
+function stripWebUiPath(hostPath: string): string {
+  return stripGitLabWebPath(stripGitHubWebPath(hostPath));
+}
+
 function canonicalHostPath(host: string, path: string): string | null {
   const h = host.toLowerCase();
   const p = path.replace(/^\/+/, '').replace(/\/+$/, '').toLowerCase();
   if (!p) return null;
-  return stripGitHubWebPath(`${h}/${p}`);
+  return stripWebUiPath(`${h}/${p}`);
 }
 
 /** Canonical `host/path` form. Null when the value is empty. */
@@ -62,7 +73,7 @@ export function normalizeRepositoryUrl(raw: string | null | undefined): string |
 
   s = s.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '');
   s = s.replace(/^www\./i, '').toLowerCase();
-  return s ? stripGitHubWebPath(s) : null;
+  return s ? stripWebUiPath(s) : null;
 }
 
 export function searchDedupeKey(skill: {
