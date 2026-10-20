@@ -21,6 +21,8 @@ const GITHUB_WEB_SEGMENTS = new Set([
   'packages',
   'discussions',
   'projects',
+  'compare',
+  'security',
 ]);
 
 function stripGitHubWebPath(hostPath: string): string {
