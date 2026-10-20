@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "skillsregistry",
+  "version": "1.0.0",
+  "description": "SkillsRegistry by Cognium: search MCP servers and agent skills with explicit trust and scan-coverage signals.",
+  "owner": {
+    "name": "Cognium Labs",
+    "url": "https://cognium.net"
+  },
+  "plugins": [
+    {
+      "name": "skillsregistry",
+      "description": "SkillsRegistry by Cognium: search MCP servers and agent skills with explicit trust and scan-coverage signals.",
+      "version": "1.0.0",
+      "source": "./"
+    }
+  ]
+}
