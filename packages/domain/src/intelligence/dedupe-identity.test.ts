@@ -33,6 +33,12 @@ describe('normalizeRepositoryUrl', () => {
     expect(
       normalizeRepositoryUrl('https://github.com/owner/repo/security/advisories'),
     ).toBe(expected);
+    expect(normalizeRepositoryUrl('https://github.com/owner/repo/pulls')).toBe(expected);
+    expect(normalizeRepositoryUrl('https://github.com/owner/repo/tags')).toBe(expected);
+    expect(normalizeRepositoryUrl('https://github.com/owner/repo/fork')).toBe(expected);
+    expect(normalizeRepositoryUrl('https://github.com/owner/repo/stargazers')).toBe(
+      expected,
+    );
   });
 
   it('keeps nested group paths', () => {
