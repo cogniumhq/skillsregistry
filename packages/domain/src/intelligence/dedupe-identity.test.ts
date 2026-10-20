@@ -34,6 +34,17 @@ describe('normalizeRepositoryUrl', () => {
       'gitlab.com/group/sub/repo',
     );
   });
+
+  it('strips GitLab web UI paths after /-/', () => {
+    const expected = 'gitlab.com/group/sub/repo';
+    expect(normalizeRepositoryUrl('https://gitlab.com/group/sub/repo/-/tree/main/skills/foo')).toBe(
+      expected,
+    );
+    expect(normalizeRepositoryUrl('https://gitlab.com/group/sub/repo/-/blob/main/README.md')).toBe(
+      expected,
+    );
+    expect(normalizeRepositoryUrl('https://gitlab.com/group/sub/repo')).toBe(expected);
+  });
 });
 
 describe('searchDedupeKey', () => {
