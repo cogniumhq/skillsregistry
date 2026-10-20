@@ -27,6 +27,12 @@ describe('normalizeRepositoryUrl', () => {
     expect(normalizeRepositoryUrl('https://github.com/owner/repo/blob/main/README.md')).toBe(
       expected,
     );
+    expect(
+      normalizeRepositoryUrl('https://github.com/owner/repo/compare/main...develop'),
+    ).toBe(expected);
+    expect(
+      normalizeRepositoryUrl('https://github.com/owner/repo/security/advisories'),
+    ).toBe(expected);
   });
 
   it('keeps nested group paths', () => {
