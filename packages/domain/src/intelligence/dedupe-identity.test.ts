@@ -39,6 +39,21 @@ describe('normalizeRepositoryUrl', () => {
     expect(normalizeRepositoryUrl('https://github.com/owner/repo/stargazers')).toBe(
       expected,
     );
+    expect(normalizeRepositoryUrl('https://github.com/owner/repo/branches')).toBe(expected);
+    expect(normalizeRepositoryUrl('https://github.com/owner/repo/graphs/contributors')).toBe(
+      expected,
+    );
+    expect(normalizeRepositoryUrl('https://github.com/owner/repo/network/members')).toBe(
+      expected,
+    );
+    expect(normalizeRepositoryUrl('https://github.com/owner/repo/pulse')).toBe(expected);
+    expect(normalizeRepositoryUrl('https://github.com/owner/repo/watchers')).toBe(expected);
+    expect(normalizeRepositoryUrl('https://github.com/owner/repo/commits/main')).toBe(expected);
+    expect(normalizeRepositoryUrl('https://github.com/owner/repo/activity')).toBe(expected);
+    expect(
+      normalizeRepositoryUrl('https://github.com/owner/repo/archive/refs/heads/main.zip'),
+    ).toBe(expected);
+    expect(normalizeRepositoryUrl('https://github.com/owner/repo/sponsors')).toBe(expected);
   });
 
   it('keeps nested group paths', () => {

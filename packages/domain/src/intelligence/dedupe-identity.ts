@@ -27,6 +27,15 @@ const GITHUB_WEB_SEGMENTS = new Set([
   'tags',
   'fork',
   'stargazers',
+  'branches',
+  'graphs',
+  'network',
+  'pulse',
+  'watchers',
+  'commits',
+  'activity',
+  'archive',
+  'sponsors',
 ]);
 
 function stripGitHubWebPath(hostPath: string): string {
