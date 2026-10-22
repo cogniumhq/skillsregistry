@@ -22,10 +22,15 @@ permissions:
 #   `dependency audit`, `hadolint (Dockerfile)`, `sdk pack dry-run`,
 #   `cognium-dev SAST`, and `coverage` once that floor has a green streak.
 
+# Fork PRs never reach the self-hosted `grace` runner: this repo is public, and
+# a fork PR's code would otherwise run on a persistent box we own. They run the
+# same jobs on ubuntu-latest instead (skipping them would let required checks
+# pass without running).
+
 jobs:
   build:
     name: build + typecheck + test
-    runs-on: [self-hosted, grace]
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || fromJSON('["self-hosted", "grace"]') }}
     # Container: the runner is persistent, unlike a GitHub-hosted one, so
     # without this the jobs share ~/.npm, the pnpm store and leftover
     # node_modules with every other repo on the box. Must stay a glibc image
@@ -74,7 +79,7 @@ jobs:
 
   changeset-check:
     name: changeset required on packages/* PRs
-    runs-on: [self-hosted, grace]
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || fromJSON('["self-hosted", "grace"]') }}
     # Container: the runner is persistent, unlike a GitHub-hosted one, so
     # without this the jobs share ~/.npm, the pnpm store and leftover
     # node_modules with every other repo on the box. Must stay a glibc image
