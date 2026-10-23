@@ -54,6 +54,14 @@ describe('normalizeRepositoryUrl', () => {
       normalizeRepositoryUrl('https://github.com/owner/repo/archive/refs/heads/main.zip'),
     ).toBe(expected);
     expect(normalizeRepositoryUrl('https://github.com/owner/repo/sponsors')).toBe(expected);
+    expect(normalizeRepositoryUrl('https://github.com/owner/repo/forks')).toBe(expected);
+    expect(normalizeRepositoryUrl('https://github.com/owner/repo/deployments')).toBe(
+      expected,
+    );
+    expect(normalizeRepositoryUrl('https://github.com/owner/repo/pages')).toBe(expected);
+    expect(normalizeRepositoryUrl('https://github.com/owner/repo/downloads')).toBe(
+      expected,
+    );
   });
 
   it('keeps nested group paths', () => {
