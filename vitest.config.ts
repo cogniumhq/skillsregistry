@@ -14,12 +14,14 @@ export default defineConfig({
       reportsDirectory: './coverage',
       exclude: [
         '**/*.test.ts',
+        '**/*.test.mjs',
         '**/dist/**',
         '**/node_modules/**',
         '**/*.d.ts',
         '**/web/dist/**',
         'scripts/**',
         'vitest.*.ts',
+        '**/vitest.config.mjs',
       ],
       thresholds: {
         lines: 50,
