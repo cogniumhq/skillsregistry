@@ -34,7 +34,7 @@ jobs:
       # cognium.config.json further excludes node_modules / dist / coverage
       # and includes only apps/local/src + packages/*/src (+ admin UI src).
       - name: Run cognium-dev scan
-        uses: cogniumhq/cognium-dev/packages/cli@cognium-dev-v4.15.0
+        uses: cogniumhq/cognium-dev/packages/cli@cognium-dev-v4.17.0
         with:
           path: .
           format: sarif
