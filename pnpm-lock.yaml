@@ -117,10 +117,10 @@ importers:
     dependencies:
       '@hono/zod-openapi':
         specifier: ^0.19.0
-        version: 0.19.10(hono@4.13.13)(zod@3.25.76)
+        version: 0.19.10(hono@4.13.13)(zod@4.6.7)
       zod:
-        specifier: ^3.23.0
-        version: 3.25.76
+        specifier: ^4.6.6
+        version: 4.6.7
     devDependencies:
       '@types/node':
         specifier: ^22.20.5
@@ -135,8 +135,8 @@ importers:
   packages/dag:
     dependencies:
       zod:
-        specifier: ^3.24.0
-        version: 3.25.76
+        specifier: ^4.6.6
+        version: 4.6.7
     devDependencies:
       '@types/node':
         specifier: ^22.20.5
@@ -163,8 +163,8 @@ importers:
         specifier: ^6.0.2
         version: 6.0.2
       zod:
-        specifier: ^3.23.0
-        version: 3.25.76
+        specifier: ^4.6.6
+        version: 4.6.7
     devDependencies:
       '@types/node':
         specifier: ^22.20.5
@@ -3594,9 +3594,6 @@ packages:
     resolution: {integrity: sha512-4LCcse/U2MHZ63HAJVE+v71o7yOdIe4cZ70Wpf8D/IyjDKYQLV5GD46B+hSTjJsvV5PztjvHoU580EftxjDZFQ==}
     engines: {node: '>=12.20'}
 
-  zod@3.25.76:
-    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
-
   zod@4.6.7:
     resolution: {integrity: sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg==}
 
@@ -3625,10 +3622,10 @@ snapshots:
       is-potential-custom-element-name: 1.0.1
       lru-cache: 11.5.3
 
-  '@asteasolutions/zod-to-openapi@7.3.4(zod@3.25.76)':
+  '@asteasolutions/zod-to-openapi@7.3.4(zod@4.6.7)':
     dependencies:
       openapi3-ts: 4.6.1
-      zod: 3.25.76
+      zod: 4.6.7
 
   '@astrojs/astro2tsx@0.1.0(@emnapi/runtime@1.11.1)':
     dependencies:
@@ -4248,18 +4245,18 @@ snapshots:
     dependencies:
       hono: 4.13.13
 
-  '@hono/zod-openapi@0.19.10(hono@4.13.13)(zod@3.25.76)':
+  '@hono/zod-openapi@0.19.10(hono@4.13.13)(zod@4.6.7)':
     dependencies:
-      '@asteasolutions/zod-to-openapi': 7.3.4(zod@3.25.76)
-      '@hono/zod-validator': 0.7.6(hono@4.13.13)(zod@3.25.76)
+      '@asteasolutions/zod-to-openapi': 7.3.4(zod@4.6.7)
+      '@hono/zod-validator': 0.7.6(hono@4.13.13)(zod@4.6.7)
       hono: 4.13.13
       openapi3-ts: 4.6.1
-      zod: 3.25.76
+      zod: 4.6.7
 
-  '@hono/zod-validator@0.7.6(hono@4.13.13)(zod@3.25.76)':
+  '@hono/zod-validator@0.7.6(hono@4.13.13)(zod@4.6.7)':
     dependencies:
       hono: 4.13.13
-      zod: 3.25.76
+      zod: 4.6.7
 
   '@img/colour@1.1.0':
     optional: true
@@ -6644,8 +6641,6 @@ snapshots:
       yargs-parser: 22.0.0
 
   yocto-queue@1.2.2: {}
-
-  zod@3.25.76: {}
 
   zod@4.6.7: {}
 
