@@ -2,7 +2,7 @@
 
 Portable workflow DAG schema, validation, and interpreter for [SkillsRegistry](https://skillsregistry.net).
 
-Zero-dependency (modulo `zod`) primitives for declaring multi-step skill workflows as a directed acyclic graph, validating them, computing parallel execution layers via topological sort, and resolving step inputs from upstream outputs.
+Zero-dependency (modulo `zod` 4 — since 2.0.0; pin `1.x` for zod 3) primitives for declaring multi-step skill workflows as a directed acyclic graph, validating them, computing parallel execution layers via topological sort, and resolving step inputs from upstream outputs.
 
 ## Install
 
