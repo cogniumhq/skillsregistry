@@ -76,6 +76,18 @@ describe('common params', () => {
     expect(() => SkillIdParam.parse('not-a-uuid')).toThrow();
   });
 
+  it('SkillIdParam keeps the zod 3 UUID shape check (no RFC version/variant bits)', () => {
+    // zod 4's z.uuid() rejects these; 3.0.0 uses z.guid() so ids accepted
+    // under 2.x (seeded / fixture rows) are still accepted on the wire.
+    for (const id of [
+      '00000000-0000-0000-0000-000000000001',
+      'aaaaaaaa-0000-0000-0000-000000000001',
+      '11111111-1111-1111-1111-111111111111',
+    ]) {
+      expect(SkillIdParam.parse(id)).toBe(id);
+    }
+  });
+
   it('SkillSlugParam / VersionParam accept plain strings', () => {
     expect(SkillSlugParam.parse('rust-lint')).toBe('rust-lint');
     expect(VersionParam.parse('1.0.0')).toBe('1.0.0');

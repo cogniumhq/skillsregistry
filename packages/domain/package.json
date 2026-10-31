@@ -64,7 +64,7 @@
     "@skillsregistry/contracts": "workspace:*",
     "@skillsregistry/schema": "workspace:*",
     "nanoid": "^6.0.1",
-    "zod": "^3.23.0"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^22.20.3",

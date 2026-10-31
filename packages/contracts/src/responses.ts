@@ -246,7 +246,7 @@ export const TierDistributionSchema = z
 
 export const MatchSourcesResponseSchema = z
   .object({
-    matchSources: z.record(z.number()),
+    matchSources: z.record(z.string(), z.number()),
   })
   .openapi('MatchSourcesResponse');
 
@@ -331,9 +331,9 @@ export const EvalCompareResponseSchema = z
   .object({
     runA: z.object({ runId: z.string(), timestamp: z.string() }),
     runB: z.object({ runId: z.string(), timestamp: z.string() }),
-    metrics: z.record(z.unknown()),
-    summary: z.record(z.unknown()),
-    tierDistribution: z.record(z.unknown()),
+    metrics: z.record(z.string(), z.unknown()),
+    summary: z.record(z.string(), z.unknown()),
+    tierDistribution: z.record(z.string(), z.unknown()),
   })
   .openapi('EvalCompareResponse');
 

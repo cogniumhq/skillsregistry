@@ -11,12 +11,12 @@
 import { z } from 'zod';
 
 export const forkInputSchema = z.object({
-  authorId: z.string().uuid(),
+  authorId: z.guid(),
   authorType: z.enum(['human', 'bot']),
 });
 
 export const copyInputSchema = z.object({
-  authorId: z.string().uuid(),
+  authorId: z.guid(),
   authorType: z.enum(['human', 'bot']),
 });
 
@@ -28,14 +28,14 @@ export const compositionInputSchema = z.object({
     .optional(),
   description: z.string().min(10).max(2000),
   tags: z.array(z.string()).optional(),
-  authorId: z.string().uuid(),
+  authorId: z.guid(),
   authorType: z.enum(['human', 'bot']),
   steps: z
     .array(
       z.object({
-        skillId: z.string().uuid(),
+        skillId: z.guid(),
         stepName: z.string().optional(),
-        inputMapping: z.record(z.string()).optional(),
+        inputMapping: z.record(z.string(), z.string()).optional(),
         onError: z.enum(['fail', 'skip', 'retry']).optional(),
       }),
     )
@@ -44,14 +44,14 @@ export const compositionInputSchema = z.object({
 });
 
 export const extendInputSchema = z.object({
-  authorId: z.string().uuid(),
+  authorId: z.guid(),
   authorType: z.enum(['human', 'bot']),
   steps: z
     .array(
       z.object({
-        skillId: z.string().uuid(),
+        skillId: z.guid(),
         stepName: z.string().optional(),
-        inputMapping: z.record(z.string()).optional(),
+        inputMapping: z.record(z.string(), z.string()).optional(),
         onError: z.enum(['fail', 'skip', 'retry']).optional(),
       }),
     )
