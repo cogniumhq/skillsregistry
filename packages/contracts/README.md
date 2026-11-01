@@ -17,6 +17,14 @@ version so no field ever silently drifts.
 | `@skillsregistry/contracts/responses` | HTTP response envelopes for public REST routes. Depends on `@hono/zod-openapi`. |
 | `@skillsregistry/contracts/upstream` | Local-node → mothership contract: trust scoring, budget, publish, delta sync, error taxonomy. Plain `zod` — no OpenAPI meta. |
 
+## Requirements
+
+Since **3.0.0** the schemas are **zod 4** instances and the OpenAPI modules
+use **`@hono/zod-openapi` 1.x** (which needs `hono` >= 4.10). Consumers must
+be on zod `^4.6.6` (the GHSA-mrhx-c7xc-m3w5 fix) and `@hono/zod-openapi`
+`^1.x`; mixing these schemas with zod 3 or `@hono/zod-openapi` 0.x does not
+type-check and breaks OpenAPI generation. Pin `2.x` to stay on zod 3.
+
 ## Install
 
 ```bash
