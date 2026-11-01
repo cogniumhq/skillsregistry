@@ -235,4 +235,16 @@ describe('loadConfig', () => {
       expect(CONFIG_ENV_VARS.length).toBeGreaterThan(10);
     });
   });
+
+  describe('ADMIN_REQUIRE_TOKEN (#171)', () => {
+    it('defaults to loopback bypass enabled', () => {
+      const cfg = loadConfig(REQUIRED_MIN);
+      expect(cfg.admin.requireTokenAlways).toBe(false);
+    });
+
+    it('parses ADMIN_REQUIRE_TOKEN=true', () => {
+      const cfg = loadConfig({ ...REQUIRED_MIN, ADMIN_REQUIRE_TOKEN: 'true' });
+      expect(cfg.admin.requireTokenAlways).toBe(true);
+    });
+  });
 });

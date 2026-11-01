@@ -27,6 +27,7 @@ import type { SearchLoggerPort } from '../adapters/search-logger.js';
 import type { SqlPool } from '../adapters/sql.js';
 import type { SearchProvider } from '../providers/search-provider.js';
 import { CircuitBreaker } from '../resilience/circuit-breaker.js';
+import { preferSearchDuplicate, searchDedupeKey } from './dedupe-identity.js';
 import {
   appetiteToAllowVulnerable,
   appetiteToTrustThreshold,
@@ -570,6 +571,7 @@ export class ConfidenceGate {
         s.name,
         s.slug,
         s.version,
+        s.repository_url,
         s.agent_summary,
         s.trust_score,
         s.execution_layer,
@@ -618,6 +620,7 @@ export class ConfidenceGate {
           name: row.name,
           slug: row.slug,
           version: row.version ?? '1.0.0',
+          repositoryUrl: row.repository_url ?? null,
           agentSummary: row.agent_summary,
           trustScore: parseFloat(row.trust_score),
           executionLayer: row.execution_layer,
@@ -693,34 +696,30 @@ export class ConfidenceGate {
       results.sort((a, b) => b.score - a.score);
     }
 
-    return this.deduplicateByName(results);
+    return this.deduplicateByIdentity(results);
   }
 
   // ──────────────────────────────────────────────────────────────────────────
   // Search-time dedup (cross-source)
+  //
+  // Collapse copies of the same project: same repository, or the same slug
+  // when no repository is known. Projects that share a display name stay
+  // separate. A published row wins over a non-published one.
   // ──────────────────────────────────────────────────────────────────────────
 
-  private deduplicateByName(results: SkillResult[]): SkillResult[] {
-    const seen = new Map<string, number>(); // normalized name → index in deduped
+  private deduplicateByIdentity(results: SkillResult[]): SkillResult[] {
+    const seen = new Map<string, number>();
     const deduped: SkillResult[] = [];
 
     for (const result of results) {
-      const key = result.name.toLowerCase().trim();
+      const key = searchDedupeKey(result);
       const existingIdx = seen.get(key);
 
       if (existingIdx === undefined) {
         seen.set(key, deduped.length);
         deduped.push(result);
-      } else {
-        // Keep the one with higher score; if tied, prefer higher trustScore
-        const existing = deduped[existingIdx]!;
-        if (
-          result.score > existing.score ||
-          (result.score === existing.score &&
-            result.trustScore > existing.trustScore)
-        ) {
-          deduped[existingIdx] = result;
-        }
+      } else if (preferSearchDuplicate(result, deduped[existingIdx]!)) {
+        deduped[existingIdx] = result;
       }
     }
 

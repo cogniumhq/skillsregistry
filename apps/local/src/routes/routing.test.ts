@@ -449,6 +449,9 @@ describe('createApp route surface', () => {
           if (sql.includes('schema_migrations')) {
             return { rows: [{ v: SCHEMA_VERSION }] };
           }
+          if (sql.includes('skill_embeddings')) {
+            return { rows: [{ published: '0', embedded: '0' }] };
+          }
           return { rows: [{ '?column?': 1 }] };
         },
       } as unknown as Pool;

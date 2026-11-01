@@ -201,7 +201,8 @@ export type GetCompositionResult =
 // Leaderboard shapes
 // ──────────────────────────────────────────────────────────────────────────────
 
-export type LeaderboardKind = 'trust' | 'trending' | 'agents' | 'composed' | 'forked';
+/** MCP-supported leaderboard kinds (mothership may expose more via REST). */
+export type LeaderboardKind = 'trust' | 'agents';
 
 export interface LeaderboardFilters {
   limit: number;
@@ -243,8 +244,7 @@ export interface LeaderboardEntry {
 //   handled inside the adapter (fail-closed).
 // - `getCompositionBySlug` — allow-listed composition-detail read with tenant
 //   visibility filter.
-// - `getLeaderboard` — single entry point dispatching to the five leaderboard
-//   projections keyed by `kind`.
+// - `getLeaderboard` — single entry point for MCP leaderboard kinds (`trust`, `agents`).
 // - `recorder` — optional. Non-blocking observability. When absent the
 //   dispatch skips the write.
 // - `afterResponse` — `waitUntil`-style post-response scheduler so recorder

@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════════════════════════════════════
-// list_leaderboard — five leaderboard projections behind one tool
+// list_leaderboard — trust and agent leaderboard projections
 // ══════════════════════════════════════════════════════════════════════════════
 
 import { describe, it, expect, vi } from 'vitest';
@@ -87,12 +87,25 @@ describe('list_leaderboard — arg validation', () => {
     expect((caught as McpError).code).toBe(JSONRPC_INVALID_PARAMS);
     expect((caught as Error).message).toMatch(/Unknown leaderboard kind/);
     // Message must include the allowed set for discoverability
-    expect((caught as Error).message).toMatch(
-      /trust.*trending.*agents.*composed.*forked/,
-    );
+    expect((caught as Error).message).toMatch(/trust.*agents/);
   });
 
-  it.each(['trust', 'trending', 'agents', 'composed', 'forked'] as const)(
+  it.each(['trending', 'composed', 'forked'] as const)(
+    'rejects unavailable kind %s with INVALID_PARAMS',
+    async (kind) => {
+      const { leaderboards } = stubLeaderboards();
+      let caught: unknown;
+      try {
+        await listLeaderboardTool.handler({ kind }, makeCtx(leaderboards));
+      } catch (err) {
+        caught = err;
+      }
+      expect(caught).toBeInstanceOf(McpError);
+      expect((caught as McpError).code).toBe(JSONRPC_INVALID_PARAMS);
+    },
+  );
+
+  it.each(['trust', 'agents'] as const)(
     'accepts valid kind %s',
     async (kind) => {
       const { leaderboards, calls } = stubLeaderboards();
@@ -206,12 +219,6 @@ describe('list_leaderboard — metadata', () => {
       properties: { kind: { enum: string[] } };
     };
     expect(schema.required).toEqual(['kind']);
-    expect(schema.properties.kind.enum).toEqual([
-      'trust',
-      'trending',
-      'agents',
-      'composed',
-      'forked',
-    ]);
+    expect(schema.properties.kind.enum).toEqual(['trust', 'agents']);
   });
 });

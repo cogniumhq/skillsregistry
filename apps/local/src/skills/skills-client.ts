@@ -103,6 +103,14 @@ export interface LocalPublishResult {
   searchIndexError?: string;
 }
 
+/** Result of `reindexMissingEmbeddings` — admin backfill for #159 / #168. */
+export interface ReindexMissingEmbeddingsResult {
+  examined: number;
+  indexed: number;
+  failed: number;
+  errors: Array<{ id: string; slug: string; error: string }>;
+}
+
 /**
  * Row shape read from the local `skills` table. Projection of the
  * columns we surface to `formatSkillDetail`. Everything nullable so a
@@ -348,6 +356,50 @@ export class SkillsClient {
   }
 
   /**
+   * Embed published skills that have no `skill_embeddings` row yet. Idempotent
+   * and batched — operators run this after upgrading past #86 or recovering
+   * from embedder outages.
+   */
+  async reindexMissingEmbeddings(options?: {
+    limit?: number;
+  }): Promise<ReindexMissingEmbeddingsResult> {
+    if (!this.searchIndex) {
+      return { examined: 0, indexed: 0, failed: 0, errors: [] };
+    }
+    const rawLimit = options?.limit ?? 50;
+    const limit = Math.min(Math.max(rawLimit, 1), 200);
+    const result = await this.pool.query<SkillRow>(
+      `SELECT ${SKILL_ROW_COLUMNS}
+         FROM skills s
+        WHERE s.status = 'published'
+          AND NOT EXISTS (
+            SELECT 1 FROM skill_embeddings se WHERE se.skill_id = s.id
+          )
+        ORDER BY s.created_at ASC NULLS LAST, s.id
+        LIMIT $1`,
+      [limit],
+    );
+    const rows = result.rows;
+    let indexed = 0;
+    let failed = 0;
+    const errors: ReindexMissingEmbeddingsResult['errors'] = [];
+    for (const row of rows) {
+      const outcome = await this.indexSkillRow(row);
+      if (outcome.searchIndexed) {
+        indexed += 1;
+      } else {
+        failed += 1;
+        errors.push({
+          id: row.id,
+          slug: row.slug,
+          error: outcome.searchIndexError ?? 'index skipped',
+        });
+      }
+    }
+    return { examined: rows.length, indexed, failed, errors };
+  }
+
+  /**
    * Embed + index one freshly published row. Idempotent per skill id —
    * `SearchProvider.index` replaces the skill's embedding rows — so a
    * re-publish (new version = new id) indexes on its own and a retry of the
@@ -362,25 +414,59 @@ export class SkillsClient {
     if (!this.searchIndex) return { searchIndexed: false };
     const summaryText =
       manifest.agent_summary?.trim() || manifest.description?.trim() || manifest.name;
+    return this.indexSkillRow(
+      {
+        id,
+        name: manifest.name,
+        slug: manifest.slug,
+        version: manifest.version,
+        source: manifest.source,
+        description: manifest.description ?? null,
+        agent_summary: manifest.agent_summary ?? null,
+        trust_score: '0.5',
+        execution_layer: manifest.execution_layer,
+        tags: manifest.tags ?? null,
+        category: manifest.category ?? null,
+        tenant_id: tenantId,
+      } as SkillRow,
+      summaryText,
+      'local publish indexed for search',
+      'local publish stored but NOT indexed for search — re-embed via admin backfill',
+    );
+  }
+
+  private async indexSkillRow(
+    row: SkillRow,
+    summaryTextOverride?: string,
+    successLogMessage = 'local skill indexed for search',
+    failureLogMessage = 'local skill NOT indexed for search',
+  ): Promise<Pick<LocalPublishResult, 'searchIndexed' | 'searchIndexError'>> {
+    if (!this.searchIndex) return { searchIndexed: false };
+    const summaryText =
+      summaryTextOverride?.trim() ||
+      row.agent_summary?.trim() ||
+      row.description?.trim() ||
+      row.name;
+    const tenantId = row.tenant_id ?? 'local';
+    const trustParsed =
+      row.trust_score != null ? Number.parseFloat(row.trust_score) : Number.NaN;
+    const trustScore = Number.isFinite(trustParsed) ? trustParsed : 0.5;
     try {
       const raw = await this.searchIndex.embedder.embed(summaryText);
       const embedding = truncateEmbedding(Array.from(raw));
       await this.searchIndex.provider.index(
         {
-          id,
-          name: manifest.name,
-          slug: manifest.slug,
-          version: manifest.version,
-          source: manifest.source,
-          description: manifest.description ?? '',
-          agentSummary: manifest.agent_summary ?? undefined,
-          tags: manifest.tags ?? [],
-          category: manifest.category ?? undefined,
-          // Row already exists (ON CONFLICT (id) DO UPDATE only touches
-          // name/description/agent_summary); trust stays whatever the
-          // publish path set. 0.5 is the column default.
-          trustScore: 0.5,
-          executionLayer: manifest.execution_layer,
+          id: row.id,
+          name: row.name,
+          slug: row.slug,
+          version: row.version,
+          source: row.source,
+          description: row.description ?? '',
+          agentSummary: row.agent_summary ?? undefined,
+          tags: row.tags ?? [],
+          category: row.category ?? undefined,
+          trustScore,
+          executionLayer: row.execution_layer,
           tenantId,
         },
         {
@@ -389,13 +475,13 @@ export class SkillsClient {
           storedDims: STORED_EMBEDDING_DIMS,
         },
       );
-      this.logger.info('local publish indexed for search', { id, slug: manifest.slug, tenantId });
+      this.logger.info(successLogMessage, { id: row.id, slug: row.slug, tenantId });
       return { searchIndexed: true };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      this.logger.warn('local publish stored but NOT indexed for search — re-embed via admin backfill', {
-        id,
-        slug: manifest.slug,
+      this.logger.warn(failureLogMessage, {
+        id: row.id,
+        slug: row.slug,
         error: message,
       });
       return { searchIndexed: false, searchIndexError: message };

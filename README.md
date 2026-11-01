@@ -24,6 +24,15 @@ and scan coverage recorded for each result. For other clients, see the
 [generic MCP configuration](docs/listings/README.md#install-configuration) and
 [product docs](https://skillsregistry.net/agents).
 
+### Install as a Claude Code plugin
+
+Add this repository as a plugin marketplace, then install the bundled plugin:
+
+```text
+/plugin marketplace add cogniumhq/skillsregistry
+/plugin install skillsregistry@skillsregistry
+```
+
 ## Self-host the open-source node
 
 Run a private SkillsRegistry instance over your own manifests. The local node

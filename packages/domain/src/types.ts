@@ -61,6 +61,8 @@ export interface SkillInput {
   trustScore: number;
   capabilitiesRequired?: string[];
   executionLayer: string;
+  /** Required when executionLayer is `composite` and the skill row is new. */
+  workflowDefinition?: Record<string, unknown> | null;
   tenantId: string;
 }
 
@@ -265,6 +267,9 @@ export interface SkillResult {
   slug: string;
   version: string;
   agentSummary: string;
+
+  /** Upstream repository. Search dedupe treats this as project identity. */
+  repositoryUrl?: string | null;
 
   trustScore: number;
   verificationTier: VerificationTier;

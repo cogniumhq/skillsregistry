@@ -861,17 +861,34 @@ export class PgVectorProvider implements SearchProvider {
     try {
       await client.query('BEGIN');
 
-      // Insert or update skill record (required for foreign key constraint)
+      // Insert or update skill record (required for foreign key constraint).
+      // chk_composite_requires_workflow is evaluated on the proposed INSERT
+      // row before ON CONFLICT, so a composite reindex must carry a
+      // workflow_definition even when the caller omits one. Reuse the value
+      // already stored for this id; a brand-new composite still has to
+      // supply one or the check fails.
+      const workflowDefinition =
+        skill.workflowDefinition === undefined || skill.workflowDefinition === null
+          ? null
+          : JSON.stringify(skill.workflowDefinition);
+
       await client.query(
         `INSERT INTO skills (
           id, name, slug, version, source, description, agent_summary,
           tags, category, trust_score, capabilities_required, execution_layer,
-          content_safety_passed, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW())
+          content_safety_passed, workflow_definition, created_at, updated_at
+        )
+        SELECT
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+          COALESCE($14::jsonb, existing.workflow_definition),
+          NOW(), NOW()
+        FROM (SELECT 1) AS seed
+        LEFT JOIN skills existing ON existing.id = $1
         ON CONFLICT (id) DO UPDATE SET
           name = EXCLUDED.name,
           description = EXCLUDED.description,
           agent_summary = EXCLUDED.agent_summary,
+          workflow_definition = COALESCE(EXCLUDED.workflow_definition, skills.workflow_definition),
           updated_at = NOW()`,
         [
           skill.id,
@@ -887,6 +904,7 @@ export class PgVectorProvider implements SearchProvider {
           skill.capabilitiesRequired || [],
           skill.executionLayer,
           true, // content_safety_passed
+          workflowDefinition,
         ]
       );
 

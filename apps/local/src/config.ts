@@ -44,6 +44,11 @@ export interface PostgresConfig {
 export interface AdminConfig {
   /** Bearer token for admin routes. Required. */
   token: string;
+  /**
+   * When true, loopback callers must present `ADMIN_TOKEN` like any remote
+   * client. Use behind a same-host reverse proxy that forwards to loopback.
+   */
+  requireTokenAlways: boolean;
 }
 
 export interface ArtifactConfig {
@@ -223,6 +228,7 @@ const ENV = {
   POSTGRES_POOL_MAX: 'POSTGRES_POOL_MAX',
   POSTGRES_STATEMENT_TIMEOUT_MS: 'POSTGRES_STATEMENT_TIMEOUT_MS',
   ADMIN_TOKEN: 'ADMIN_TOKEN',
+  ADMIN_REQUIRE_TOKEN: 'ADMIN_REQUIRE_TOKEN',
   ARTIFACT_BASE_DIR: 'ARTIFACT_BASE_DIR',
   BUDGET_REFRESH_CRON: 'BUDGET_REFRESH_CRON',
   BUDGET_TTL_SECONDS: 'BUDGET_TTL_SECONDS',
@@ -647,6 +653,11 @@ export function loadConfig(env: EnvSource = process.env): AppConfig {
 
   const admin: AdminConfig = {
     token: required(env, ENV.ADMIN_TOKEN, issues),
+    requireTokenAlways: parseBool(
+      ENV.ADMIN_REQUIRE_TOKEN,
+      optional(env, ENV.ADMIN_REQUIRE_TOKEN, 'false'),
+      issues,
+    ),
   };
 
   const artifact = parseArtifact(env, issues);

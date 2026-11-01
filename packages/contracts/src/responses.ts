@@ -424,6 +424,10 @@ export const PublishResultSchema = z
     slug: z.string(),
     version: z.string(),
     status: z.string(),
+    /** Local node: whether publish also wrote a search embedding (#86 / #159). */
+    searchIndexed: z.boolean().optional(),
+    /** Present when `searchIndexed` is false — embedder or index failure detail. */
+    searchIndexError: z.string().optional(),
   })
   .openapi('PublishResult');
 
