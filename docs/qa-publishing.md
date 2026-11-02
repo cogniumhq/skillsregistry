@@ -112,7 +112,8 @@ node scripts/qa-cleanup.mts                      # deprecate every QA entry
 node scripts/qa-cleanup.mts --reason "case closed"
 ```
 
-Cleanup discovers entries from the ledger **and** from a `tags=qa` search, then
+Cleanup discovers entries from the ledger **and** from a `POST /v1/search`
+with `tags: ["qa", "cognium-internal"]` (and `tenantId` in the body), then
 drops everything whose slug is not under `@cogniumhq-qa/`. That filter, not the
 discovery, is the safety property: a stale ledger line or an unexpected search
 hit can never turn into a write against a real skill. The namespace check runs
@@ -124,8 +125,8 @@ not its slug — so each discovered slug is first resolved through
 publish time. A slug that resolves to nothing is reported as `unresolved`
 rather than guessed at. The hosted handler's owner-initiated transition guard
 allows `published → deprecated` and back, nothing else; a `409` from it is
-reported as "left alone", not as a failed run, so re-running cleanup over an
-already-handled entry stays green.
+reported as `unchanged` ("left alone"), not as a failed run, so re-running
+cleanup over an already-handled entry exits 0.
 
 ### There is no revoke
 

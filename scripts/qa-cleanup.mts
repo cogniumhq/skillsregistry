@@ -12,7 +12,7 @@
 // It finds them two ways and takes the union:
 //
 //   1. the ledger `qa-publish.mts` writes (`./qa-published.json`), and
-//   2. a search for the `qa` tag on the read host — which works precisely
+//   2. a `POST /v1/search` for the `qa` tags on the read host — which works precisely
 //      because search deliberately does NOT exclude QA entries. Catalog-wide
 //      surfaces hide them; targeted ones don't. See docs/qa-publishing.md
 //      for which surface is which.
@@ -28,7 +28,8 @@
 // falling back to the `skillId` the ledger recorded at publish time. The
 // hosted handler's owner-initiated transition guard allows
 // `published → deprecated` and back, nothing else — a 409 from it means the
-// entry was in some other state and is reported, not retried.
+// entry is already deprecated (or in a state only Cognium can move it out of).
+// It is reported as `unchanged`, not retried, and does not fail the run.
 //
 // **There is no `--revoke`.** The hosted registry exposes no operator route
 // that revokes an arbitrary skill. The only ways a row reaches
@@ -66,6 +67,7 @@ import {
   QA_READ_ENDPOINT,
   QA_SLUG_PREFIX,
   QA_TAGS,
+  QA_TENANT_ID,
   QA_WRITE_ENDPOINT,
   assertQaSlug,
   describeFailure,
@@ -131,6 +133,18 @@ export async function ledgerEntries(
   }
 }
 
+/**
+ * The hosted search request: `POST /v1/search` with a JSON body, per
+ * `SearchRequestSchema` in `packages/contracts/src/upstream.ts`. The hosted
+ * handler requires `tenantId` in the body (the `X-Tenant-Id` header alone is
+ * not enough), so it is sent explicitly.
+ */
+export const SEARCH = (readEndpoint: string, query: string, limit: number) => ({
+  method: 'POST',
+  url: `${stripSlash(readEndpoint)}/v1/search`,
+  body: { query, tenantId: QA_TENANT_ID, tags: [...QA_TAGS], limit },
+});
+
 export async function slugsFromSearch(opts: {
   readEndpoint: string;
   query: string;
@@ -138,18 +152,16 @@ export async function slugsFromSearch(opts: {
   apiKey?: string;
   fetchImpl?: typeof fetch;
 }): Promise<string[]> {
-  const url =
-    `${stripSlash(opts.readEndpoint)}/v1/search` +
-    `?q=${encodeURIComponent(opts.query)}` +
-    `&tags=${encodeURIComponent(QA_TAGS.join(','))}` +
-    `&limit=${opts.limit}`;
+  const request = SEARCH(opts.readEndpoint, opts.query, opts.limit);
   const res = await qaFetch(
-    url,
-    { method: 'GET', headers: qaHeaders(opts.apiKey) },
+    request.url,
+    { method: request.method, headers: qaHeaders(opts.apiKey), body: JSON.stringify(request.body) },
     opts.fetchImpl ?? fetch,
   );
   if (res.status !== 200) throw describeFailure('search', res);
 
+  // `SearchResponseSchema` is `{ skills, meta }`; the hosted handler answers
+  // with a `{ results }` envelope. Accept either.
   const body = (res.body ?? {}) as { skills?: unknown; results?: unknown };
   const rows = Array.isArray(body.skills)
     ? body.skills
@@ -248,8 +260,19 @@ export interface CleanupOptions {
 
 export interface CleanupOutcome {
   slug: string;
-  status: 'changed' | 'planned' | 'unresolved' | 'unsupported' | 'failed';
+  status: 'changed' | 'planned' | 'unchanged' | 'unresolved' | 'unsupported' | 'failed';
   detail?: string;
+}
+
+/**
+ * Outcomes that make the run fail. `unchanged` (a 409 from the transition
+ * guard: already deprecated, or held by Cognium) is deliberately not one of
+ * them, so re-running cleanup over handled entries stays green.
+ */
+export function notDoneOutcomes(outcomes: readonly CleanupOutcome[]): CleanupOutcome[] {
+  return outcomes.filter(
+    (o) => o.status === 'failed' || o.status === 'unsupported' || o.status === 'unresolved',
+  );
 }
 
 /**
@@ -309,7 +332,7 @@ export async function cleanupQaEntries(opts: CleanupOptions): Promise<CleanupOut
     // 409 is the handler's transition guard: already deprecated, or in a state
     // only Cognium can move it out of. Not a failure of this run.
     if (res.status === 409) {
-      outcomes.push({ slug, status: 'unsupported', detail: describeFailure('deprecate', res).message });
+      outcomes.push({ slug, status: 'unchanged', detail: describeFailure('deprecate', res).message });
       log(`- ${slug}: HTTP 409 — not a published→deprecated transition, left alone\n`);
       continue;
     }
@@ -421,12 +444,11 @@ async function main(): Promise<void> {
     ...(flagBool(flags, 'dry-run') ? { dryRun: true } : {}),
   });
 
-  const notDone = outcomes.filter(
-    (o) => o.status === 'failed' || o.status === 'unsupported' || o.status === 'unresolved',
-  );
+  const notDone = notDoneOutcomes(outcomes);
   stdout.write(
     `${outcomes.filter((o) => o.status === 'changed').length} changed, ` +
       `${outcomes.filter((o) => o.status === 'planned').length} planned, ` +
+      `${outcomes.filter((o) => o.status === 'unchanged').length} unchanged, ` +
       `${notDone.length} not done\n`,
   );
   if (notDone.length > 0) exit(1);

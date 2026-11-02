@@ -3,9 +3,16 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import { describe, expect, it } from 'vitest';
-import { QA_SLUG_PREFIX } from './qa-guardrails.mts';
+import { execFile } from 'node:child_process';
+import { createServer } from 'node:http';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { QA_SLUG_PREFIX, QA_TENANT_ID } from './qa-guardrails.mts';
 import {
   cleanupQaEntries,
+  notDoneOutcomes,
   qaSlugsOnly,
   resolveSkillId,
   resolveTargets,
@@ -42,7 +49,7 @@ describe('qaSlugsOnly', () => {
 });
 
 describe('slugsFromSearch', () => {
-  it('queries the read host for the qa tags and keeps QA hits only', async () => {
+  it('POSTs the contract search body to the read host and keeps QA hits only', async () => {
     const { impl, calls } = fakeFetch([
       { status: 200, body: { skills: [{ slug: A }, { slug: '@cogniumhq/real' }], meta: {} } },
     ]);
@@ -56,10 +63,28 @@ describe('slugsFromSearch', () => {
       }),
     ).resolves.toEqual([A]);
 
-    expect(calls[0]!.url).toBe(
-      'https://read.example/v1/search?q=QA%20test%20entry&tags=qa%2Ccognium-internal&limit=50',
+    // SearchRequestSchema (packages/contracts/src/upstream.ts): POST, JSON,
+    // camelCase; the hosted handler also needs tenantId in the body.
+    expect(calls[0]!.url).toBe('https://read.example/v1/search');
+    expect(calls[0]!.init.method).toBe('POST');
+    expect(JSON.parse(String(calls[0]!.init.body))).toEqual({
+      query: 'QA test entry',
+      tenantId: QA_TENANT_ID,
+      tags: ['qa', 'cognium-internal'],
+      limit: 50,
+    });
+    expect((calls[0]!.init.headers as Record<string, string>)['content-type']).toBe(
+      'application/json',
     );
-    expect(calls[0]!.init.method).toBe('GET');
+  });
+
+  it('reads the hosted { results } envelope as well as { skills }', async () => {
+    const { impl } = fakeFetch([
+      { status: 200, body: { results: [{ slug: B }, { slug: 'acme/other' }] } },
+    ]);
+    await expect(
+      slugsFromSearch({ readEndpoint: 'https://read.example', query: 'q', limit: 10, fetchImpl: impl }),
+    ).resolves.toEqual([B]);
   });
 
   it('fails loudly when the read host does not answer 200', async () => {
@@ -252,8 +277,9 @@ describe('cleanupQaEntries', () => {
       log: quiet,
       spacingMs: 0,
     });
-    expect(outcomes[0]!.status).toBe('unsupported');
+    expect(outcomes[0]!.status).toBe('unchanged');
     expect(outcomes[0]!.detail).toMatch(/Cannot transition/);
+    expect(notDoneOutcomes(outcomes)).toEqual([]);
   });
 
   it('keeps going after a failure and records it', async () => {
@@ -270,4 +296,100 @@ describe('cleanupQaEntries', () => {
     });
     expect(outcomes.map((o) => o.status)).toEqual(['failed', 'changed']);
   });
+});
+
+describe('notDoneOutcomes', () => {
+  it('fails the run on failed / unsupported / unresolved, never on unchanged', () => {
+    const outcomes = [
+      { slug: A, status: 'changed' },
+      { slug: A, status: 'planned' },
+      { slug: A, status: 'unchanged' },
+      { slug: A, status: 'unresolved' },
+      { slug: A, status: 'unsupported' },
+      { slug: A, status: 'failed' },
+    ] as const;
+    expect(notDoneOutcomes(outcomes).map((o) => o.status)).toEqual([
+      'unresolved',
+      'unsupported',
+      'failed',
+    ]);
+  });
+});
+
+// The CLI end to end against a local stub of the hosted routes.
+describe('qa-cleanup CLI', () => {
+  const SCRIPT = join(dirname(fileURLToPath(import.meta.url)), 'qa-cleanup.mts');
+  const nodeArgs = (process.features as { typescript?: unknown }).typescript
+    ? []
+    : ['--experimental-strip-types'];
+
+  async function runCli(patchStatus: number, searchResults: unknown[] = []) {
+    const seen: { method: string; url: string; body: string }[] = [];
+    const server = createServer((req, res) => {
+      let raw = '';
+      req.on('data', (c) => (raw += c));
+      req.on('end', () => {
+        seen.push({ method: req.method ?? '', url: req.url ?? '', body: raw });
+        const send = (status: number, body: unknown) => {
+          res.writeHead(status, { 'content-type': 'application/json' });
+          res.end(JSON.stringify(body));
+        };
+        if (req.method === 'POST' && req.url === '/v1/search') return send(200, { results: searchResults });
+        if (req.method === 'GET' && req.url === `/v1/skills/${encodeURIComponent(B)}`) return send(200, { id: ID_B, slug: B });
+        if (req.method === 'PATCH') {
+          return send(patchStatus, patchStatus === 200 ? { status: 'deprecated' } : { error: "Cannot transition from 'deprecated' to 'deprecated'." });
+        }
+        send(404, { error: 'Not found' });
+      });
+    });
+    const base = await new Promise<string>((r) =>
+      server.listen(0, '127.0.0.1', () => {
+        const addr = server.address() as { port: number };
+        r(`http://127.0.0.1:${addr.port}`);
+      }),
+    );
+    const dir = mkdtempSync(join(tmpdir(), 'qa-cleanup-'));
+    const ledger = join(dir, 'qa-published.json');
+    writeFileSync(ledger, JSON.stringify({ entries: [{ slug: A, skillId: ID_A }] }));
+    const env = { ...process.env, SR_WRITE_API_KEY: '', ADMIN_API_KEY: '' };
+    try {
+      return await new Promise<{ code: number; stdout: string; seen: typeof seen }>((resolve) => {
+        execFile(
+          process.execPath,
+          [...nodeArgs, SCRIPT, '--endpoint', base, '--read-endpoint', base, '--ledger', ledger],
+          { env },
+          (err, stdout) => resolve({ code: err ? Number(err.code ?? 1) : 0, stdout, seen }),
+        );
+      });
+    } finally {
+      server.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
+  it('exits 0 when re-run over an already-deprecated entry (409)', async () => {
+    const { code, stdout, seen } = await runCli(409);
+    expect(stdout).toMatch(/0 changed, 0 planned, 1 unchanged, 0 not done/);
+    expect(code).toBe(0);
+    // Discovery went out as the contract POST, then one PATCH keyed on the UUID.
+    expect(seen.map((r) => `${r.method} ${r.url}`)).toEqual([
+      'POST /v1/search',
+      `PATCH /v1/skills/${ID_A}/status`,
+    ]);
+    expect(JSON.parse(seen[0]!.body)).toMatchObject({ tenantId: QA_TENANT_ID, tags: ['qa', 'cognium-internal'] });
+  }, 30_000);
+
+  it('deprecates ledger and search-only entries and exits 0', async () => {
+    const { code, stdout, seen } = await runCli(200, [{ slug: B, id: ID_B }]);
+    expect(code).toBe(0);
+    expect(stdout).toMatch(/2 changed, 0 planned, 0 unchanged, 0 not done/);
+    // A comes from the ledger (id known); B only from search, so it is
+    // resolved through GET /v1/skills/:slug before its PATCH.
+    expect(seen.map((r) => `${r.method} ${r.url}`)).toEqual([
+      'POST /v1/search',
+      `GET /v1/skills/${encodeURIComponent(B)}`,
+      `PATCH /v1/skills/${ID_A}/status`,
+      `PATCH /v1/skills/${ID_B}/status`,
+    ]);
+  }, 30_000);
 });
