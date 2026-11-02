@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createServer } from 'node:http';
-import { mkdtempSync, readFileSync, statSync, writeFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -55,19 +55,25 @@ describe('signing', () => {
   });
 });
 
-function stub() {
-  const seen = { auth: [], pop: undefined };
+function stub({ onRegister, registerStatus = 201 } = {}) {
+  const seen = { auth: [], urls: [], pop: undefined };
   let polls = 0;
   const server = createServer((req, res) => {
     let raw = '';
     req.on('data', (c) => (raw += c));
     req.on('end', () => {
       const send = (s, j) => { res.writeHead(s, { 'content-type': 'application/json' }); res.end(JSON.stringify(j)); };
+      seen.urls.push(req.url);
       if (req.headers.authorization) seen.auth.push(req.headers.authorization);
       if (req.url === '/v1/identity/device/start') return send(200, { device_code: 'dc', user_code: 'WXYZ-9876', verification_uri: 'https://github.com/login/device', expires_in: 60, interval: 0 });
       if (req.url === '/v1/identity/device/token') return polls++ < 1 ? send(202, { status: 'pending', slow_down: false }) : send(200, { session: 'sess', expires_at: 'x', login: 'octo', handle: 'gh:octo' });
       if (req.url === '/v1/identity/challenge') return send(200, { nonce: golden.pop.nonce, expires_in: 300, sign_message: 'x' });
-      if (req.url === '/v1/identity/keys') { seen.pop = JSON.parse(raw); return send(201, { key_id: 'pk_issued', author_id: 'author-1', handle: 'gh:octo', signed_by_key_id: 'pk_issuer', expires_at: '2027-01-01T00:00:00Z', parent_signature_b64url: 's' }); }
+      if (req.url === '/v1/identity/keys') {
+        seen.pop = JSON.parse(raw);
+        onRegister?.(seen.pop);
+        if (registerStatus !== 201) return send(registerStatus, { error: 'nope' });
+        return send(201, { key_id: 'pk_issued', author_id: 'author-1', handle: 'gh:octo', signed_by_key_id: 'pk_issuer', expires_at: '2027-01-01T00:00:00Z', parent_signature_b64url: 's' });
+      }
       send(404, { error: 'Not found' });
     });
   });
@@ -118,12 +124,93 @@ describe('login', () => {
     }
   }, 30_000);
 
-  it('says so when self-serve publishing is not open', async () => {
+  it('says so when self-serve publishing is not open, and leaves no key file', async () => {
     const server = createServer((_q, res) => { res.writeHead(404, { 'content-type': 'application/json' }); res.end('{"error":"Not found"}'); });
     const dir = mkdtempSync(join(tmpdir(), 'sr-publish-'));
     try {
       const endpoint = await listen(server);
       await expect(run('node', [TOOL, 'login', '--out', join(dir, 'k.json'), '--endpoint', endpoint])).rejects.toThrow(/may not be open yet/);
+      expect(existsSync(join(dir, 'k.json'))).toBe(false);
+    } finally {
+      server.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 30_000);
+  // Registration must never be able to succeed without a local copy of the
+  // private key (otherwise the server holds a live key nobody can sign with).
+  it('persists the private key (0600) before registering it', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sr-publish-'));
+    const out = join(dir, 'key.json');
+    let atRegister;
+    const { server } = stub({
+      onRegister: (pop) => {
+        atRegister = { mode: statSync(out).mode & 0o777, file: JSON.parse(readFileSync(out, 'utf8')), pub: pop.public_key_b64url };
+      },
+    });
+    try {
+      const endpoint = await listen(server);
+      await run('node', [TOOL, 'login', '--out', out, '--endpoint', endpoint]);
+      expect(atRegister.mode).toBe(0o600);
+      expect(atRegister.file.publicKeyB64Url).toBe(atRegister.pub);
+      expect(typeof atRegister.file.privateKeyB64Url).toBe('string');
+      const final = JSON.parse(readFileSync(out, 'utf8'));
+      expect(final.privateKeyB64Url).toBe(atRegister.file.privateKeyB64Url);
+      expect(final.status).toBeUndefined();
+      expect(existsSync(`${out}.partial`)).toBe(false);
+    } finally {
+      server.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('does not contact the registry when the key file cannot be written', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sr-publish-'));
+    const { server, seen } = stub();
+    try {
+      const endpoint = await listen(server);
+      await expect(run('node', [TOOL, 'login', '--out', join(dir, 'missing', 'key.json'), '--endpoint', endpoint]))
+        .rejects.toThrow(/cannot write .*nothing was registered/);
+      expect(seen.urls).toEqual([]);
+    } finally {
+      server.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('removes the key file when registration is refused', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sr-publish-'));
+    const out = join(dir, 'key.json');
+    const { server, seen } = stub({ registerStatus: 409 });
+    try {
+      const endpoint = await listen(server);
+      await expect(run('node', [TOOL, 'login', '--out', out, '--endpoint', endpoint])).rejects.toThrow(/register key: HTTP 409/);
+      expect(seen.pop).toBeDefined();
+      expect(existsSync(out)).toBe(false);
+    } finally {
+      server.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('keeps the private key and names the issued key_id when finalizing fails after registration', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sr-publish-'));
+    const out = join(dir, 'key.json');
+    // Block the final write: a directory where the tool writes `<out>.partial`.
+    // Works as root too, unlike a permission-based failure.
+    const { server, seen } = stub({ onRegister: () => mkdirSync(`${out}.partial`) });
+    try {
+      const endpoint = await listen(server);
+      await expect(run('node', [TOOL, 'login', '--out', out, '--endpoint', endpoint]))
+        .rejects.toThrow(/key pk_issued was issued.*retire --key-id pk_issued/s);
+      const left = JSON.parse(readFileSync(out, 'utf8'));
+      expect(left.publicKeyB64Url).toBe(seen.pop.public_key_b64url);
+      expect(typeof left.privateKeyB64Url).toBe('string');
+      expect(statSync(out).mode & 0o777).toBe(0o600);
+      // A half-finished key file is refused by publish with a clear message.
+      const body = join(dir, 'skill.json');
+      writeFileSync(body, JSON.stringify(golden.publish[0].body));
+      await expect(run('node', [TOOL, 'publish', '--key-file', out, '--body-file', body, '--dry-run']))
+        .rejects.toThrow(/did not finish/);
     } finally {
       server.close();
       rmSync(dir, { recursive: true, force: true });
