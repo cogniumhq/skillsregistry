@@ -21,7 +21,7 @@
 //
 // ════════════════════════════════════════════════════════════════════════════
 
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import { argv, exit, stdout, stderr } from 'node:process';
 import { pathToFileURL } from 'node:url';
 
@@ -139,6 +139,9 @@ export async function sign(key, text) {
 
 async function readKeyFile(path) {
   const k = JSON.parse(await readFile(path, 'utf8'));
+  if (k.status === PENDING) {
+    throw new Error(`key file ${path} is from a login that did not finish; its key was never confirmed (see the login error)`);
+  }
   for (const f of ['keyId', 'authorId', 'publicKeyB64Url', 'privateKeyB64Url']) {
     if (typeof k[f] !== 'string' || !k[f]) throw new Error(`key file ${path} is missing ${f}`);
   }
@@ -228,36 +231,72 @@ function need(flags, k) {
 
 const endpointOf = (flags) => String(flags.endpoint ?? DEFAULT_ENDPOINT).replace(/\/$/, '');
 
+// Marks a key file written before the registry has issued the key.
+const PENDING = 'pending-registration';
+const KEY_FILE_OPTS = { mode: 0o600, flag: 'wx' };
+const keyJson = (k) => JSON.stringify(k, null, 2) + '\n';
+
+// The private key is persisted BEFORE the key is registered, so a registered
+// key always has a local copy. Order:
+//   1. write `out` (wx, 0600) holding the key pair, marked pending — this also
+//      claims the path before the device-code wait;
+//   2. register the public key;
+//   3. on failure before a 201, delete `out` (nothing was issued);
+//   4. on 201, write the final file to `out.partial` (wx, 0600) and rename it
+//      over `out`. If that fails, `out` still holds the private key and the
+//      error names the issued key_id, so it can be completed or retired.
 async function cmdLogin(flags) {
   const endpoint = endpointOf(flags);
   const out = need(flags, 'out');
-  // Refuse to overwrite: the file may hold the only copy of a live key.
-  const exists = await readFile(out).then(() => true, (e) => (e.code === 'ENOENT' ? false : Promise.reject(e)));
-  if (exists) throw new Error(`${out} already exists — choose another --out (it may hold your only copy of a key)`);
+  const partial = `${out}.partial`;
 
   const pair = await subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
   const pub = (await subtle.exportKey('jwk', pair.publicKey)).x;
   const priv = (await subtle.exportKey('jwk', pair.privateKey)).d;
 
-  const session = await deviceLogin(endpoint);
-  const auth = { authorization: `Bearer ${session}` };
-  const chal = await call(`${endpoint}/v1/identity/challenge`, { headers: auth });
-  if (chal.status !== 200) throw apiError('challenge', chal);
-  const nonce = String(chal.body.nonce);
+  try {
+    await writeFile(out, keyJson({ status: PENDING, publicKeyB64Url: pub, privateKeyB64Url: priv }), KEY_FILE_OPTS);
+  } catch (e) {
+    // Refuse to overwrite: the file may hold the only copy of a live key.
+    if (e.code === 'EEXIST') throw new Error(`${out} already exists — choose another --out (it may hold your only copy of a key)`);
+    throw new Error(`login: cannot write ${out} (${e.code ?? e.message}); nothing was registered`);
+  }
 
-  const reg = await call(`${endpoint}/v1/identity/keys`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', ...auth },
-    body: JSON.stringify({ public_key_b64url: pub, nonce, pop_signature_b64url: await sign(pair.privateKey, popMessage(nonce, pub)) }),
-  });
-  if (reg.status !== 201) throw apiError('register key', reg);
+  let reg;
+  try {
+    const session = await deviceLogin(endpoint);
+    const auth = { authorization: `Bearer ${session}` };
+    const chal = await call(`${endpoint}/v1/identity/challenge`, { headers: auth });
+    if (chal.status !== 200) throw apiError('challenge', chal);
+    const nonce = String(chal.body.nonce);
 
-  const keyFile = { keyId: reg.body.key_id, authorId: reg.body.author_id, publicKeyB64Url: pub, privateKeyB64Url: priv };
-  await writeFile(out, JSON.stringify(keyFile, null, 2) + '\n', { mode: 0o600, flag: 'wx' });
+    reg = await call(`${endpoint}/v1/identity/keys`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...auth },
+      body: JSON.stringify({ public_key_b64url: pub, nonce, pop_signature_b64url: await sign(pair.privateKey, popMessage(nonce, pub)) }),
+    });
+    if (reg.status !== 201) throw apiError('register key', reg);
+  } catch (e) {
+    await unlink(out).catch(() => {});
+    throw e;
+  }
+
+  const { key_id: keyId, author_id: authorId } = reg.body;
+  const keyFile = { keyId, authorId, publicKeyB64Url: pub, privateKeyB64Url: priv };
+  try {
+    await writeFile(partial, keyJson(keyFile), KEY_FILE_OPTS);
+    await rename(partial, out);
+  } catch (e) {
+    throw new Error(
+      `login: key ${keyId} was issued but ${out} could not be finalized (${e.code ?? e.message}). ` +
+        `${out} still holds its private key: set "keyId": "${keyId}" and "authorId": "${authorId}" in it and drop "status", ` +
+        `or run \`retire --key-id ${keyId}\` and login again.`,
+    );
+  }
   stdout.write(
-    `\nKey ${reg.body.key_id} issued to ${reg.body.handle} (expires ${reg.body.expires_at}).\n` +
+    `\nKey ${keyId} issued to ${reg.body.handle} (expires ${reg.body.expires_at}).\n` +
       `Wrote ${out}. It holds your PRIVATE key: back it up, never commit it.\n` +
-      `Lost it? Run \`retire --key-id ${reg.body.key_id}\`, then \`login\` again. Skills you already published stay verified.\n`,
+      `Lost it? Run \`retire --key-id ${keyId}\`, then \`login\` again. Skills you already published stay verified.\n`,
   );
 }
 
