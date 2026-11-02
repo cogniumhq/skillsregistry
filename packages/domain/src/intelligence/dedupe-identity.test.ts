@@ -27,12 +27,58 @@ describe('normalizeRepositoryUrl', () => {
     expect(normalizeRepositoryUrl('https://github.com/owner/repo/blob/main/README.md')).toBe(
       expected,
     );
+    expect(
+      normalizeRepositoryUrl('https://github.com/owner/repo/compare/main...develop'),
+    ).toBe(expected);
+    expect(
+      normalizeRepositoryUrl('https://github.com/owner/repo/security/advisories'),
+    ).toBe(expected);
+    expect(normalizeRepositoryUrl('https://github.com/owner/repo/pulls')).toBe(expected);
+    expect(normalizeRepositoryUrl('https://github.com/owner/repo/tags')).toBe(expected);
+    expect(normalizeRepositoryUrl('https://github.com/owner/repo/fork')).toBe(expected);
+    expect(normalizeRepositoryUrl('https://github.com/owner/repo/stargazers')).toBe(
+      expected,
+    );
+    expect(normalizeRepositoryUrl('https://github.com/owner/repo/branches')).toBe(expected);
+    expect(normalizeRepositoryUrl('https://github.com/owner/repo/graphs/contributors')).toBe(
+      expected,
+    );
+    expect(normalizeRepositoryUrl('https://github.com/owner/repo/network/members')).toBe(
+      expected,
+    );
+    expect(normalizeRepositoryUrl('https://github.com/owner/repo/pulse')).toBe(expected);
+    expect(normalizeRepositoryUrl('https://github.com/owner/repo/watchers')).toBe(expected);
+    expect(normalizeRepositoryUrl('https://github.com/owner/repo/commits/main')).toBe(expected);
+    expect(normalizeRepositoryUrl('https://github.com/owner/repo/activity')).toBe(expected);
+    expect(
+      normalizeRepositoryUrl('https://github.com/owner/repo/archive/refs/heads/main.zip'),
+    ).toBe(expected);
+    expect(normalizeRepositoryUrl('https://github.com/owner/repo/sponsors')).toBe(expected);
+    expect(normalizeRepositoryUrl('https://github.com/owner/repo/forks')).toBe(expected);
+    expect(normalizeRepositoryUrl('https://github.com/owner/repo/deployments')).toBe(
+      expected,
+    );
+    expect(normalizeRepositoryUrl('https://github.com/owner/repo/pages')).toBe(expected);
+    expect(normalizeRepositoryUrl('https://github.com/owner/repo/downloads')).toBe(
+      expected,
+    );
   });
 
   it('keeps nested group paths', () => {
     expect(normalizeRepositoryUrl('https://gitlab.com/group/sub/repo.git')).toBe(
       'gitlab.com/group/sub/repo',
     );
+  });
+
+  it('strips GitLab web UI paths after /-/', () => {
+    const expected = 'gitlab.com/group/sub/repo';
+    expect(normalizeRepositoryUrl('https://gitlab.com/group/sub/repo/-/tree/main/skills/foo')).toBe(
+      expected,
+    );
+    expect(normalizeRepositoryUrl('https://gitlab.com/group/sub/repo/-/blob/main/README.md')).toBe(
+      expected,
+    );
+    expect(normalizeRepositoryUrl('https://gitlab.com/group/sub/repo')).toBe(expected);
   });
 });
 
