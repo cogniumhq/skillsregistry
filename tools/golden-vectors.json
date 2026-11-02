@@ -1,0 +1,85 @@
+{
+  "generatedFrom": "cogniumhq/sr src/publish/canonical-payload.ts, src/publish/request-signature.ts, src/identity/issuer.ts",
+  "sig": {
+    "publisherKeyId": "pk_golden_key_0001",
+    "signedAt": "2026-09-30T12:00:00Z",
+    "nonce": "0b8f5a6e-1c2d-4e3f-9a8b-7c6d5e4f3a2b"
+  },
+  "publish": [
+    {
+      "body": {
+        "name": "Hello",
+        "slug": "hello",
+        "description": "A minimal golden skill.",
+        "executionLayer": "instructions",
+        "skillMd": "# Hello\n"
+      },
+      "canonical": "{\"canonical_version\":1,\"capabilities_required\":[],\"content_hash\":\"ad76f539003e68ef6d47c4e4cab9ce2b5c15c0f55f850bc1b9a5254024c846b4\",\"description\":\"A minimal golden skill.\",\"execution_layer\":\"instructions\",\"name\":\"Hello\",\"nonce\":\"0b8f5a6e-1c2d-4e3f-9a8b-7c6d5e4f3a2b\",\"publisher_key_id\":\"pk_golden_key_0001\",\"runtime_env\":\"api\",\"signed_at\":\"2026-09-30T12:00:00Z\",\"slug\":\"hello\",\"tags\":[],\"version\":\"1.0.0\"}"
+    },
+    {
+      "body": {
+        "name": "Ünïcødé ✓ 名前",
+        "slug": "uni-code",
+        "version": "2.3.4",
+        "description": "Tags unsorted, quotes \" and \\ backslash, emoji 🚀.",
+        "executionLayer": "mcp-remote",
+        "mcpUrl": "https://example.com/mcp",
+        "tags": [
+          "zeta",
+          "Alpha",
+          "beta",
+          "é"
+        ],
+        "capabilitiesRequired": [
+          "net",
+          "fs"
+        ],
+        "runtimeEnv": "api"
+      },
+      "canonical": "{\"canonical_version\":1,\"capabilities_required\":[\"fs\",\"net\"],\"content_hash\":\"fd610feb69de57d7e4974a8650a8b336e70f2399af12c57157b5e2de8a0d12cd\",\"description\":\"Tags unsorted, quotes \\\" and \\\\ backslash, emoji 🚀.\",\"execution_layer\":\"mcp-remote\",\"name\":\"Ünïcødé ✓ 名前\",\"nonce\":\"0b8f5a6e-1c2d-4e3f-9a8b-7c6d5e4f3a2b\",\"publisher_key_id\":\"pk_golden_key_0001\",\"runtime_env\":\"api\",\"signed_at\":\"2026-09-30T12:00:00Z\",\"slug\":\"uni-code\",\"tags\":[\"Alpha\",\"beta\",\"zeta\",\"é\"],\"version\":\"2.3.4\"}"
+    },
+    {
+      "body": {
+        "name": "Agent",
+        "slug": "agent-one",
+        "description": "Agent with a float budget.",
+        "executionLayer": "container",
+        "runtimeEnv": "agent",
+        "skillMd": "x",
+        "agentProfile": {
+          "memoryMb": 1024,
+          "cpu": 2,
+          "timeoutSeconds": 600,
+          "budgetCaps": {
+            "maxTokensUsd": 0.1,
+            "maxInternalToolCalls": 50
+          },
+          "egress": [
+            "b.example",
+            "a.example"
+          ]
+        }
+      },
+      "canonical": "{\"agent_profile\":{\"budgetCaps\":{\"maxInternalToolCalls\":50,\"maxTokensUsd\":0.1},\"cpu\":2,\"egress\":[\"a.example\",\"b.example\"],\"memoryMb\":1024,\"timeoutSeconds\":600},\"canonical_version\":1,\"capabilities_required\":[],\"content_hash\":\"73cb3858a687a8494ca3323053016282f3dad39d42cf62ca4e79dda2aac7d9ac\",\"description\":\"Agent with a float budget.\",\"execution_layer\":\"container\",\"name\":\"Agent\",\"nonce\":\"0b8f5a6e-1c2d-4e3f-9a8b-7c6d5e4f3a2b\",\"publisher_key_id\":\"pk_golden_key_0001\",\"runtime_env\":\"agent\",\"signed_at\":\"2026-09-30T12:00:00Z\",\"slug\":\"agent-one\",\"tags\":[],\"version\":\"1.0.0\"}"
+    }
+  ],
+  "requests": [
+    {
+      "method": "patch",
+      "path": "/v1/skills/abc/status",
+      "bodyText": "{\"status\":\"deprecated\"}",
+      "canonical": "{\"body_sha256\":\"39e82dd3b644c5ee5015369d259dc460f049c795f34b751a501d928fb5a21078\",\"canonical_version\":1,\"key_id\":\"pk_golden_key_0001\",\"kind\":\"request\",\"method\":\"PATCH\",\"nonce\":\"0b8f5a6e-1c2d-4e3f-9a8b-7c6d5e4f3a2b\",\"path\":\"/v1/skills/abc/status\",\"signed_at\":\"2026-09-30T12:00:00Z\"}"
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/skills/abc/bundle",
+      "bodyText": "",
+      "canonical": "{\"body_sha256\":\"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\"canonical_version\":1,\"key_id\":\"pk_golden_key_0001\",\"kind\":\"request\",\"method\":\"PUT\",\"nonce\":\"0b8f5a6e-1c2d-4e3f-9a8b-7c6d5e4f3a2b\",\"path\":\"/v1/skills/abc/bundle\",\"signed_at\":\"2026-09-30T12:00:00Z\"}"
+    }
+  ],
+  "pop": {
+    "nonce": "3f1e2d4c-5b6a-4789-8abc-def012345678",
+    "publicKey": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "message": "sr-identity-pop:v1:3f1e2d4c-5b6a-4789-8abc-def012345678:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+  }
+}
