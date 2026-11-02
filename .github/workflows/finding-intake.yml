@@ -38,4 +38,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+          # A human triages scanner output before Autofix may take it (AI-DLC gaps item 2).
+          INTAKE_LABEL: scanner-finding
         run: node scripts/finding-intake.mjs cognium-results.json

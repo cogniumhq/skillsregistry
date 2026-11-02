@@ -1,5 +1,23 @@
 # @skillsregistry/schema
 
+## 1.2.1
+
+### Patch Changes
+
+- 07be7d7: Bump drizzle-orm 0.36 → 0.45. Schema definitions are unchanged; 0.45.2 includes the `sql.identifier()` / `sql.as()` identifier-escaping fix (CWE-89).
+- cb6c3f6: Remove internal infrastructure hostnames and private-repo paths from published
+  package contents.
+
+  Internal hostnames appeared in the domain README and in source comments;
+  `.specifica/...` paths appeared in several comments and in the
+  `0025_mcp_invocations.sql` migration header. All are replaced with
+  neutral wording.
+
+  No API, type, runtime default or behaviour changes — every occurrence was a
+  comment, a README line, or a test URL, never a functional default. This is a
+  patch only because these packages publish `README.md` (and, for schema, the
+  `.sql` file) inside the tarball, so the artifact contents genuinely differ.
+
 ## 1.2.0
 
 ### Minor Changes

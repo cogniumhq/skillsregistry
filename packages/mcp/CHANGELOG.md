@@ -1,5 +1,14 @@
 # @skillsregistry/mcp
 
+## 1.2.3
+
+### Patch Changes
+
+- Updated dependencies [870584d]
+- Updated dependencies [07be7d7]
+- Updated dependencies [cb6c3f6]
+  - @skillsregistry/domain@2.0.0
+
 ## 1.2.2
 
 ### Patch Changes
