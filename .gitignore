@@ -38,3 +38,6 @@ apps/local/.ci-ollama-models/
 
 # changesets — versioning stays committed, but ignore the local temp state
 .changeset/*.tmp.md
+
+# QA publishing ledger written by scripts/qa-publish.mts
+qa-published.json
