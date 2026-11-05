@@ -217,3 +217,40 @@ describe('login', () => {
     }
   }, 30_000);
 });
+
+describe('publish --license', () => {
+  it('merges --license into the POST body but not the signed canonical payload', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sr-publish-'));
+    const pair = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
+    const keyFile = {
+      keyId: golden.sig.publisherKeyId,
+      authorId: 'a',
+      publicKeyB64Url: (await crypto.subtle.exportKey('jwk', pair.publicKey)).x,
+      privateKeyB64Url: (await crypto.subtle.exportKey('jwk', pair.privateKey)).d,
+    };
+    const keyPath = join(dir, 'key.json');
+    writeFileSync(keyPath, JSON.stringify(keyFile));
+    const bodyPath = join(dir, 'skill.json');
+    const manifest = { ...golden.publish[0].body };
+    delete manifest.license;
+    writeFileSync(bodyPath, JSON.stringify(manifest));
+
+    const { stdout } = await run('node', [
+      TOOL,
+      'publish',
+      '--key-file',
+      keyPath,
+      '--body-file',
+      bodyPath,
+      '--license',
+      'MIT',
+      '--dry-run',
+    ]);
+    const out = JSON.parse(stdout);
+    expect(out.body.license).toBe('MIT');
+    expect(out.canonical).not.toHaveProperty('license');
+    expect(Object.keys(out.canonical).sort()).toEqual(
+      Object.keys(await buildCanonicalPayload(manifest, golden.sig)).sort(),
+    );
+  });
+});

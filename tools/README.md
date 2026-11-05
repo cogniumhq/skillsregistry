@@ -6,7 +6,12 @@ Publish skills to [SkillsRegistry](https://skillsregistry.net) as a verified pub
 curl -fsSLO https://raw.githubusercontent.com/cogniumhq/skillsregistry/main/tools/sr-publish.mjs
 node sr-publish.mjs login --out my-key.json          # GitHub device code → key issued to gh:<you>
 node sr-publish.mjs publish --key-file my-key.json --body-file skill.json
+node sr-publish.mjs publish --key-file my-key.json --body-file skill.json --license MIT
 ```
+
+`skill.json` is the unsigned manifest (name, slug, description, `skillMd`, optional `mcpUrl`, …). The registry also accepts `license` on community-key publishes; it is **not** part of the signed canonical payload. Pass `--license <SPDX or name>` to set or override `license` on the POST body (or include `license` in the JSON file).
+
+Flags for `publish`: `--key-file`, `--body-file`, `--license`, `--dry-run`, `--endpoint`.
 
 - `login` generates an Ed25519 key **on your machine**. The registry only sees the public key and a signature over a one-time challenge. Your GitHub account needs two-factor authentication.
 - `login` writes the key file (mode 600, never overwriting) **before** it asks the registry to issue the key, so an issued key always has a local copy. If the registry refuses, the file is removed. If the final write fails after the key is issued, the error names the `key_id` and the file still holds the private key.
