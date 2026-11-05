@@ -324,9 +324,12 @@ async function cmdRetire(flags) {
 async function cmdPublish(flags) {
   const key = await readKeyFile(need(flags, 'key-file'));
   const body = JSON.parse(await readFile(need(flags, 'body-file'), 'utf8'));
+  if (typeof flags.license === 'string' && flags.license) {
+    body.license = flags.license;
+  }
   const { headers, canonical } = await signPublish(key, body);
   if (flags['dry-run']) {
-    stdout.write(JSON.stringify({ headers, canonical }, null, 2) + '\n');
+    stdout.write(JSON.stringify({ headers, canonical, body }, null, 2) + '\n');
     return;
   }
   const r = await call(`${endpointOf(flags)}/v1/skills`, {
@@ -383,7 +386,7 @@ const HELP = `sr-publish.mjs — publish to SkillsRegistry as a verified publish
   login   --out FILE              Log in with GitHub; create and register a key (written to FILE, mode 600)
   whoami                          Log in and list the keys on your GitHub account
   retire  --key-id pk_xxx         Lost key: stop it signing anything new (past publishes stay verified)
-  publish --key-file FILE --body-file skill.json [--dry-run]
+  publish --key-file FILE --body-file skill.json [--license SPDX] [--dry-run]
                                   Sign and publish a skill manifest
   request --key-file FILE --method M --path /v1/skills/<id>/... [--body-file F.json | --raw-file F] [--dry-run]
                                   Signed change to a skill you own (status, scope, bundle, …)
