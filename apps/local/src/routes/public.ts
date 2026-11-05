@@ -24,8 +24,8 @@ import { Hono } from 'hono';
 import {
   PublishRequestSchema,
   TrustScoreRequestSchema,
-  SkillVisibilitySchema
 } from '@skillsregistry/contracts';
+import type { SkillVisibility } from '@skillsregistry/domain/types';
 import { upstreamErrorToResponse } from '../http/upstream-response.js';
 import { getTenantId, tenantContext } from '../middleware/index.js';
 import type { SearchOptions } from '../search/index.js';
@@ -39,9 +39,14 @@ const APPETITE_VALUES: readonly AppetiteQuery[] = [
   'balanced',
   'adventurous',
 ];
-// #95: the 4-band model (migration 0035) — imported from the shared contract
-// so this list can never drift from what `POST /v1/skills` accepts.
-const VISIBILITY_VALUES = SkillVisibilitySchema.options;
+// #95: the 4-band model (migration 0035) — must match `SkillVisibilitySchema` / Postgres chk_visibility.
+const VISIBILITY_VALUES: readonly SkillVisibility[] = [
+  'public',
+  'private',
+  'tenant_private',
+  'tenant_internal',
+  'unlisted',
+];
 
 /**
  * Build the public sub-app. `services` is captured in handler closures.
@@ -146,7 +151,7 @@ export function createPublicRoutes(services: AppServices): Hono {
           400,
         );
       }
-      opts.visibility = visibilityRaw as (typeof VISIBILITY_VALUES)[number];
+      opts.visibility = visibilityRaw as SkillVisibility;
     }
 
     const portableRaw = c.req.query('portable');
