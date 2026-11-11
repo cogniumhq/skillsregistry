@@ -23,7 +23,7 @@
     {
       "pass": "sql_injection",
       "file": "apps/local/src/routes/public.ts",
-      "line": 267,
+      "line": 272,
       "reason": "HTTP query-string loop, not SQL (cognium-dev#409)"
     },
     {
