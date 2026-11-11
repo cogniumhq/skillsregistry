@@ -21,8 +21,8 @@
   },
   "scripts": {
     "build": "pnpm -r build",
-    "test": "vitest run --workspace ./vitest.workspace.ts",
-    "test:coverage": "vitest run --workspace ./vitest.workspace.ts --coverage",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "coverage:check": "node scripts/check-coverage.mjs",
     "audit:prod": "node scripts/audit-prod.mjs",
     "pack:dry-run": "node scripts/sdk-pack-dry-run.mjs",
@@ -36,9 +36,9 @@
   },
   "devDependencies": {
     "@changesets/cli": "^3.0.3",
-    "@vitest/coverage-v8": "^2.1.0",
+    "@vitest/coverage-v8": "^4.1.12",
     "typescript": "^5.6.0",
-    "vitest": "^2.1.0"
+    "vitest": "^4.1.12"
   },
   "pnpm": {
     "overrides": {
