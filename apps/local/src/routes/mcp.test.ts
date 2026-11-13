@@ -82,7 +82,7 @@ function buildConfig(): AppConfig {
     log: { level: 'info', format: 'json', requestIdHeader: 'X-Request-Id' },
     mcp: {
       serverName: 'skillsregistry-local',
-      serverVersion: '0.1.0',
+      serverVersion: '1.2.0',
       canonicalOrigin: undefined,
       documentationUrl: undefined,
       openapiUrl: undefined,
@@ -105,7 +105,7 @@ function fakePool(): Pool {
 
 const MCP_CONFIG: ResolvedMcpConfig = {
   serverName: 'skillsregistry-local',
-  serverVersion: '0.1.0',
+  serverVersion: '1.2.0',
   canonicalOrigin: undefined,
   documentationUrl: undefined,
   openapiUrl: undefined,
@@ -619,7 +619,7 @@ describe('GET /mcp.json + GET /.well-known/mcp.json — discovery (T-2.14)', () 
     expect(body.protocolVersion).toBe('2025-03-26');
     expect(body.serverInfo).toEqual({
       name: 'skillsregistry-local',
-      version: '0.1.0',
+      version: '1.2.0',
     });
   });
 

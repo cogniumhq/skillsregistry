@@ -94,12 +94,12 @@ node runs from a `docker compose up`.
 
 | package | version |
 |---|---|
-| [`@skillsregistry/contracts`](https://www.npmjs.com/package/@skillsregistry/contracts) | 2.0.0 |
-| [`@skillsregistry/mcp`](https://www.npmjs.com/package/@skillsregistry/mcp) | 1.2.1 |
-| [`@skillsregistry/domain`](https://www.npmjs.com/package/@skillsregistry/domain) | 1.1.1 |
-| [`@skillsregistry/schema`](https://www.npmjs.com/package/@skillsregistry/schema) | 1.1.0 |
-| [`@skillsregistry/dag`](https://www.npmjs.com/package/@skillsregistry/dag) | 1.1.0 |
-| [`@skillsregistry/eval`](https://www.npmjs.com/package/@skillsregistry/eval) | 1.0.3 |
+| [`@skillsregistry/contracts`](https://www.npmjs.com/package/@skillsregistry/contracts) | 3.0.1 |
+| [`@skillsregistry/mcp`](https://www.npmjs.com/package/@skillsregistry/mcp) | 1.2.4 |
+| [`@skillsregistry/domain`](https://www.npmjs.com/package/@skillsregistry/domain) | 2.0.1 |
+| [`@skillsregistry/schema`](https://www.npmjs.com/package/@skillsregistry/schema) | 1.2.2 |
+| [`@skillsregistry/dag`](https://www.npmjs.com/package/@skillsregistry/dag) | 2.0.1 |
+| [`@skillsregistry/eval`](https://www.npmjs.com/package/@skillsregistry/eval) | 1.0.6 |
 
 Design and roadmap are tracked internally. For anything non-trivial, open an
 issue first — see [`CONTRIBUTING.md`](CONTRIBUTING.md).

@@ -173,7 +173,7 @@ export interface LogConfig {
 export interface McpConfig {
   /** Server name emitted in `initialize` + discovery. Default `skillsregistry-local`. */
   serverName: string;
-  /** Server version emitted in `initialize` + discovery. Default `0.1.0`. */
+  /** Server version emitted in `initialize` + discovery. Default `1.2.0`. */
   serverVersion: string;
   /**
    * Canonical origin for discovery URLs (`https://mcp.example.com`).
@@ -529,7 +529,7 @@ function parseSearch(env: EnvSource, issues: Issues): SearchConfig {
 
 function parseMcp(env: EnvSource, issues: Issues): McpConfig {
   const serverName = optional(env, ENV.MCP_SERVER_NAME, 'skillsregistry-local');
-  const serverVersion = optional(env, ENV.MCP_SERVER_VERSION, '0.1.0');
+  const serverVersion = optional(env, ENV.MCP_SERVER_VERSION, '1.2.0');
   const canonicalRaw = env[ENV.MCP_CANONICAL_ORIGIN]?.trim();
   const canonicalOrigin =
     canonicalRaw === undefined || canonicalRaw === '' ? undefined : canonicalRaw;
