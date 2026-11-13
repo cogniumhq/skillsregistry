@@ -48,7 +48,7 @@ async function gh(method, path, body) {
       Authorization: `Bearer ${token}`,
       Accept: "application/vnd.github+json",
       "User-Agent": "finding-intake",
-      "X-GitHub-Api-Version": "2022-11-28",
+      "X-GitHub-Api-Version": "2026-03-10",
     },
     body: body ? JSON.stringify(body) : undefined,
   });
