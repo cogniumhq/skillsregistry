@@ -87,7 +87,7 @@ export function createApp(
     const dbReachable = await pingDb(pool);
     const payload: HealthPayload = {
       status: dbReachable ? 'ok' : 'degraded',
-      version: '0.1.0',
+      version: '1.2.0',
       nodeEnv: config.nodeEnv,
       upstreamConfigured: config.upstream !== null,
       embedder: config.embedder.kind,

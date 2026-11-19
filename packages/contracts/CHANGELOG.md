@@ -1,5 +1,17 @@
 # @skillsregistry/contracts
 
+## 3.0.1
+
+### Patch Changes
+
+- 392ba31: Dependency bumps, no public API change. `@types/node` 22.20.3 → 22.20.5 across all six packages; `@skillsregistry/schema` also takes `drizzle-orm` 0.45.2 → 0.45.3 (patch within the 0.45 line already adopted in #151, schema definitions unchanged).
+
+  App-level in the same change, not published so not listed above: `hono` 4.13.8 → 4.13.12, `pg` 8.23.0 → 8.23.1, `tsx` 4.23.13 → 4.23.15, `astro` 7.3.3 → 7.3.5, `jsdom` 30.1.0 → 30.1.1.
+
+  The `astro` bump is the one that matters beyond housekeeping: it pulls `http-cache-semantics` 4.2.0 → 4.3.0, which clears **GHSA-ch52-4w7c-c8xp** (high — `max-stale` handling can disclose cross-user cached responses). That advisory is what fails `pnpm audit:prod` on `main`, and therefore on every PR that does not itself carry this lockfile.
+
+- 7f5d3f5: Add optional `searchIndexed` / `searchIndexError` to `PublishResultSchema` so local publish responses match the wire format (#168).
+
 ## 3.0.0
 
 ### Major Changes
