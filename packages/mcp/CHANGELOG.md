@@ -1,5 +1,29 @@
 # @skillsregistry/mcp
 
+## 1.2.4
+
+### Patch Changes
+
+- 392ba31: Dependency bumps, no public API change. `@types/node` 22.20.3 → 22.20.5 across all six packages; `@skillsregistry/schema` also takes `drizzle-orm` 0.45.2 → 0.45.3 (patch within the 0.45 line already adopted in #151, schema definitions unchanged).
+
+  App-level in the same change, not published so not listed above: `hono` 4.13.8 → 4.13.12, `pg` 8.23.0 → 8.23.1, `tsx` 4.23.13 → 4.23.15, `astro` 7.3.3 → 7.3.5, `jsdom` 30.1.0 → 30.1.1.
+
+  The `astro` bump is the one that matters beyond housekeeping: it pulls `http-cache-semantics` 4.2.0 → 4.3.0, which clears **GHSA-ch52-4w7c-c8xp** (high — `max-stale` handling can disclose cross-user cached responses). That advisory is what fails `pnpm audit:prod` on `main`, and therefore on every PR that does not itself carry this lockfile.
+
+- 5fa0094: Shrink `list_leaderboard` `kind` schema to `trust` and `agents` only; reject `trending` / `composed` / `forked` with JSON-RPC invalid-params (-32602) instead of advertising kinds that fail at runtime (#116).
+- Updated dependencies [d63deaa]
+- Updated dependencies [392ba31]
+- Updated dependencies [fa39b67]
+- Updated dependencies [773a0f0]
+- Updated dependencies [bdb1ee2]
+- Updated dependencies [174f444]
+- Updated dependencies [581391c]
+- Updated dependencies [bf762e1]
+- Updated dependencies [2d720a1]
+- Updated dependencies [ee2053f]
+- Updated dependencies [c8f8336]
+  - @skillsregistry/domain@2.0.1
+
 ## 1.2.3
 
 ### Patch Changes

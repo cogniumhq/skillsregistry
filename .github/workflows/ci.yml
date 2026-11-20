@@ -53,7 +53,9 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          # A range, not `22`: the runner's tool cache holds 22.23.3, which
+          # `22` accepts, and astro >=7.4.4 refuses anything below 22.23.4.
+          node-version: '^22.23.4'
           cache: pnpm
 
       - name: Install dependencies
@@ -108,7 +110,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: '^22.23.4'
           cache: pnpm
 
       - name: Install dependencies
@@ -242,7 +244,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: '^22.23.4'
           cache: pnpm
 
       - name: Install dependencies
@@ -277,7 +279,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: '^22.23.4'
           cache: pnpm
 
       - name: Install dependencies
@@ -326,7 +328,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: '^22.23.4'
           cache: pnpm
 
       - name: Install dependencies

@@ -69,12 +69,23 @@ jobs:
             echo "::notice::NPM_TOKEN is not set - versioning only, no publish to registry.npmjs.org."
           fi
 
+      # `pnpm run <script>`, never `pnpm <script>`, for both scripts: `version`
+      # is also a pnpm built-in (it prints the toolchain versions and exits 0),
+      # so `pnpm version` never ran `changeset version`. The bot then committed
+      # an empty "version" commit to changeset-release/main and no changeset
+      # was ever consumed (skillsregistry #170).
+      #
+      # Opening the version PR also needs the repository setting
+      # Settings → Actions → General → Workflow permissions → "Allow GitHub
+      # Actions to create and approve pull requests" (and the organisation not
+      # disabling it). With it off, this step fails with "GitHub Actions is not
+      # permitted to create or approve pull requests" after pushing the branch.
       - name: Create Release PR or publish
         uses: changesets/action@v2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          publish-script: ${{ steps.npm.outputs.configured == 'true' && 'pnpm release' || '' }}
-          version-script: pnpm version
+          publish-script: ${{ steps.npm.outputs.configured == 'true' && 'pnpm run release' || '' }}
+          version-script: pnpm run version
           pr-title: "chore: version @skillsregistry/* packages"
           commit-message: "chore: version @skillsregistry/* packages"
         env:

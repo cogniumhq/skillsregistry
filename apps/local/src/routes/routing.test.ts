@@ -40,7 +40,7 @@ function buildConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     log: { level: 'info', format: 'json', requestIdHeader: 'X-Request-Id' },
     mcp: {
       serverName: 'skillsregistry-local',
-      serverVersion: '0.1.0',
+      serverVersion: '1.2.0',
       canonicalOrigin: undefined,
       documentationUrl: undefined,
       openapiUrl: undefined,
@@ -88,7 +88,7 @@ function mcpServices(): AppServices {
     },
     mcpConfig: {
       serverName: 'skillsregistry-local',
-      serverVersion: '0.1.0',
+      serverVersion: '1.2.0',
       canonicalOrigin: undefined,
       documentationUrl: undefined,
       openapiUrl: undefined,
@@ -566,7 +566,7 @@ describe('createApp route surface', () => {
       expect(body.id).toBe(1);
       expect(body.result.protocolVersion).toBe('2025-03-26');
       expect(body.result.serverInfo.name).toBe('skillsregistry-local');
-      expect(body.result.serverInfo.version).toBe('0.1.0');
+      expect(body.result.serverInfo.version).toBe('1.2.0');
     });
 
     it('POST /mcp returns a JSON-RPC parse error on malformed JSON', async () => {
