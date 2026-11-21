@@ -43,4 +43,4 @@ jobs:
           category: security
           exclude-tests: true
           upload-sarif: true
-          version: "4.9.20"
+          version: "4.20.0"
