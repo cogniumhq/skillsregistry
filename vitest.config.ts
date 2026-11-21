@@ -19,6 +19,7 @@ export default defineConfig({
       'apps/local',
       'apps/local/web',
       'tools',
+      'scripts',
     ],
     coverage: {
       provider: 'v8',
