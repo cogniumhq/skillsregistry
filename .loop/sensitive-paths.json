@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "tierA": [
+    ".github/workflows/publish-*.yml",
+    "tools/sr-publish.mjs",
+    "scripts/qa-publish.mts",
+    "scripts/qa-guardrails.mts",
+    "packages/schema/src/migrations/",
+    "**/Dockerfile",
+    "**/docker-compose*.yml",
+    "**/.dockerignore"
+  ]
+}
