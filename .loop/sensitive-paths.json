@@ -8,6 +8,11 @@
     "packages/schema/src/migrations/",
     "**/Dockerfile",
     "**/docker-compose*.yml",
-    "**/.dockerignore"
+    "**/.dockerignore",
+    "cognium.config.json",
+    ".changeset/config.json",
+    "scripts/check-coverage.mjs",
+    "scripts/audit-prod.mjs",
+    "scripts/sdk-pack-dry-run.mjs"
   ]
 }
