@@ -1,6 +1,6 @@
 {
   "name": "@skillsregistry/dag",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Portable workflow DAG schema, validation, and interpreter for SkillsRegistry",
   "license": "Apache-2.0",
   "author": "Cognium Labs",
@@ -40,9 +40,9 @@
   },
   "devDependencies": {
     "@types/node": "^22.20.5",
-    "tsup": "^8.3.5",
+    "tsup": "^9.0.0",
     "typescript": "^5.6.0",
-    "vitest": "^2.1.0"
+    "vitest": "^4.1.12"
   },
   "engines": {
     "node": ">=22.0.0"
