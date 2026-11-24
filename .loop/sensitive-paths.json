@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "tierA": [
+    ".github/workflows/publish-*.yml",
+    "tools/sr-publish.mjs",
+    "scripts/qa-publish.mts",
+    "scripts/qa-guardrails.mts",
+    "packages/schema/src/migrations/",
+    "**/Dockerfile",
+    "**/docker-compose*.yml",
+    "**/.dockerignore",
+    "cognium.config.json",
+    ".changeset/config.json",
+    "scripts/check-coverage.mjs",
+    "scripts/audit-prod.mjs",
+    "scripts/sdk-pack-dry-run.mjs"
+  ]
+}
