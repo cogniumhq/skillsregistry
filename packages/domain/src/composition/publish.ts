@@ -13,20 +13,15 @@
 // passes its embed queue (best-effort, as in fork/copy/compose). Search reads
 // `skill_embeddings` only, so a composition published without an embed is
 // invisible to it. The queue is optional so existing callers keep compiling;
-// every publishing caller should pass it.
+// every publishing caller should pass it, and should then not enqueue its own
+// embed after the call: this is the one embed message per publish.
 //
 // ══════════════════════════════════════════════════════════════════════════════
 
 import type { QueueAdapter, SqlPool } from '../adapters/index.js';
 import type { EmbedQueueMessage } from './adapters.js';
 import { NotFoundError, ValidationError } from './errors.js';
-
-const COMPOSITION_TYPES = [
-  'auto-composite',
-  'human-composite',
-  'composition',
-  'pipeline',
-];
+import { isCompositeSkillType } from './skill-types.js';
 
 export async function publishComposition(
   compositionId: string,
@@ -48,7 +43,7 @@ export async function publishComposition(
     throw new NotFoundError(`Composition ${compositionId} not found`);
   }
 
-  if (!COMPOSITION_TYPES.includes(skill.rows[0].skill_type)) {
+  if (!isCompositeSkillType(skill.rows[0].skill_type)) {
     throw new ValidationError(`Skill ${compositionId} is not a composition`);
   }
 

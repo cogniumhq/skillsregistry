@@ -314,7 +314,7 @@ describe('extendComposition — SQL guards', () => {
 });
 
 describe('extendComposition — embed after the new steps', () => {
-  it('enqueues the fork for embedding again once the new steps are in, so search indexes the extended list', async () => {
+  it('enqueues exactly one embed for the fork, after the new steps are in (forkSkill is told not to)', async () => {
     const order: string[] = [];
     const { pool } = scriptedPool([
       { rows: [{ skill_type: 'auto-composite' }] },
@@ -341,12 +341,9 @@ describe('extendComposition — embed after the new steps', () => {
       order.push('embed');
     });
     await extendComposition('src_id', baseInput(), 'a', 'human', adapters);
-    // forkSkill's embed (before the steps) and extend's own (after them).
-    expect(embedSends).toEqual([
-      { skillId: 'fork_id', action: 'embed' },
-      { skillId: 'fork_id', action: 'embed' },
-    ]);
-    expect(order).toEqual(['embed', 'step', 'step', 'embed']);
+    // One embed per extend, from the final step list; none from forkSkill.
+    expect(embedSends).toEqual([{ skillId: 'fork_id', action: 'embed' }]);
+    expect(order).toEqual(['step', 'step', 'embed']);
   });
 });
 

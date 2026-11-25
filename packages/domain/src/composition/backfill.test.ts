@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import type { SqlPool } from '../adapters/sql.js';
 import type { QueueAdapter } from '../adapters/queue.js';
 import type { EmbedQueueMessage } from './adapters.js';
-import { COMPOSITION_SKILL_TYPES, enqueueCompositionEmbedBackfill, findUnembeddedCompositions } from './backfill.js';
+import { enqueueCompositionEmbedBackfill, findUnembeddedCompositions } from './backfill.js';
+import { COMPOSITION_SKILL_TYPES } from './skill-types.js';
 
 const ROWS = [
   { id: 'c1', slug: '@cognium/wf-a', version: '0.2.0', skill_type: 'human-composite' },

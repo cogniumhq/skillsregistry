@@ -6,7 +6,7 @@
 // published composite could end up with no `skill_embeddings` row, which makes
 // it invisible to both search paths (they join on `skill_embeddings`). This
 // finds those rows and enqueues one embed each, through the same queue the
-// publish paths use, so the node's embed consumer indexes them with
+// publish paths use; the embed consumer indexes each under
 // `loadCompositionIndexText`.
 //
 // Idempotent: a composite that already has an embedding row is never listed,
@@ -18,9 +18,7 @@
 
 import type { QueueAdapter, SqlPool } from '../adapters/index.js';
 import type { EmbedQueueMessage } from './adapters.js';
-
-/** The composition skill types (the same set every composition function guards on). */
-export const COMPOSITION_SKILL_TYPES = ['auto-composite', 'human-composite', 'composition', 'pipeline'] as const;
+import { COMPOSITION_SKILL_TYPES } from './skill-types.js';
 
 /** A published composite with no embedding row. */
 export interface UnembeddedComposition {
