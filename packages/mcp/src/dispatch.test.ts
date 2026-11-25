@@ -18,9 +18,18 @@ import type {
   SkillDetail,
   SkillLookupPort,
 } from './types.js';
-import { handleMcpRequest, type DispatchContext } from './dispatch.js';
+import {
+  handleMcpRequest,
+  parseErrorResponse,
+  type DispatchContext,
+} from './dispatch.js';
 import { resolveConfig } from './protocol.js';
-import { JSONRPC_INVALID_PARAMS, JSONRPC_METHOD_NOT_FOUND } from './errors.js';
+import {
+  JSONRPC_INVALID_PARAMS,
+  JSONRPC_INVALID_REQUEST,
+  JSONRPC_METHOD_NOT_FOUND,
+  JSONRPC_PARSE_ERROR,
+} from './errors.js';
 
 function makeSkill(slug: string): SkillDetail {
   return {
@@ -376,5 +385,199 @@ describe('handleMcpRequest — batches + notifications', () => {
     }));
     const out = await handleMcpRequest(oversize, ctx);
     expect(out.kind).toBe('error');
+  });
+
+  it('returns JSON responses for mixed batch entries', async () => {
+    const out = await handleMcpRequest(
+      [
+        { jsonrpc: '2.0', id: 1, method: 'ping' },
+        { jsonrpc: '2.0', method: 'notifications/initialized' },
+      ],
+      makeCtx(),
+    );
+    expect(out.kind).toBe('json');
+    if (out.kind !== 'json') throw new Error('unreachable');
+    expect(Array.isArray(out.body)).toBe(true);
+    const batch = out.body as Array<{ id: number; result: unknown }>;
+    expect(batch).toHaveLength(1);
+    expect(batch[0]!.id).toBe(1);
+  });
+});
+
+describe('parseErrorResponse', () => {
+  it('returns a JSON-RPC parse error envelope', () => {
+    const body = parseErrorResponse();
+    expect(body.error.code).toBe(JSONRPC_PARSE_ERROR);
+    expect(body.error.message).toBe('Invalid JSON');
+    expect(body.id).toBeNull();
+  });
+});
+
+describe('handleMcpRequest — malformed + protocol edges', () => {
+  it('rejects malformed requests with invalid-request', async () => {
+    const out = await handleMcpRequest(
+      { jsonrpc: '1.0', id: 5, method: 'ping' },
+      makeCtx(),
+    );
+    if (out.kind !== 'json') throw new Error('expected json');
+    const body = out.body as { error: { code: number } };
+    expect(body.error.code).toBe(JSONRPC_INVALID_REQUEST);
+  });
+
+  it('drops malformed notifications without a response', async () => {
+    const out = await handleMcpRequest(
+      { jsonrpc: '1.0', method: 'ping' },
+      makeCtx(),
+    );
+    expect(out.kind).toBe('accepted');
+  });
+
+  it('rejects unknown methods with method-not-found', async () => {
+    const out = await handleMcpRequest(
+      { jsonrpc: '2.0', id: 6, method: 'nope/such' },
+      makeCtx(),
+    );
+    if (out.kind !== 'json') throw new Error('expected json');
+    const body = out.body as { error: { code: number; message: string } };
+    expect(body.error.code).toBe(JSONRPC_METHOD_NOT_FOUND);
+    expect(body.error.message).toContain('nope/such');
+  });
+
+  it('maps McpError data onto the JSON-RPC error envelope', async () => {
+    const out = await handleMcpRequest(
+      {
+        jsonrpc: '2.0',
+        id: 7,
+        method: 'tools/call',
+        params: {},
+      },
+      makeCtx(),
+    );
+    if (out.kind !== 'json') throw new Error('expected json');
+    const body = out.body as { error: { code: number; message: string } };
+    expect(body.error.code).toBe(JSONRPC_INVALID_PARAMS);
+  });
+
+  it('maps non-McpError handler failures to internal error', async () => {
+    const skills: SkillLookupPort = {
+      getSkillBySlug: vi.fn(async () => {
+        throw new TypeError('db unavailable');
+      }),
+    };
+    const out = await handleMcpRequest(
+      {
+        jsonrpc: '2.0',
+        id: 8,
+        method: 'tools/call',
+        params: { name: 'get_skill', arguments: { slug: 'x' } },
+      },
+      makeCtx({ skills }),
+    );
+    if (out.kind !== 'json') throw new Error('expected json');
+    const body = out.body as { error: { code: number; message: string } };
+    expect(body.error.message).toBe('db unavailable');
+  });
+});
+
+describe('handleMcpRequest — invocation recorder', () => {
+  it('defers recorder writes via afterResponse when wired', async () => {
+    const recorder: InvocationRecorderPort = {
+      record: vi.fn(async () => {}),
+    };
+    const run = vi.fn((task: () => Promise<void>) => {
+      void task();
+    });
+    const out = await handleMcpRequest(
+      {
+        jsonrpc: '2.0',
+        id: 20,
+        method: 'tools/call',
+        params: { name: 'get_skill', arguments: { slug: 'hello' } },
+      },
+      makeCtx({ recorder, afterResponse: { run } }),
+    );
+    expect(out.kind).toBe('json');
+    expect(run).toHaveBeenCalled();
+    await new Promise((r) => setImmediate(r));
+    expect(recorder.record).toHaveBeenCalled();
+  });
+
+  it('does not stamp skillId when the tool reports isError', async () => {
+    const recorder: InvocationRecorderPort = {
+      record: vi.fn(async () => {}),
+    };
+    const out = await handleMcpRequest(
+      {
+        jsonrpc: '2.0',
+        id: 21,
+        method: 'tools/call',
+        params: { name: 'get_skill', arguments: { slug: 'missing' } },
+      },
+      makeCtx({ recorder }),
+    );
+    expect(out.kind).toBe('json');
+    await new Promise((r) => setImmediate(r));
+    expect(recorder.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolName: 'get_skill',
+        skillId: null,
+        succeeded: false,
+      }),
+    );
+  });
+
+  it('swallows recorder failures without breaking the response', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const recorder: InvocationRecorderPort = {
+      record: vi.fn(async () => {
+        throw new Error('write failed');
+      }),
+    };
+    const out = await handleMcpRequest(
+      {
+        jsonrpc: '2.0',
+        id: 22,
+        method: 'tools/call',
+        params: { name: 'get_skill', arguments: { slug: 'hello' } },
+      },
+      makeCtx({ recorder }),
+    );
+    expect(out.kind).toBe('json');
+    await new Promise((r) => setImmediate(r));
+    expect(consoleSpy).toHaveBeenCalledWith(
+      '[mcp] invocation recorder failed:',
+      expect.any(Error),
+    );
+    consoleSpy.mockRestore();
+  });
+
+  it('records failure telemetry when the tool handler throws', async () => {
+    const recorder: InvocationRecorderPort = {
+      record: vi.fn(async () => {}),
+    };
+    const skills: SkillLookupPort = {
+      getSkillBySlug: vi.fn(async () => {
+        throw new Error('upstream timeout');
+      }),
+    };
+    const out = await handleMcpRequest(
+      {
+        jsonrpc: '2.0',
+        id: 23,
+        method: 'tools/call',
+        params: { name: 'get_skill', arguments: { slug: 'hello' } },
+      },
+      makeCtx({ recorder, skills }),
+    );
+    expect(out.kind).toBe('json');
+    await new Promise((r) => setImmediate(r));
+    expect(recorder.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolName: 'get_skill',
+        succeeded: false,
+        skillId: null,
+        errorCode: expect.any(Number),
+      }),
+    );
   });
 });
