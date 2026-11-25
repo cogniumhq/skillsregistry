@@ -9,21 +9,24 @@
 //   - Every step's target skill must still be `published` — publishing a
 //     composition that points at a revoked step would ship a broken plan.
 //
+// Once published, the composition is enqueued for embedding when the caller
+// passes its embed queue (best-effort, as in fork/copy/compose). Search reads
+// `skill_embeddings` only, so a composition published without an embed is
+// invisible to it. The queue is optional so existing callers keep compiling;
+// every publishing caller should pass it, and should then not enqueue its own
+// embed after the call: this is the one embed message per publish.
+//
 // ══════════════════════════════════════════════════════════════════════════════
 
-import type { SqlPool } from '../adapters/index.js';
+import type { QueueAdapter, SqlPool } from '../adapters/index.js';
+import type { EmbedQueueMessage } from './adapters.js';
 import { NotFoundError, ValidationError } from './errors.js';
-
-const COMPOSITION_TYPES = [
-  'auto-composite',
-  'human-composite',
-  'composition',
-  'pipeline',
-];
+import { isCompositeSkillType } from './skill-types.js';
 
 export async function publishComposition(
   compositionId: string,
   pool: SqlPool,
+  adapters: { embedQueue?: QueueAdapter<EmbedQueueMessage> } = {},
 ): Promise<{ id: string; slug: string; status: string }> {
   // Verify skill exists and is a draft composition/pipeline
   const skill = await pool.query<{
@@ -40,7 +43,7 @@ export async function publishComposition(
     throw new NotFoundError(`Composition ${compositionId} not found`);
   }
 
-  if (!COMPOSITION_TYPES.includes(skill.rows[0].skill_type)) {
+  if (!isCompositeSkillType(skill.rows[0].skill_type)) {
     throw new ValidationError(`Skill ${compositionId} is not a composition`);
   }
 
@@ -81,6 +84,17 @@ export async function publishComposition(
   );
 
   const row = result.rows[0]!;
+
+  // Embed it now that it is published (best-effort: a failed enqueue is
+  // logged, and the backfill job finds it later).
+  if (adapters.embedQueue) {
+    try {
+      await adapters.embedQueue.send({ skillId: row.id, action: 'embed' });
+    } catch (err) {
+      console.error(`publishComposition: embed enqueue failed for ${row.id}`, err);
+    }
+  }
+
   return {
     id: row.id,
     slug: row.slug,

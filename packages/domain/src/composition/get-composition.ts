@@ -25,8 +25,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 
 import type { SqlPool } from '../adapters/index.js';
-
-const COMPOSITION_TYPES = ['auto-composite', 'human-composite', 'composition', 'pipeline'];
+import { COMPOSITION_SKILL_TYPES } from './skill-types.js';
 
 export interface CompositionStep {
   id: string;
@@ -126,7 +125,7 @@ export async function getCompositionBySlug(
      WHERE slug = $1 AND skill_type = ANY($2::text[])
      ORDER BY created_at DESC
      LIMIT 1`,
-    [slug, COMPOSITION_TYPES],
+    [slug, [...COMPOSITION_SKILL_TYPES]],
   );
   if (skill.rows.length === 0) return { found: false };
 

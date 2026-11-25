@@ -376,3 +376,28 @@ describe('forkSkill — errors & resilience', () => {
     errSpy.mockRestore();
   });
 });
+
+describe('forkSkill — { enqueueEmbed: false }', () => {
+  it('skips the embed (the caller enqueues it after its own writes) but still enqueues the scan', async () => {
+    const { pool } = scriptedPool([
+      { rows: [SOURCE_ATOMIC] },
+      { rows: [FORK_ROW] },
+      { rows: [] },
+    ]);
+    const { adapters, embedSends, scanSends } = makeAdapters(pool);
+    await forkSkill('src_id', 'a', 'human', adapters, { enqueueEmbed: false });
+    expect(embedSends).toEqual([]);
+    expect(scanSends).toHaveLength(1);
+  });
+
+  it('embeds by default', async () => {
+    const { pool } = scriptedPool([
+      { rows: [SOURCE_ATOMIC] },
+      { rows: [FORK_ROW] },
+      { rows: [] },
+    ]);
+    const { adapters, embedSends } = makeAdapters(pool);
+    await forkSkill('src_id', 'a', 'human', adapters);
+    expect(embedSends).toEqual([{ skillId: 'fork_id', action: 'embed' }]);
+  });
+});

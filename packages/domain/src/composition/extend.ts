@@ -7,9 +7,13 @@
 //
 //   1. Verify source is a composition-type skill in `published` state.
 //   2. Validate every new step's skill is also published.
-//   3. Fork the source (delegates to `forkSkill` — inherits trust reset).
+//   3. Fork the source (delegates to `forkSkill` — inherits trust reset),
+//      telling it not to enqueue an embed: the fork's steps are not final yet.
 //   4. Append new steps at the end (preserving existing step order).
 //   5. Recompute trust_score = min(all step trusts) + union capabilities.
+//   6. Enqueue the fork for embedding, once, now that its full step list
+//      exists. This is the only embed message an extend sends; callers must
+//      not enqueue their own after it.
 //
 // The trust recompute here does NOT apply the 0.9 composition penalty —
 // mothership behavior preserved (extend keeps the fork's initial trust
@@ -22,13 +26,7 @@ import type { CompositionAdapters } from './adapters.js';
 import type { ExtendInput } from './schema.js';
 import { forkSkill } from './fork.js';
 import { NotFoundError, ValidationError } from './errors.js';
-
-const COMPOSITION_TYPES = [
-  'auto-composite',
-  'human-composite',
-  'composition',
-  'pipeline',
-];
+import { isCompositeSkillType } from './skill-types.js';
 
 export async function extendComposition(
   compositionId: string,
@@ -49,7 +47,7 @@ export async function extendComposition(
     throw new NotFoundError(`Composition ${compositionId} not found or not published`);
   }
 
-  if (!COMPOSITION_TYPES.includes(source.rows[0].skill_type)) {
+  if (!isCompositeSkillType(source.rows[0].skill_type)) {
     throw new ValidationError(`Skill ${compositionId} is not a composition`);
   }
 
@@ -67,7 +65,8 @@ export async function extendComposition(
   }
 
   // Fork the composition first
-  const fork = await forkSkill(compositionId, authorId, authorType, adapters);
+  // (no embed yet — one is enqueued below, after the new steps are in).
+  const fork = await forkSkill(compositionId, authorId, authorType, adapters, { enqueueEmbed: false });
 
   // Get current max step_order
   const maxOrder = await pool.query<{ max_order: number }>(
@@ -124,6 +123,14 @@ export async function extendComposition(
     `UPDATE skills SET trust_score = $1, capabilities_required = $2 WHERE id = $3`,
     [trustScore, Array.from(capabilitiesSet), fork.id],
   );
+
+  // The fork's one embed, after its steps are final (best-effort). forkSkill
+  // was told not to enqueue, so search indexes the extended step list once.
+  try {
+    await adapters.embedQueue.send({ skillId: fork.id, action: 'embed' });
+  } catch (err) {
+    console.error(`extendComposition: embed enqueue failed for ${fork.id}`, err);
+  }
 
   return fork;
 }

@@ -12,7 +12,8 @@
 //   - Composition sources copy their `composition_steps` + composed IDs.
 //   - Human vs bot forks bump distinct counters on the source row.
 //   - Embed + scan enqueues are best-effort; failure is logged and
-//     swallowed so the fork itself always succeeds.
+//     swallowed so the fork itself always succeeds. `{ enqueueEmbed: false }`
+//     skips the embed for a caller that enqueues it after further writes.
 //
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -21,21 +22,28 @@ import type { ForkResult } from '../types.js';
 import { BASE_TRUST } from '../scoring/policy.js';
 import type { CompositionAdapters } from './adapters.js';
 import { NotFoundError } from './errors.js';
+import { isCompositeSkillType } from './skill-types.js';
 
-const COMPOSITION_TYPES = [
-  'auto-composite',
-  'human-composite',
-  'composition',
-  'pipeline',
-];
+/** Options for {@link forkSkill}. */
+export interface ForkOptions {
+  /**
+   * Enqueue the fork for embedding (default `true`). A caller that changes
+   * the fork's indexed content right after forking (`extendComposition`
+   * appends steps) passes `false` and enqueues the one embed itself once that
+   * content is in, so each fork is embedded once, from its final content.
+   */
+  enqueueEmbed?: boolean;
+}
 
 export async function forkSkill(
   sourceId: string,
   authorId: string,
   authorType: 'human' | 'bot',
   adapters: CompositionAdapters,
+  options: ForkOptions = {},
 ): Promise<ForkResult> {
   const { pool, embedQueue, scanQueue } = adapters;
+  const enqueueEmbed = options.enqueueEmbed ?? true;
 
   const source = await pool.query(
     `SELECT * FROM skills WHERE id = $1 AND status = 'published'`,
@@ -104,7 +112,7 @@ export async function forkSkill(
 
   // If source is a composition, copy its steps and composition_skill_ids
   const sourceType = (s['skill_type'] as string | null) ?? 'atomic';
-  if (COMPOSITION_TYPES.includes(sourceType)) {
+  if (isCompositeSkillType(sourceType)) {
     await pool.query(
       `INSERT INTO composition_steps (composition_id, step_order, skill_id, step_name, input_mapping, condition, on_error)
        SELECT $1, step_order, skill_id, step_name, input_mapping, condition, on_error
@@ -132,9 +140,10 @@ export async function forkSkill(
     );
   }
 
-  // Enqueue for embedding and security scanning (best-effort)
+  // Enqueue for embedding (unless the caller embeds it itself) and security
+  // scanning (best-effort)
   try {
-    await embedQueue.send({ skillId: forkRow.id, action: 'embed' });
+    if (enqueueEmbed) await embedQueue.send({ skillId: forkRow.id, action: 'embed' });
     await scanQueue.send({
       skillId: forkRow.id,
       priority: 'normal',

@@ -17,13 +17,7 @@ import { nanoid } from 'nanoid';
 import type { ForkResult } from '../types.js';
 import type { CompositionAdapters } from './adapters.js';
 import { NotFoundError } from './errors.js';
-
-const COMPOSITION_TYPES = [
-  'auto-composite',
-  'human-composite',
-  'composition',
-  'pipeline',
-];
+import { isCompositeSkillType } from './skill-types.js';
 
 export async function copySkill(
   sourceId: string,
@@ -87,7 +81,7 @@ export async function copySkill(
 
   // Copy composition steps if source is a composition
   const sourceType = (s['skill_type'] as string | null) ?? 'atomic';
-  if (COMPOSITION_TYPES.includes(sourceType)) {
+  if (isCompositeSkillType(sourceType)) {
     await pool.query(
       `INSERT INTO composition_steps (composition_id, step_order, skill_id, step_name, input_mapping, condition, on_error)
        SELECT $1, step_order, skill_id, step_name, input_mapping, condition, on_error

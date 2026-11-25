@@ -714,6 +714,49 @@ describe('SkillsClient.reindexMissingEmbeddings (#159)', () => {
     expect(ix.index).toHaveBeenCalledTimes(1);
   });
 
+  it('indexes a composite under the domain composite text, never naming a private step skill (#48)', async () => {
+    const composite = mkRow({
+      id: '33333333-3333-3333-3333-333333333333',
+      name: 'Triage',
+      slug: 'wf-triage',
+      skill_type: 'human-composite',
+      execution_layer: 'composite',
+      agent_summary: 'stale summary naming acme/secret-scan',
+      tenant_id: 'default',
+    });
+    const { pool, calls } = makePool([
+      { rowCount: 1, rows: [composite] },
+      // loadCompositionIndexText: the composite row, then its steps
+      {
+        rowCount: 1,
+        rows: [{ name: 'Triage', slug: 'wf-triage', description: 'Triage a repository', capabilities_required: [], workflow_definition: null, visibility: 'public', tenant_id: 'default' }],
+      },
+      {
+        rowCount: 2,
+        rows: [
+          { step_name: 'clone', slug: '@cognium/git', visibility: 'public', tenant_id: 'default' },
+          { step_name: null, slug: 'acme/secret-scan', visibility: 'tenant_private', tenant_id: 'acme' },
+        ],
+      },
+    ]);
+    const ix = makeIndexer();
+    const client = new SkillsClient({
+      upstream: makeUpstream(),
+      pool,
+      logger: SILENT_LOGGER,
+      searchIndex: { embedder: ix.embedder, provider: ix.provider },
+    });
+    const result = await client.reindexMissingEmbeddings();
+    expect(result).toEqual({ examined: 1, indexed: 1, failed: 0, errors: [] });
+    const text =
+      'Triage — wf-triage. Triage a repository. Use this workflow to run a multi-step composition of skills.' +
+      ' Runs 2 steps: clone, private step. Composed of skills: @cognium/git.';
+    expect(ix.embed).toHaveBeenCalledWith(text);
+    const indexed = (ix.index.mock.calls[0] as unknown as [unknown, { agentSummary: { text: string } }])[1];
+    expect(indexed.agentSummary.text).toBe(text);
+    expect(calls[2]?.sql).toContain('composition_steps');
+  });
+
   it('returns zeros when search indexing is not configured', async () => {
     const { pool } = makePool([]);
     const client = new SkillsClient({
