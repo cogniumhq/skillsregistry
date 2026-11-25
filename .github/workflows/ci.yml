@@ -79,6 +79,9 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Reviewer workflow guards
+        run: node --test scripts/reviewer-workflow.test.mjs
+
   changeset-check:
     name: changeset required on packages/* PRs
     runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || fromJSON('["self-hosted", "grace"]') }}
