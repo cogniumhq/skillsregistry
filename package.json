@@ -28,6 +28,7 @@
     "pack:dry-run": "node scripts/sdk-pack-dry-run.mjs",
     "typecheck": "pnpm -r typecheck",
     "validate:listings": "node scripts/validate-listings.mjs",
+    "listings:bump": "node scripts/bump-listing-version.mts",
     "changeset": "changeset",
     "version": "changeset version",
     "release": "changeset publish",
