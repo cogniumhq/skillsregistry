@@ -56,6 +56,7 @@ function makeAdapters(pool: SqlPool) {
   const scan = stubQueue<CogniumScanQueueMessage>();
   return {
     adapters: { pool, embedQueue: embed.q, scanQueue: scan.q } as CompositionAdapters,
+    embedSends: embed.sends,
   };
 }
 
@@ -311,3 +312,41 @@ describe('extendComposition — SQL guards', () => {
     expect(calls[1]!.sql).toContain("status = 'published'");
   });
 });
+
+describe('extendComposition — embed after the new steps', () => {
+  it('enqueues the fork for embedding again once the new steps are in, so search indexes the extended list', async () => {
+    const order: string[] = [];
+    const { pool } = scriptedPool([
+      { rows: [{ skill_type: 'auto-composite' }] },
+      { rows: publishedNewSteps },
+      { rows: [COMPOSITION_SOURCE] },
+      { rows: [FORK_ROW] },
+      { rows: [] },
+      { rows: [] },
+      { rows: [] },
+      { rows: [{ max_order: 2 }] },
+      { rows: [] },
+      { rows: [] },
+      { rows: [{ trust_score: '0.5', capabilities_required: null }] },
+      { rows: [] },
+    ]);
+    const realQuery = pool.query;
+    (pool as unknown as { query: typeof realQuery }).query = (async (sql: string, params?: unknown[]) => {
+      if (sql.includes('INSERT INTO composition_steps (') && sql.includes('VALUES ($1, $2, $3, $4, $5, $6)')) order.push('step');
+      return realQuery(sql, params as never);
+    }) as typeof realQuery;
+    const { adapters, embedSends } = makeAdapters(pool);
+    (adapters.embedQueue.send as ReturnType<typeof vi.fn>).mockImplementation(async (m: EmbedQueueMessage) => {
+      embedSends.push(m);
+      order.push('embed');
+    });
+    await extendComposition('src_id', baseInput(), 'a', 'human', adapters);
+    // forkSkill's embed (before the steps) and extend's own (after them).
+    expect(embedSends).toEqual([
+      { skillId: 'fork_id', action: 'embed' },
+      { skillId: 'fork_id', action: 'embed' },
+    ]);
+    expect(order).toEqual(['embed', 'step', 'step', 'embed']);
+  });
+});
+

@@ -10,6 +10,8 @@
 //   3. Fork the source (delegates to `forkSkill` — inherits trust reset).
 //   4. Append new steps at the end (preserving existing step order).
 //   5. Recompute trust_score = min(all step trusts) + union capabilities.
+//   6. Enqueue the fork for embedding again: `forkSkill` enqueued it before
+//      the new steps existed, so that embed indexed the shorter step list.
 //
 // The trust recompute here does NOT apply the 0.9 composition penalty —
 // mothership behavior preserved (extend keeps the fork's initial trust
@@ -124,6 +126,14 @@ export async function extendComposition(
     `UPDATE skills SET trust_score = $1, capabilities_required = $2 WHERE id = $3`,
     [trustScore, Array.from(capabilitiesSet), fork.id],
   );
+
+  // The fork's first embed (enqueued by forkSkill) predates the new steps;
+  // index it again so search sees the extended step list (best-effort).
+  try {
+    await adapters.embedQueue.send({ skillId: fork.id, action: 'embed' });
+  } catch (err) {
+    console.error(`extendComposition: embed enqueue failed for ${fork.id}`, err);
+  }
 
   return fork;
 }
