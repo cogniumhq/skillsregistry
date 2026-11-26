@@ -18,3 +18,9 @@ export {
   buildRemediationMessage,
   type SignatureGateInput,
 } from './policy.js';
+
+export {
+  ORACLE_TYPE_RENAMES,
+  oracleTypeFor,
+  oracleTypesFor,
+} from './oracle-taxonomy.js';
