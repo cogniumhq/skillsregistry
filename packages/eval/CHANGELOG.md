@@ -1,5 +1,14 @@
 # @skillsregistry/eval
 
+## 1.0.7
+
+### Patch Changes
+
+- Updated dependencies [b55b68b]
+- Updated dependencies [9c2e325]
+- Updated dependencies [d210b4f]
+  - @skillsregistry/domain@2.1.0
+
 ## 1.0.6
 
 ### Patch Changes

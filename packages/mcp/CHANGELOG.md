@@ -1,5 +1,15 @@
 # @skillsregistry/mcp
 
+## 1.2.5
+
+### Patch Changes
+
+- d210b4f: Test-only coverage for MCP dispatch and LLM proxy tenant resilience helpers. No runtime or public API change.
+- Updated dependencies [b55b68b]
+- Updated dependencies [9c2e325]
+- Updated dependencies [d210b4f]
+  - @skillsregistry/domain@2.1.0
+
 ## 1.2.4
 
 ### Patch Changes
