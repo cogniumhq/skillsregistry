@@ -18,3 +18,10 @@ export {
   buildRemediationMessage,
   type SignatureGateInput,
 } from './policy.js';
+
+export {
+  POLICY_BUCKETS,
+  DUAL_USE_SLUGS,
+  policyBucketFor,
+  type PolicyBucket,
+} from './policy-bucket.js';
