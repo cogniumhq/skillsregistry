@@ -2,30 +2,15 @@
 // Policy buckets — unit tests
 // ══════════════════════════════════════════════════════════════════════════════
 //
-// Covers the `dual-use` bucket (issue #105): the nine offensive-security
-// frameworks from the Milestone-1 TP cohort classify into it, ordinary skills
-// do not, and the lookup is exact (no prefix or case folding).
+// Covers the policy-bucket taxonomy (issue #105): the `dual-use` value exists,
+// `isPolicyBucket` accepts only declared values, and the published scoring
+// surface carries no per-skill assignments (those belong in registry data).
 //
 // ══════════════════════════════════════════════════════════════════════════════
 
 import { describe, it, expect } from 'vitest';
-import {
-  POLICY_BUCKETS,
-  DUAL_USE_SLUGS,
-  policyBucketFor,
-} from './policy-bucket.js';
-
-const ISSUE_105_SLUGS = [
-  'netcuter-hexstrike-ai',
-  'wangqiongpeng-pengstrike-mcp',
-  'cybermaster000-cyber-master-mcp',
-  'veteranchat-mcp-ngrok',
-  'dr-yato-pentest-mcp-server',
-  'omamishra8051-source-pentest-mcp',
-  'deloney-code-ai-powered-red-team-automation',
-  'deepakdubat-offensiveset',
-  'dandadadandan-mcp-osint',
-];
+import { POLICY_BUCKETS, isPolicyBucket } from './policy-bucket.js';
+import * as scoring from './index.js';
 
 describe('POLICY_BUCKETS', () => {
   it('declares the dual-use bucket', () => {
@@ -33,24 +18,25 @@ describe('POLICY_BUCKETS', () => {
   });
 });
 
-describe('DUAL_USE_SLUGS', () => {
-  it('holds exactly the nine frameworks named in issue #105', () => {
-    expect([...DUAL_USE_SLUGS].sort()).toEqual([...ISSUE_105_SLUGS].sort());
+describe('isPolicyBucket', () => {
+  it.each([...POLICY_BUCKETS])('accepts %s', (bucket) => {
+    expect(isPolicyBucket(bucket)).toBe(true);
+  });
+
+  it('rejects undeclared values', () => {
+    expect(isPolicyBucket('DUAL-USE')).toBe(false);
+    expect(isPolicyBucket('offensive-security')).toBe(false);
+    expect(isPolicyBucket('')).toBe(false);
+    expect(isPolicyBucket(null)).toBe(false);
+    expect(isPolicyBucket(1)).toBe(false);
   });
 });
 
-describe('policyBucketFor', () => {
-  it.each(ISSUE_105_SLUGS)('classifies %s as dual-use', (slug) => {
-    expect(policyBucketFor(slug)).toBe('dual-use');
-  });
-
-  it('returns null for an ordinary skill', () => {
-    expect(policyBucketFor('acme-changelog-writer')).toBeNull();
-  });
-
-  it('matches slugs exactly', () => {
-    expect(policyBucketFor('NETCUTER-HEXSTRIKE-AI')).toBeNull();
-    expect(policyBucketFor('netcuter-hexstrike-ai-fork')).toBeNull();
-    expect(policyBucketFor('')).toBeNull();
+describe('scoring exports', () => {
+  it('exports the taxonomy only, with no per-skill assignments', () => {
+    expect(scoring.POLICY_BUCKETS).toBe(POLICY_BUCKETS);
+    expect(scoring.isPolicyBucket).toBe(isPolicyBucket);
+    expect(scoring).not.toHaveProperty('DUAL_USE_SLUGS');
+    expect(scoring).not.toHaveProperty('policyBucketFor');
   });
 });

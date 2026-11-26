@@ -21,7 +21,6 @@ export {
 
 export {
   POLICY_BUCKETS,
-  DUAL_USE_SLUGS,
-  policyBucketFor,
+  isPolicyBucket,
   type PolicyBucket,
 } from './policy-bucket.js';
