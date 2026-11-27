@@ -23,6 +23,7 @@
 
 import type { PublishRequest } from '@skillsregistry/contracts';
 import type { EmbedderAdapter } from '@skillsregistry/domain/adapters';
+import { isCompositeSkillType, loadCompositionIndexText } from '@skillsregistry/domain/composition';
 import type { SearchProvider } from '@skillsregistry/domain/providers';
 import type { Pool } from 'pg';
 import { STORED_EMBEDDING_DIMS, truncateEmbedding } from '../embedding/truncate.js';
@@ -358,7 +359,9 @@ export class SkillsClient {
   /**
    * Embed published skills that have no `skill_embeddings` row yet. Idempotent
    * and batched — operators run this after upgrading past #86 or recovering
-   * from embedder outages.
+   * from embedder outages. Composites are embedded under the domain's
+   * composite search text (`loadCompositionIndexText`), so this is also the
+   * node's backfill for composites that were never embedded (#48).
    */
   async reindexMissingEmbeddings(options?: {
     limit?: number;
@@ -442,7 +445,7 @@ export class SkillsClient {
     failureLogMessage = 'local skill NOT indexed for search',
   ): Promise<Pick<LocalPublishResult, 'searchIndexed' | 'searchIndexError'>> {
     if (!this.searchIndex) return { searchIndexed: false };
-    const summaryText =
+    let summaryText =
       summaryTextOverride?.trim() ||
       row.agent_summary?.trim() ||
       row.description?.trim() ||
@@ -452,6 +455,12 @@ export class SkillsClient {
       row.trust_score != null ? Number.parseFloat(row.trust_score) : Number.NaN;
     const trustScore = Number.isFinite(trustParsed) ? trustParsed : 0.5;
     try {
+      // #48: a composite is indexed under the domain's composite search text
+      // (its steps, with step skills its audience cannot see left unnamed),
+      // never under a stored summary, which could predate that rule.
+      if (isCompositeSkillType(row.skill_type)) {
+        summaryText = await loadCompositionIndexText(this.pool, row.id);
+      }
       const raw = await this.searchIndex.embedder.embed(summaryText);
       const embedding = truncateEmbedding(Array.from(raw));
       await this.searchIndex.provider.index(

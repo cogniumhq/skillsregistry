@@ -136,12 +136,28 @@ the next one.
 
 ## Submission checklist
 
+- [ ] `server.json` `version` matches the live server (see [Version bump and republish](#version-bump-and-republish)).
 - [ ] `pnpm validate:listings` passes against production.
 - [ ] The endpoint initializes without authentication and returns seven tools.
 - [ ] The repository default branch contains `.cursor-plugin/plugin.json`, `.claude-plugin/plugin.json`, `mcp.json`, `.mcp.json`, `server.json`, and `assets/logo.svg`.
 - [ ] The destination's current terms and review requirements have been read.
 - [ ] The submitted description contains no freshness or universal-scan claim.
 - [ ] The submission date, destination, and review URL/status are recorded here.
+
+## Version bump and republish
+
+Owner: the skillsregistry maintainers (`@cogniumhq/coreteam`, the
+`server.json` code owners). The hosted server ships separately, so its
+version changes without a change here. When the nightly
+`production listings` run fails on `Registry version`:
+
+1. Run `pnpm listings:bump <live version>`. It changes only the top-level
+   `version` in `server.json` and does not publish.
+2. Run `pnpm validate:listings`. It must pass with the exact version match;
+   do not loosen that check.
+3. Merge the bump.
+4. The owner runs `mcp-publisher publish` from the default branch and records
+   the date and result in the submission log below.
 
 ## Submission log
 

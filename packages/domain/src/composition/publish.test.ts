@@ -178,3 +178,33 @@ describe('publishComposition — SQL shape', () => {
     expect(calls[1]!.params).toEqual(['comp_id']);
   });
 });
+
+describe('publishComposition — embed on publish (search reads embeddings only)', () => {
+  const script = () => [{ rows: [DRAFT_COMPOSITION] }, { rows: PUBLISHED_STEP_ROWS }, { rows: [PUBLISHED_RETURN] }];
+
+  it('enqueues the published composition for embedding when given the queue', async () => {
+    const { pool } = scriptedPool(script());
+    const send = vi.fn(async () => {});
+    await publishComposition('comp_id', pool, { embedQueue: { send, sendBatch: vi.fn() } });
+    expect(send).toHaveBeenCalledWith({ skillId: 'comp_id', action: 'embed' });
+  });
+
+  it('still publishes when the enqueue fails (best-effort; the backfill finds it)', async () => {
+    const { pool } = scriptedPool(script());
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const out = await publishComposition('comp_id', pool, {
+      embedQueue: { send: vi.fn(async () => { throw new Error('queue down'); }), sendBatch: vi.fn() },
+    });
+    expect(out).toEqual(PUBLISHED_RETURN);
+    expect(error).toHaveBeenCalled();
+    error.mockRestore();
+  });
+
+  it('enqueues nothing when a guard refuses the publish', async () => {
+    const { pool } = scriptedPool([{ rows: [{ ...DRAFT_COMPOSITION, status: 'published' }] }]);
+    const send = vi.fn(async () => {});
+    await expect(publishComposition('comp_id', pool, { embedQueue: { send, sendBatch: vi.fn() } })).rejects.toThrow(ValidationError);
+    expect(send).not.toHaveBeenCalled();
+  });
+});
+
